@@ -2,7 +2,7 @@
  * /map            → sessions + work maps
  * /map/:sessionId → live session timeline + its Work Map (clickable steps with evidence)
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import type { Event, Session, WorkMap } from "@shared/schema";
@@ -101,6 +101,9 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   const [wm, setWm] = useState<WorkMap | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
+  const [autoDraft, setAutoDraft] = useState(true);
+  const busyRef = useRef(false);
+  const builtFor = useRef(0);
 
   // live: events + whichever Work Map version is latest (the map grows while the expert works / debriefs)
   useEffect(() => {
@@ -127,14 +130,27 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   const draft = useMemo(() => (session ? buildDraft(session, events, wm?.id) : null), [session, events, wm?.id]);
   const shown = wm ?? draft;
 
-  async function rebuild() {
-    if (!session) return;
-    setBusy("Extracting with the LLM…");
+  /**
+   * Build a new version from the log. `auto` = live draft during capture: only saves if nobody else wrote a
+   * version meanwhile and the session is still in capture (the debrief owns the map after that).
+   */
+  async function rebuild(auto = false) {
+    if (!session || busyRef.current) return;
+    busyRef.current = true;
+    setBusy(auto ? "Updating the live draft…" : "Extracting with the LLM…");
+    const prev = wm;
     try {
-      const proposal = await llm("extract_workmap", { log: condenseLog(ix), factPaths: [...FACT_PATHS], existingIds: existingIds(wm) });
-      const { workmap, problems } = buildWorkMap(session, events, proposal, wm, "Re-extracted from session log");
-      if (!workmap.steps.length) throw new Error("The LLM returned no steps (mock mode without ANTHROPIC_API_KEY?). Nothing saved.");
-      const next = { ...workmap, status: wm?.status === "confirmed" ? ("teachback_pending" as const) : workmap.status };
+      const proposal = await llm("extract_workmap", { log: condenseLog(ix), factPaths: [...FACT_PATHS], existingIds: existingIds(prev) });
+      const fresh = await getSession(session.id);
+      if (auto && fresh?.status !== "live") return; // debrief started meanwhile: it takes over
+      const head = fresh?.workMapId ? await loadWorkMap(fresh.workMapId) : null;
+      if ((head?.version ?? 0) !== (prev?.version ?? 0)) {
+        if (!auto) setProblems(["Someone saved a newer version meanwhile; reload and try again."]);
+        return;
+      }
+      const { workmap, problems } = buildWorkMap(session, events, proposal, prev, auto ? "Live draft during capture" : "Re-extracted from session log");
+      if (!workmap.steps.length) throw new Error("The LLM returned no steps (mock mode without GEMINI_API_KEY?). Nothing saved.");
+      const next = { ...workmap, status: auto ? ("draft" as const) : prev?.status === "confirmed" ? ("teachback_pending" as const) : workmap.status };
       await saveWorkMapVersion(next);
       if (!session.workMapId) await updateSession(session.id, { workMapId: next.id });
       setWm(next);
@@ -142,9 +158,18 @@ function SessionMap({ sessionId }: { sessionId: string }) {
     } catch (e) {
       setProblems([(e as Error).message]);
     } finally {
+      busyRef.current = false;
       setBusy(null);
     }
   }
+
+  // live draft: rebuild after every finished case while the expert is still working
+  const casesDone = ix.ofType("marker.case_boundary").filter((e) => e.payload.state === "end").length;
+  useEffect(() => {
+    if (!autoDraft || !session || session.status !== "live" || casesDone === 0 || casesDone <= builtFor.current) return;
+    builtFor.current = casesDone;
+    void rebuild(true);
+  }, [casesDone, session?.status, autoDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!session) return <div className="page">Loading session…</div>;
   return (
@@ -152,7 +177,8 @@ function SessionMap({ sessionId }: { sessionId: string }) {
       {shown && <WorkMapView wm={shown} events={events} frameSource={storageFrame} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} />}
       <div className="page">
         <div className="btns">
-          <button onClick={rebuild} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
+          <button onClick={() => void rebuild(false)} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
+          {session.status === "live" && <label className="small"><input type="checkbox" checked={autoDraft} onChange={(e) => setAutoDraft(e.target.checked)} /> live draft after each case</label>}
           <span className="muted small">{session.participant.displayName} · {session.kind} · {session.status} · {events.length} events · {ix.frames.length} frames · {wm ? `v${wm.version} ${wm.status}` : "draft (not saved)"}</span>
           <Link to="/map">← all sessions</Link>
         </div>
