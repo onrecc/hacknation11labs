@@ -1,0 +1,140 @@
+{
+  "id": "ses_demo_sabine_01",
+  "kind": "capture",
+  "status": "ended",
+  "createdAt": "2026-12-03T15:10:00Z",
+  "endedAt": "2026-12-03T15:17:01.019538Z",
+  "clock": {
+    "wallAtT0": "2026-12-03T15:10:00Z",
+    "perfAtT0": 18342.6
+  },
+  "participant": {
+    "id": "per_sabine",
+    "displayName": "Sabine K.",
+    "role": "Accounts payable clerk",
+    "language": "en-US",
+    "yearsInRole": 24
+  },
+  "task": {
+    "title": "Process open supplier invoices before month-end close",
+    "domain": "accounts_payable",
+    "description": "Three invoices in the MiniERP sandbox: capex threshold, December double-biller, intercompany second approval.",
+    "onetTaskId": "43-3031.00"
+  },
+  "workMapId": "wm_ap_invoices_01",
+  "consent": {
+    "recordingAccepted": true,
+    "acceptedAt": "2026-12-03T15:09:30Z",
+    "retention": "hackathon demo, delete after 2026-12-31"
+  },
+  "config": {
+    "frameIntervalMs": 1000,
+    "visionModel": "claude-sonnet-5-5",
+    "agentId": "agent_apprentice_interviewer",
+    "agentLlm": "claude-sonnet-5-5",
+    "sttModel": "scribe_v2_realtime",
+    "promptVersions": {
+      "vision": "vision-v3",
+      "questionPicker": "v1",
+      "answerLink": "v1",
+      "correctionDetect": "v1"
+    },
+    "redaction": {
+      "enabled": true,
+      "engine": "presidio",
+      "entityTypes": [
+        "PERSON",
+        "PHONE_NUMBER",
+        "IBAN",
+        "EMAIL_ADDRESS"
+      ]
+    },
+    "questionBudgetPer10Min": 4
+  },
+  "media": {
+    "screenVideo": [
+      "media/screen-000.webm",
+      "media/screen-001.webm",
+      "media/screen-002.webm",
+      "media/screen-003.webm",
+      "media/screen-004.webm",
+      "media/screen-005.webm",
+      "media/screen-006.webm",
+      "media/screen-007.webm",
+      "media/screen-008.webm",
+      "media/screen-009.webm",
+      "media/screen-010.webm",
+      "media/screen-011.webm",
+      "media/screen-012.webm",
+      "media/screen-013.webm",
+      "media/screen-014.webm",
+      "media/screen-015.webm",
+      "media/screen-016.webm",
+      "media/screen-017.webm",
+      "media/screen-018.webm",
+      "media/screen-019.webm",
+      "media/screen-020.webm"
+    ],
+    "micAudio": [
+      "media/mic-000.webm",
+      "media/mic-001.webm",
+      "media/mic-002.webm",
+      "media/mic-003.webm",
+      "media/mic-004.webm",
+      "media/mic-005.webm",
+      "media/mic-006.webm",
+      "media/mic-007.webm",
+      "media/mic-008.webm",
+      "media/mic-009.webm",
+      "media/mic-010.webm",
+      "media/mic-011.webm",
+      "media/mic-012.webm",
+      "media/mic-013.webm",
+      "media/mic-014.webm",
+      "media/mic-015.webm",
+      "media/mic-016.webm",
+      "media/mic-017.webm",
+      "media/mic-018.webm",
+      "media/mic-019.webm",
+      "media/mic-020.webm",
+      "media/mic-021.webm",
+      "media/mic-022.webm",
+      "media/mic-023.webm",
+      "media/mic-024.webm",
+      "media/mic-025.webm",
+      "media/mic-026.webm",
+      "media/mic-027.webm",
+      "media/mic-028.webm",
+      "media/mic-029.webm",
+      "media/mic-030.webm",
+      "media/mic-031.webm",
+      "media/mic-032.webm",
+      "media/mic-033.webm",
+      "media/mic-034.webm",
+      "media/mic-035.webm",
+      "media/mic-036.webm",
+      "media/mic-037.webm",
+      "media/mic-038.webm",
+      "media/mic-039.webm"
+    ],
+    "agentAudio": [
+      "media/agent-turn-01.mp3",
+      "media/agent-turn-02.mp3",
+      "media/agent-turn-03.mp3",
+      "media/agent-turn-04.mp3",
+      "media/agent-turn-05.mp3",
+      "media/agent-turn-06.mp3",
+      "media/agent-turn-07.mp3",
+      "media/agent-turn-08.mp3",
+      "media/agent-turn-09.mp3",
+      "media/agent-turn-10.mp3",
+      "media/agent-turn-11.mp3",
+      "media/agent-turn-12.mp3",
+      "media/agent-turn-13.mp3",
+      "media/agent-turn-14.mp3",
+      "media/agent-turn-15.mp3",
+      "media/agent-turn-16.mp3",
+      "media/agent-turn-17.mp3"
+    ]
+  }
+}

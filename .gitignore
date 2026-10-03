@@ -1,0 +1,13 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+*.local
+service-account*.json
+.firebase/
+firebase-debug.log*
+.DS_Store
+__pycache__/
+fixtures/demo-session/.typecheck.ts
+data/

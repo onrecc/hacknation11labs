@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Helvetica,Arial,sans-serif">
+<rect width="1280" height="720" fill="#f4f5f7"/>
+<rect width="1280" height="56" fill="#1f3a5f"/>
+<text x="24" y="36" fill="#fff" font-size="20" font-weight="bold">MiniERP · Accounts Payable</text>
+<text x="1256" y="36" fill="#cfd8e3" font-size="15" text-anchor="end">Thu 03.12.2026 · 16:11 · S. Keller</text>
+<text x="40" y="110" font-size="24" font-weight="bold">Invoice INV-4472</text>
+<text x="64.0" y="152.4" font-size="12" fill="#666">Supplier</text>
+<rect x="64.0" y="158.4" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="184.4" font-size="16">Hofmann Industriebedarf</text>
+<text x="64.0" y="202.79999999999998" font-size="12" fill="#666">Supplier group</text>
+<rect x="64.0" y="208.79999999999998" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="234.79999999999998" font-size="16">External</text>
+<text x="64.0" y="253.2" font-size="12" fill="#666">Invoice date</text>
+<rect x="64.0" y="259.2" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="285.2" font-size="16">2026-12-01</text>
+<text x="64.0" y="303.6" font-size="12" fill="#666">Amount (EUR)</text>
+<rect x="64.0" y="309.6" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="335.6" font-size="16">1,240.00</text>
+<text x="64.0" y="354.0" font-size="12" fill="#666">Description</text>
+<rect x="64.0" y="360.0" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="386.0" font-size="16">Lubricants &amp; filters, monthly delivery</text>
+<text x="64.0" y="404.4" font-size="12" fill="#666">Delivery note</text>
+<rect x="64.0" y="410.4" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="436.4" font-size="16">DN-88213</text>
+<text x="64.0" y="454.8" font-size="12" fill="#666">IBAN</text>
+<rect x="64.0" y="460.8" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="76.0" y="486.8" font-size="16">████████████████</text>
+<text x="665.6" y="152.4" font-size="12" fill="#666">Cost center</text>
+<rect x="665.6" y="158.4" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="677.6" y="184.4" font-size="16">4711</text>
+<text x="665.6" y="202.79999999999998" font-size="12" fill="#666">Asset no.</text>
+<rect x="665.6" y="208.79999999999998" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="677.6" y="234.79999999999998" font-size="16"></text>
+<text x="665.6" y="253.2" font-size="12" fill="#666">Status</text>
+<rect x="665.6" y="259.2" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="677.6" y="285.2" font-size="16">on_hold</text>
+<text x="665.6" y="303.6" font-size="12" fill="#666">2nd approver</text>
+<rect x="665.6" y="309.6" width="537.6" height="39.6" fill="#fff" stroke="#ccd" stroke-width="1"/>
+<text x="677.6" y="335.6" font-size="16"></text>
+<text x="665.6" y="354.0" font-size="12" fill="#666">Comment</text>
+<rect x="665.6" y="360.0" width="537.6" height="39.6" fill="#fff" stroke="#4a7bd0" stroke-width="2"/>
+<text x="677.6" y="386.0" font-size="16">Possible duplicate of INV-4431 (DN-88213). Waiting for credit note.</text>
+<rect x="660" y="600" width="120" height="44" rx="6" fill="#1f3a5f"/><text x="720" y="628" fill="#fff" font-size="16" text-anchor="middle">Save</text>
+<rect x="800" y="600" width="140" height="44" rx="6" fill="#2e7d32"/><text x="870" y="628" fill="#fff" font-size="16" text-anchor="middle">Approve</text>
+</svg>

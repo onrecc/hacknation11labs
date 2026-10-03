@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Helvetica,Arial,sans-serif">
+<rect width="1280" height="720" fill="#f4f5f7"/>
+<rect width="1280" height="56" fill="#1f3a5f"/>
+<text x="24" y="36" fill="#fff" font-size="20" font-weight="bold">MiniERP · Accounts Payable</text>
+<text x="1256" y="36" fill="#cfd8e3" font-size="15" text-anchor="end">Thu 03.12.2026 · 16:11 · S. Keller</text>
+<text x="40" y="100" font-size="22" font-weight="bold" fill="#222">Open items · month-end close</text>
+<text x="40" y="126" font-size="14" fill="#666">60 open · showing 6</text>
+<rect x="40" y="160" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="188" font-size="16">INV-4471</text><text x="220" y="188" font-size="16">Krauss Maschinenteile GmbH</text>
+<text x="760" y="188" font-size="16" text-anchor="end">7,850.00</text><text x="820" y="188" font-size="16" fill="#555">coded</text>
+<rect x="40" y="212" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="240" font-size="16">INV-4472</text><text x="220" y="240" font-size="16">Hofmann Industriebedarf</text>
+<text x="760" y="240" font-size="16" text-anchor="end">1,240.00</text><text x="820" y="240" font-size="16" fill="#555">open</text>
+<rect x="40" y="264" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="292" font-size="16">INV-4473</text><text x="220" y="292" font-size="16">Brno Precision s.r.o.</text>
+<text x="760" y="292" font-size="16" text-anchor="end">3,100.00</text><text x="820" y="292" font-size="16" fill="#555">open</text>
+<rect x="40" y="316" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="344" font-size="16">INV-4474</text><text x="220" y="344" font-size="16">Schreiber Logistik</text>
+<text x="760" y="344" font-size="16" text-anchor="end">860.00</text><text x="820" y="344" font-size="16" fill="#555">open</text>
+<rect x="40" y="368" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="396" font-size="16">INV-4475</text><text x="220" y="396" font-size="16">Würth</text>
+<text x="760" y="396" font-size="16" text-anchor="end">312.40</text><text x="820" y="396" font-size="16" fill="#555">open</text>
+<rect x="40" y="420" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="448" font-size="16">INV-4476</text><text x="220" y="448" font-size="16">Festo AG</text>
+<text x="760" y="448" font-size="16" text-anchor="end">2,290.00</text><text x="820" y="448" font-size="16" fill="#555">open</text>
+</svg>

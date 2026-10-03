@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Helvetica,Arial,sans-serif">
+<rect width="1280" height="720" fill="#f4f5f7"/>
+<rect width="1280" height="56" fill="#1f3a5f"/>
+<text x="24" y="36" fill="#fff" font-size="20" font-weight="bold">MiniERP · Accounts Payable</text>
+<text x="1256" y="36" fill="#cfd8e3" font-size="15" text-anchor="end">Thu 03.12.2026 · 16:11 · S. Keller</text>
+<text x="40" y="100" font-size="22" font-weight="bold">Supplier history</text>
+<rect x="40" y="120" width="600" height="40" fill="#fff" stroke="#4a7bd0" stroke-width="2"/><text x="56" y="146" font-size="16">H</text>
+</svg>

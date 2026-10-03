@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720" width="1280" height="720" font-family="Helvetica,Arial,sans-serif">
+<rect width="1280" height="720" fill="#f4f5f7"/>
+<rect width="1280" height="56" fill="#1f3a5f"/>
+<text x="24" y="36" fill="#fff" font-size="20" font-weight="bold">MiniERP · Accounts Payable</text>
+<text x="1256" y="36" fill="#cfd8e3" font-size="15" text-anchor="end">Thu 03.12.2026 · 16:11 · S. Keller</text>
+<text x="40" y="100" font-size="22" font-weight="bold">Supplier history</text>
+<rect x="40" y="120" width="600" height="40" fill="#fff" stroke="#4a7bd0" stroke-width="2"/><text x="56" y="146" font-size="16">Hofmann</text>
+<rect x="40" y="190" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="218" font-size="16">INV-4431   2026-11-28   1,240.00 EUR   DN-88213   paid</text>
+<rect x="40" y="242" width="1200" height="44" fill="#fff" stroke="#dde"/>
+<text x="60" y="270" font-size="16">INV-4310   2026-10-30   1,180.00 EUR   DN-87650   paid</text>
+</svg>

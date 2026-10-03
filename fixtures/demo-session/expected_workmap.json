@@ -1,0 +1,1572 @@
+{
+  "id": "wm_ap_invoices_01",
+  "version": 3,
+  "status": "confirmed",
+  "createdAt": "2026-12-03T15:13:47.137121Z",
+  "updatedAt": "2026-12-03T15:17:01.019538Z",
+  "sourceSessionIds": [
+    "ses_demo_sabine_01"
+  ],
+  "expert": {
+    "id": "per_sabine",
+    "displayName": "Sabine K.",
+    "role": "Accounts payable clerk",
+    "language": "en-US",
+    "yearsInRole": 24
+  },
+  "task": {
+    "title": "Process open supplier invoices before month-end close",
+    "domain": "accounts_payable",
+    "description": "Three invoices in the MiniERP sandbox: capex threshold, December double-biller, intercompany second approval.",
+    "onetTaskId": "43-3031.00"
+  },
+  "summary": "Month-end supplier invoice processing in MiniERP: 7 steps, 3 judgment calls/rules, 4 guardrails (capex threshold, asset number, December double-billers, intercompany second approval).",
+  "cases": [
+    {
+      "id": "case_4471",
+      "kind": "invoice",
+      "key": "4471",
+      "outcome": "booked",
+      "t": 7500,
+      "tEnd": 66271,
+      "sessionId": "ses_demo_sabine_01"
+    },
+    {
+      "id": "case_4472",
+      "kind": "invoice",
+      "key": "4472",
+      "outcome": "held",
+      "t": 67771,
+      "tEnd": 133815,
+      "sessionId": "ses_demo_sabine_01"
+    },
+    {
+      "id": "case_4473",
+      "kind": "invoice",
+      "key": "4473",
+      "outcome": "sent_for_approval",
+      "t": 165858,
+      "tEnd": 224309,
+      "sessionId": "ses_demo_sabine_01"
+    }
+  ],
+  "steps": [
+    {
+      "id": "st_open",
+      "order": 1,
+      "title": "Open the next invoice from the open-items list",
+      "goal": "Work the month-end queue one invoice at a time",
+      "instructions": "Open the next open invoice from the list.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 9050,
+        "frameId": "frm_0009",
+        "eventIds": [
+          "evt_0002"
+        ]
+      },
+      "actionIds": [
+        "evt_0002",
+        "evt_0045",
+        "evt_0096"
+      ],
+      "decisionIds": [],
+      "guardrailIds": [],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": false,
+      "observedInCases": [
+        "case_4471",
+        "case_4472",
+        "case_4473"
+      ],
+      "typicalDurationMs": 1500,
+      "confidence": 0.95,
+      "provenance": [
+        "observed"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 9050,
+            "frameId": "frm_0009",
+            "eventIds": [
+              "evt_0002"
+            ]
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 69321,
+            "frameId": "frm_0069",
+            "eventIds": [
+              "evt_0045"
+            ]
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 167408,
+            "frameId": "frm_0167",
+            "eventIds": [
+              "evt_0096"
+            ]
+          }
+        ],
+        "quotes": []
+      }
+    },
+    {
+      "id": "st_review",
+      "order": 2,
+      "title": "Check supplier, amount and what was bought",
+      "goal": "Spot capex, intercompany and known double-billers",
+      "instructions": "Read supplier, supplier group, amount and description before touching any field.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 19050,
+        "frameId": "frm_0019",
+        "eventIds": [],
+        "bbox": {
+          "x": 0.05,
+          "y": 0.43,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "actionIds": [],
+      "decisionIds": [],
+      "guardrailIds": [],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": false,
+      "observedInCases": [
+        "case_4471",
+        "case_4472",
+        "case_4473"
+      ],
+      "typicalDurationMs": 9000,
+      "confidence": 0.8,
+      "provenance": [
+        "observed",
+        "stated_live"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 19050,
+            "frameId": "frm_0019",
+            "eventIds": [],
+            "bbox": {
+              "x": 0.05,
+              "y": 0.43,
+              "w": 0.42,
+              "h": 0.055
+            }
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 175408,
+            "frameId": "frm_0175",
+            "eventIds": [],
+            "bbox": {
+              "x": 0.05,
+              "y": 0.29,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0014"
+            ],
+            "text": "Brno is our Czech subsidiary.",
+            "t": 211994,
+            "tEnd": 213656,
+            "phase": "capture",
+            "questionId": "q_0003"
+          }
+        ]
+      }
+    },
+    {
+      "id": "st_history",
+      "order": 3,
+      "title": "Check supplier history for duplicates (December double-billers, new suppliers)",
+      "goal": "Catch double billing before payment",
+      "instructions": "For Hofmann or Schreiber Logistik in December, or any new supplier, search the supplier history and compare delivery notes.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 81321,
+        "frameId": "frm_0081",
+        "eventIds": [
+          "evt_0052"
+        ]
+      },
+      "actionIds": [
+        "evt_0052"
+      ],
+      "decisionIds": [
+        "dec_december_hold"
+      ],
+      "guardrailIds": [
+        "gr_december_hold"
+      ],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": true,
+      "observedInCases": [
+        "case_4472"
+      ],
+      "typicalDurationMs": 14000,
+      "confidence": 0.9,
+      "provenance": [
+        "observed",
+        "stated_debrief"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Search supplier history on every invoice",
+          "after": "Search history only for Hofmann/Schreiber in December and new suppliers",
+          "correctionEventId": "evt_0215",
+          "at": 318599,
+          "phase": "debrief"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 81321,
+            "frameId": "frm_0081",
+            "eventIds": [
+              "evt_0052"
+            ]
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0026"
+            ],
+            "text": "Only for the December ones from those two, and for new suppliers.",
+            "t": 311056,
+            "tEnd": 315162,
+            "phase": "debrief",
+            "questionId": "q_0008"
+          }
+        ]
+      }
+    },
+    {
+      "id": "st_code",
+      "order": 4,
+      "title": "Code the invoice to a cost center",
+      "goal": "Opex vs capex",
+      "instructions": "Equipment over 5,000 EUR: cost center 0400 (capex). Otherwise keep the opex cost center.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 28050,
+        "frameId": "frm_0028",
+        "eventIds": [
+          "evt_0010"
+        ],
+        "bbox": {
+          "x": 0.52,
+          "y": 0.22,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "actionIds": [
+        "evt_0010"
+      ],
+      "decisionIds": [
+        "dec_capex"
+      ],
+      "guardrailIds": [
+        "gr_capex_threshold"
+      ],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": false,
+      "observedInCases": [
+        "case_4471"
+      ],
+      "typicalDurationMs": 2000,
+      "confidence": 0.95,
+      "provenance": [
+        "observed",
+        "stated_live"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Capex threshold for equipment: 3,000 EUR",
+          "after": "Capex threshold for equipment: 5,000 EUR (3,000 was the pre-2021 limit)",
+          "correctionEventId": "evt_0031",
+          "at": 57553,
+          "phase": "capture"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 28050,
+            "frameId": "frm_0028",
+            "eventIds": [
+              "evt_0010"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.22,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0003"
+            ],
+            "text": "No, wait, sorry, five thousand.",
+            "t": 51994,
+            "tEnd": 53803,
+            "phase": "capture",
+            "questionId": "q_0001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "st_asset",
+      "order": 5,
+      "title": "Enter the asset number for capex invoices",
+      "goal": "Capex must be linked to an asset",
+      "instructions": "Enter the asset number. If there is none, stop and ask the controller to create the asset.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 36050,
+        "frameId": "frm_0036",
+        "eventIds": [
+          "evt_0014"
+        ],
+        "bbox": {
+          "x": 0.52,
+          "y": 0.29,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "actionIds": [
+        "evt_0014"
+      ],
+      "decisionIds": [],
+      "guardrailIds": [
+        "gr_asset_number"
+      ],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": true,
+      "observedInCases": [
+        "case_4471"
+      ],
+      "typicalDurationMs": 5500,
+      "confidence": 0.95,
+      "provenance": [
+        "observed",
+        "stated_live",
+        "stated_debrief"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 36050,
+            "frameId": "frm_0036",
+            "eventIds": [
+              "evt_0014"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.29,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0004"
+            ],
+            "text": "And no asset number, no capex booking. Ever.",
+            "t": 57953,
+            "tEnd": 60780,
+            "phase": "capture",
+            "questionId": "q_0001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "st_decide",
+      "order": 6,
+      "title": "Book, hold, or route for second approval",
+      "goal": "Apply the stop rules before anything is approved",
+      "instructions": "Duplicates: hold. Intercompany (Brno): route to the controller. Otherwise book.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 190837,
+        "frameId": "frm_0190",
+        "eventIds": [
+          "evt_0114"
+        ],
+        "bbox": {
+          "x": 0.52,
+          "y": 0.43,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "actionIds": [
+        "evt_0063",
+        "evt_0109",
+        "evt_0114",
+        "evt_0120"
+      ],
+      "decisionIds": [
+        "dec_december_hold",
+        "dec_intercompany"
+      ],
+      "guardrailIds": [
+        "gr_december_hold",
+        "gr_intercompany_approval"
+      ],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": false,
+      "observedInCases": [
+        "case_4472",
+        "case_4473"
+      ],
+      "typicalDurationMs": 6000,
+      "confidence": 0.92,
+      "provenance": [
+        "observed",
+        "stated_live",
+        "teachback_correction"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Second approver for Brno: AP lead",
+          "after": "Second approver for Brno: controller (M. Weber)",
+          "correctionEventId": "evt_0260",
+          "at": 406788,
+          "phase": "teachback"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 92821,
+            "frameId": "frm_0092",
+            "eventIds": [
+              "evt_0063"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.36,
+              "w": 0.42,
+              "h": 0.055
+            }
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 190837,
+            "frameId": "frm_0190",
+            "eventIds": [
+              "evt_0114"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.43,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0014"
+            ],
+            "text": "Anything intercompany goes to the controller for a second approval, because of transfer pricing.",
+            "t": 213707,
+            "tEnd": 219098,
+            "phase": "capture",
+            "questionId": "q_0003"
+          }
+        ]
+      }
+    },
+    {
+      "id": "st_comment_save",
+      "order": 7,
+      "title": "Comment the reason and save",
+      "goal": "Leave a trail the next person understands",
+      "instructions": "Write why it was held or routed (e.g. 'Possible duplicate of INV-4431'), then save.",
+      "screenMoment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 101321,
+        "frameId": "frm_0101",
+        "eventIds": [
+          "evt_0066"
+        ],
+        "bbox": {
+          "x": 0.52,
+          "y": 0.5,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "actionIds": [
+        "evt_0066",
+        "evt_0117",
+        "evt_0017",
+        "evt_0069",
+        "evt_0123"
+      ],
+      "decisionIds": [],
+      "guardrailIds": [],
+      "appliesToCaseKinds": [
+        "invoice"
+      ],
+      "optional": false,
+      "observedInCases": [
+        "case_4471",
+        "case_4472",
+        "case_4473"
+      ],
+      "typicalDurationMs": 8000,
+      "confidence": 0.85,
+      "provenance": [
+        "observed"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 101321,
+            "frameId": "frm_0101",
+            "eventIds": [
+              "evt_0066"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.5,
+              "w": 0.42,
+              "h": 0.055
+            }
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 199337,
+            "frameId": "frm_0199",
+            "eventIds": [
+              "evt_0117"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.5,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": []
+      }
+    }
+  ],
+  "decisions": [
+    {
+      "id": "dec_capex",
+      "stepId": "st_code",
+      "kind": "rule",
+      "question": "Opex or capex?",
+      "observedChoice": "Re-coded 4711 (Opex) -> 0400 (Capex)",
+      "options": [
+        {
+          "option": "0400 Capex",
+          "when": {
+            "op": "and",
+            "all": [
+              {
+                "op": "eq",
+                "field": "invoice.category",
+                "value": "equipment"
+              },
+              {
+                "op": "gt",
+                "field": "invoice.amount",
+                "value": 5000
+              }
+            ]
+          },
+          "whenText": "Equipment over 5,000 EUR"
+        },
+        {
+          "option": "4711 Opex (keep)",
+          "whenText": "Everything else"
+        }
+      ],
+      "reason": {
+        "sessionId": "ses_demo_sabine_01",
+        "utteranceIds": [
+          "utt_0003"
+        ],
+        "text": "No, wait, sorry, five thousand.",
+        "t": 51994,
+        "tEnd": 53803,
+        "phase": "capture",
+        "questionId": "q_0001"
+      },
+      "reasonSummary": "Equipment over 5,000 EUR is always capex (the 3,000 limit is outdated since 2021).",
+      "confidence": 0.95,
+      "provenance": [
+        "observed",
+        "stated_live"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Capex threshold for equipment: 3,000 EUR",
+          "after": "Capex threshold for equipment: 5,000 EUR (3,000 was the pre-2021 limit)",
+          "correctionEventId": "evt_0031",
+          "at": 57553,
+          "phase": "capture"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 28050,
+            "frameId": "frm_0028",
+            "eventIds": [
+              "evt_0010"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.22,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0003"
+            ],
+            "text": "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand.",
+            "t": 48938,
+            "tEnd": 53803,
+            "phase": "capture",
+            "questionId": "q_0001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dec_december_hold",
+      "stepId": "st_decide",
+      "kind": "judgment",
+      "question": "Is this a December double-bill?",
+      "observedChoice": "Put INV-4472 on hold with a duplicate comment",
+      "options": [
+        {
+          "option": "Hold + comment + contact supplier AR",
+          "when": {
+            "op": "and",
+            "all": [
+              {
+                "op": "in",
+                "field": "supplier.name",
+                "value": [
+                  "Hofmann Industriebedarf",
+                  "Schreiber Logistik"
+                ]
+              },
+              {
+                "op": "eq",
+                "field": "invoice.month",
+                "value": 12
+              },
+              {
+                "op": "eq",
+                "field": "invoice.duplicateDeliveryNote",
+                "value": true
+              }
+            ]
+          },
+          "whenText": "Hofmann/Schreiber, December, same delivery note already paid"
+        },
+        {
+          "option": "Book normally",
+          "whenText": "No duplicate found"
+        }
+      ],
+      "reason": {
+        "sessionId": "ses_demo_sabine_01",
+        "utteranceIds": [
+          "utt_0009"
+        ],
+        "text": "I never release it until I have their credit note, or they confirm in writing it's not a duplicate.",
+        "t": 119281,
+        "tEnd": 125437,
+        "phase": "capture",
+        "questionId": "q_0002"
+      },
+      "reasonSummary": "Hofmann double-bills every December; Schreiber since 2025.",
+      "confidence": 0.92,
+      "provenance": [
+        "observed",
+        "stated_live",
+        "stated_debrief"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 85321,
+            "frameId": "frm_0085",
+            "eventIds": [
+              "evt_0052"
+            ]
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 92821,
+            "frameId": "frm_0092",
+            "eventIds": [
+              "evt_0063"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.36,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0009"
+            ],
+            "text": "Hofmann double-bills us every December, every single year.",
+            "t": 115787,
+            "tEnd": 119252,
+            "phase": "capture",
+            "questionId": "q_0002"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0018"
+            ],
+            "text": "Mostly Hofmann. Oh, and Schreiber Logistik since last year",
+            "t": 245222,
+            "tEnd": 248714,
+            "phase": "debrief",
+            "questionId": "q_0004"
+          }
+        ]
+      }
+    },
+    {
+      "id": "dec_intercompany",
+      "stepId": "st_decide",
+      "kind": "rule",
+      "question": "Can I approve this alone?",
+      "observedChoice": "Reverted own approval, routed to M. Weber (Controlling)",
+      "options": [
+        {
+          "option": "Route to controller (M. Weber) as 2nd approver",
+          "when": {
+            "op": "eq",
+            "field": "supplier.group",
+            "value": "Intercompany CZ"
+          },
+          "whenText": "Any intercompany / Czech subsidiary invoice, any amount"
+        },
+        {
+          "option": "Approve alone",
+          "whenText": "External suppliers within own limits"
+        }
+      ],
+      "reason": {
+        "sessionId": "ses_demo_sabine_01",
+        "utteranceIds": [
+          "utt_0014"
+        ],
+        "text": "Anything intercompany goes to the controller for a second approval, because of transfer pricing.",
+        "t": 213707,
+        "tEnd": 219098,
+        "phase": "capture",
+        "questionId": "q_0003"
+      },
+      "reasonSummary": "Transfer pricing: intercompany needs the controller, regardless of amount.",
+      "confidence": 0.97,
+      "provenance": [
+        "observed",
+        "stated_live",
+        "teachback_correction"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Second approver for Brno: AP lead",
+          "after": "Second approver for Brno: controller (M. Weber)",
+          "correctionEventId": "evt_0260",
+          "at": 406788,
+          "phase": "teachback"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 180408,
+            "frameId": "frm_0180",
+            "eventIds": [
+              "evt_0103"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.36,
+              "w": 0.42,
+              "h": 0.055
+            }
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 190837,
+            "frameId": "frm_0190",
+            "eventIds": [
+              "evt_0114"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.43,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0014"
+            ],
+            "text": "I'm not allowed to sign those off alone, whatever the amount.",
+            "t": 219137,
+            "tEnd": 222673,
+            "phase": "capture",
+            "questionId": "q_0003"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0036"
+            ],
+            "text": "Not the AP lead, the controller, Weber.",
+            "t": 399859,
+            "tEnd": 402451,
+            "phase": "teachback"
+          }
+        ]
+      }
+    }
+  ],
+  "guardrails": [
+    {
+      "id": "gr_capex_threshold",
+      "kind": "limit",
+      "statement": "Equipment over 5,000 EUR is always capex (cost center 0400).",
+      "condition": {
+        "op": "and",
+        "all": [
+          {
+            "op": "eq",
+            "field": "invoice.category",
+            "value": "equipment"
+          },
+          {
+            "op": "gt",
+            "field": "invoice.amount",
+            "value": 5000
+          },
+          {
+            "op": "neq",
+            "field": "invoice.costCenter",
+            "value": "0400"
+          }
+        ]
+      },
+      "requiredAction": "Re-code to 0400 before saving",
+      "scope": "all suppliers",
+      "severity": "block",
+      "stepIds": [
+        "st_code"
+      ],
+      "confidence": 0.95,
+      "provenance": [
+        "stated_live"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Capex threshold for equipment: 3,000 EUR",
+          "after": "Capex threshold for equipment: 5,000 EUR (3,000 was the pre-2021 limit)",
+          "correctionEventId": "evt_0031",
+          "at": 57553,
+          "phase": "capture"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 28050,
+            "frameId": "frm_0028",
+            "eventIds": [
+              "evt_0010"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.22,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0003"
+            ],
+            "text": "No, wait, sorry, five thousand.",
+            "t": 51994,
+            "tEnd": 53803,
+            "phase": "capture",
+            "questionId": "q_0001"
+          }
+        ]
+      }
+    },
+    {
+      "id": "gr_asset_number",
+      "kind": "stop_and_ask",
+      "statement": "No asset number, no capex booking.",
+      "condition": {
+        "op": "and",
+        "all": [
+          {
+            "op": "eq",
+            "field": "invoice.costCenter",
+            "value": "0400"
+          },
+          {
+            "op": "missing",
+            "field": "invoice.assetNo"
+          }
+        ]
+      },
+      "requiredAction": "Stop and ask the controller to create the asset first",
+      "escalateTo": {
+        "role": "Controller",
+        "name": "M. Weber"
+      },
+      "scope": "all capex invoices",
+      "severity": "block",
+      "stepIds": [
+        "st_asset"
+      ],
+      "confidence": 0.97,
+      "provenance": [
+        "stated_live",
+        "stated_debrief"
+      ],
+      "confirmedByExpert": true,
+      "history": [],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 36050,
+            "frameId": "frm_0036",
+            "eventIds": [
+              "evt_0014"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.29,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0004"
+            ],
+            "text": "And no asset number, no capex booking. Ever.",
+            "t": 57953,
+            "tEnd": 60780,
+            "phase": "capture",
+            "questionId": "q_0001"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0022"
+            ],
+            "text": "I never book capex without an asset number, it breaks the depreciation run.",
+            "t": 284539,
+            "tEnd": 289417,
+            "phase": "debrief",
+            "questionId": "q_0006"
+          }
+        ]
+      }
+    },
+    {
+      "id": "gr_december_hold",
+      "kind": "exception",
+      "statement": "Hofmann and Schreiber Logistik December invoices that duplicate a paid delivery note: hold, don't pay, don't reject right away.",
+      "condition": {
+        "op": "and",
+        "all": [
+          {
+            "op": "in",
+            "field": "supplier.name",
+            "value": [
+              "Hofmann Industriebedarf",
+              "Schreiber Logistik"
+            ]
+          },
+          {
+            "op": "eq",
+            "field": "invoice.month",
+            "value": 12
+          },
+          {
+            "op": "eq",
+            "field": "invoice.duplicateDeliveryNote",
+            "value": true
+          },
+          {
+            "op": "not",
+            "c": {
+              "op": "in",
+              "field": "invoice.status",
+              "value": [
+                "on_hold",
+                "rejected"
+              ]
+            }
+          }
+        ]
+      },
+      "requiredAction": "Hold with comment; call supplier AR; release only with credit note or written confirmation (over 10,000 EUR: AP lead Jonas signs the release); reject with a note to purchasing after 30 days without a credit note",
+      "escalateTo": {
+        "role": "AP lead",
+        "name": "Jonas"
+      },
+      "scope": "Hofmann Industriebedarf, Schreiber Logistik (December only)",
+      "severity": "block",
+      "stepIds": [
+        "st_history",
+        "st_decide"
+      ],
+      "confidence": 0.9,
+      "provenance": [
+        "stated_live",
+        "stated_debrief"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Never reject Hofmann December duplicates",
+          "after": "Hold; if no credit note after 30 days, reject with a note to purchasing",
+          "correctionEventId": "evt_0220",
+          "at": 331513,
+          "phase": "debrief"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 101321,
+            "frameId": "frm_0101",
+            "eventIds": [
+              "evt_0066"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.5,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0009"
+            ],
+            "text": "I never release it until I have their credit note, or they confirm in writing it's not a duplicate.",
+            "t": 119281,
+            "tEnd": 125437,
+            "phase": "capture",
+            "questionId": "q_0002"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0020"
+            ],
+            "text": "If it's over ten thousand, the AP lead, Jonas, has to sign off the release.",
+            "t": 265531,
+            "tEnd": 270830,
+            "phase": "debrief",
+            "questionId": "q_0005"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0027"
+            ],
+            "text": "If there's no credit note after thirty days, I do reject it, with a note to purchasing.",
+            "t": 325097,
+            "tEnd": 331053,
+            "phase": "debrief"
+          }
+        ]
+      }
+    },
+    {
+      "id": "gr_intercompany_approval",
+      "kind": "approval_required",
+      "statement": "Intercompany (Brno, Czech subsidiary) invoices always need the controller as second approver, whatever the amount.",
+      "condition": {
+        "op": "and",
+        "all": [
+          {
+            "op": "eq",
+            "field": "supplier.group",
+            "value": "Intercompany CZ"
+          },
+          {
+            "op": "or",
+            "all": [
+              {
+                "op": "eq",
+                "field": "invoice.status",
+                "value": "approved"
+              },
+              {
+                "op": "missing",
+                "field": "invoice.approver"
+              }
+            ]
+          }
+        ]
+      },
+      "requiredAction": "Do not approve; set M. Weber (Controlling) as 2nd approver",
+      "escalateTo": {
+        "role": "Controller",
+        "name": "M. Weber"
+      },
+      "scope": "Intercompany CZ",
+      "severity": "block",
+      "stepIds": [
+        "st_decide"
+      ],
+      "confidence": 0.98,
+      "provenance": [
+        "observed",
+        "stated_live",
+        "stated_debrief",
+        "teachback_correction"
+      ],
+      "confirmedByExpert": true,
+      "history": [
+        {
+          "before": "Second approver for Brno: AP lead",
+          "after": "Second approver for Brno: controller (M. Weber)",
+          "correctionEventId": "evt_0260",
+          "at": 406788,
+          "phase": "teachback"
+        }
+      ],
+      "evidence": {
+        "moments": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 180408,
+            "frameId": "frm_0180",
+            "eventIds": [
+              "evt_0103"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.36,
+              "w": 0.42,
+              "h": 0.055
+            }
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "t": 190837,
+            "frameId": "frm_0190",
+            "eventIds": [
+              "evt_0114"
+            ],
+            "bbox": {
+              "x": 0.52,
+              "y": 0.43,
+              "w": 0.42,
+              "h": 0.055
+            }
+          }
+        ],
+        "quotes": [
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0014"
+            ],
+            "text": "I'm not allowed to sign those off alone, whatever the amount.",
+            "t": 219137,
+            "tEnd": 222673,
+            "phase": "capture",
+            "questionId": "q_0003"
+          },
+          {
+            "sessionId": "ses_demo_sabine_01",
+            "utteranceIds": [
+              "utt_0024"
+            ],
+            "text": "Then both. Capex with an asset number, and it still goes to Weber.",
+            "t": 297159,
+            "tEnd": 301765,
+            "phase": "debrief",
+            "questionId": "q_0007"
+          }
+        ]
+      }
+    }
+  ],
+  "glossary": [
+    {
+      "term": "4711",
+      "meaning": "Opex cost center (default)"
+    },
+    {
+      "term": "0400",
+      "meaning": "Capex cost center"
+    },
+    {
+      "term": "Brno / Intercompany CZ",
+      "meaning": "Czech subsidiary; all invoices need controller approval",
+      "quote": {
+        "sessionId": "ses_demo_sabine_01",
+        "utteranceIds": [
+          "utt_0014"
+        ],
+        "text": "Brno is our Czech subsidiary.",
+        "t": 211994,
+        "tEnd": 213656,
+        "phase": "capture",
+        "questionId": "q_0003"
+      }
+    },
+    {
+      "term": "Weber",
+      "meaning": "M. Weber, controller (Controlling)"
+    },
+    {
+      "term": "Jonas",
+      "meaning": "AP lead; signs off releasing held invoices over 10,000 EUR"
+    }
+  ],
+  "gaps": [
+    {
+      "id": "gap_01",
+      "kind": "deferred_question",
+      "description": "December hold: scope unknown (Hofmann only, or all suppliers?).",
+      "about": {
+        "eventIds": [
+          "evt_0063"
+        ]
+      },
+      "proposedQuestion": "Is that just Hofmann, or other suppliers too?",
+      "priority": 0.9,
+      "status": "resolved",
+      "resolvedBy": {
+        "questionId": "q_0004",
+        "answerEventId": "evt_0160"
+      }
+    },
+    {
+      "id": "gap_02",
+      "kind": "who_decides",
+      "description": "Who releases a held invoice, and does the amount matter?",
+      "about": {
+        "eventIds": [
+          "evt_0063",
+          "evt_0066"
+        ]
+      },
+      "proposedQuestion": "Who decides to release it?",
+      "priority": 0.85,
+      "status": "resolved",
+      "resolvedBy": {
+        "questionId": "q_0005",
+        "answerEventId": "evt_0173"
+      }
+    },
+    {
+      "id": "gap_03",
+      "kind": "unseen_case",
+      "description": "Capex invoice without an asset number was never shown.",
+      "about": {
+        "eventIds": [
+          "evt_0014"
+        ]
+      },
+      "proposedQuestion": "What if there is no asset number?",
+      "priority": 0.8,
+      "status": "resolved",
+      "resolvedBy": {
+        "questionId": "q_0006",
+        "answerEventId": "evt_0186"
+      }
+    },
+    {
+      "id": "gap_04",
+      "kind": "conflict",
+      "description": "Unseen combination: intercompany AND equipment over 5,000 EUR.",
+      "about": {
+        "eventIds": [
+          "evt_0010",
+          "evt_0114"
+        ]
+      },
+      "proposedQuestion": "Brno invoice that is equipment over 5,000?",
+      "priority": 0.7,
+      "status": "resolved",
+      "resolvedBy": {
+        "questionId": "q_0007",
+        "answerEventId": "evt_0199"
+      }
+    },
+    {
+      "id": "gap_05",
+      "kind": "low_confidence",
+      "description": "Supplier-history search: every invoice, or only some? (rule vs habit)",
+      "about": {
+        "eventIds": [
+          "evt_0052"
+        ]
+      },
+      "proposedQuestion": "Do you search history on every invoice?",
+      "priority": 0.6,
+      "status": "resolved",
+      "resolvedBy": {
+        "questionId": "q_0008",
+        "answerEventId": "evt_0212"
+      }
+    }
+  ],
+  "teachBack": {
+    "segments": [
+      {
+        "id": "tb_1",
+        "text": "For each open invoice, you open it from the open-items list and check the supplier, the amount and what was bought.",
+        "stepIds": [
+          "st_open",
+          "st_review"
+        ],
+        "verdict": "confirmed",
+        "verdictEventId": "evt_0244"
+      },
+      {
+        "id": "tb_2",
+        "text": "If it's from Hofmann or Schreiber in December, or a new supplier, you search their history for duplicates. A duplicate goes on hold with a comment until there's a credit note. You release it yourself, over ten thousand Jonas signs off, and after thirty days without a credit note you reject it.",
+        "stepIds": [
+          "st_history",
+          "st_decide"
+        ],
+        "verdict": "confirmed",
+        "verdictEventId": "evt_0245"
+      },
+      {
+        "id": "tb_3",
+        "text": "Equipment over five thousand euros goes to capex, cost center 0400, and only with an asset number. If there's none, you stop and ask the controller.",
+        "stepIds": [
+          "st_code",
+          "st_asset"
+        ],
+        "verdict": "confirmed",
+        "verdictEventId": "evt_0246"
+      },
+      {
+        "id": "tb_4",
+        "text": "Anything from Brno, our Czech subsidiary, goes to the AP lead for a second approval, whatever the amount.",
+        "stepIds": [
+          "st_decide"
+        ],
+        "verdict": "corrected",
+        "verdictEventId": "evt_0258"
+      },
+      {
+        "id": "tb_5",
+        "text": "Then you add a comment that explains it and save.",
+        "stepIds": [
+          "st_comment_save"
+        ],
+        "verdict": "confirmed",
+        "verdictEventId": "evt_0268"
+      }
+    ],
+    "status": "confirmed",
+    "confirmedAt": "2026-12-03T15:16:59.019538Z",
+    "confirmationQuote": {
+      "sessionId": "ses_demo_sabine_01",
+      "utteranceIds": [
+        "utt_0038"
+      ],
+      "text": "Yes. That's how it works.",
+      "t": 417234,
+      "tEnd": 418983,
+      "phase": "teachback"
+    }
+  },
+  "stats": {
+    "liveQuestions": 3,
+    "debriefQuestions": 5,
+    "judgmentCalls": 3,
+    "guardrails": 4
+  },
+  "commonMistakes": [
+    {
+      "id": "mis_01",
+      "description": "Approving an intercompany (Brno) invoice directly",
+      "correctBehavior": "Route to the controller (M. Weber) as second approver, whatever the amount",
+      "relatedIds": [
+        "dec_intercompany",
+        "gr_intercompany_approval"
+      ],
+      "moment": {
+        "sessionId": "ses_demo_sabine_01",
+        "t": 180408,
+        "frameId": "frm_0180",
+        "eventIds": [
+          "evt_0103",
+          "evt_0109"
+        ],
+        "bbox": {
+          "x": 0.52,
+          "y": 0.36,
+          "w": 0.42,
+          "h": 0.055
+        }
+      },
+      "quote": {
+        "sessionId": "ses_demo_sabine_01",
+        "utteranceIds": [
+          "utt_0012"
+        ],
+        "text": "Oh, no, no, that's wrong. That's Brno, that needs Weber first.",
+        "t": 180858,
+        "tEnd": 184753,
+        "phase": "capture"
+      },
+      "correctionEventId": "evt_0112"
+    }
+  ],
+  "changelog": [
+    {
+      "version": 1,
+      "at": "2026-12-03T15:13:47.137121Z",
+      "by": "map",
+      "note": "Draft from capture (3 cases, 3 live answers, 2 corrections applied).",
+      "eventIds": [
+        "evt_0036",
+        "evt_0085",
+        "evt_0137",
+        "evt_0031",
+        "evt_0112"
+      ]
+    },
+    {
+      "version": 2,
+      "at": "2026-12-03T15:15:43.927231Z",
+      "by": "map",
+      "note": "Debrief: 5 gaps resolved; December rule scoped; 30-day rejection added.",
+      "eventIds": [
+        "evt_0215",
+        "evt_0220"
+      ]
+    },
+    {
+      "version": 3,
+      "at": "2026-12-03T15:17:01.019538Z",
+      "by": "expert",
+      "note": "Teach-back: 2nd approver corrected to controller; confirmed.",
+      "eventIds": [
+        "evt_0260"
+      ]
+    }
+  ]
+}
