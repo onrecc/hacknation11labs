@@ -10,7 +10,9 @@
     "setup": "tsx --env-file=../.env.local src/setup-project.ts",
     "deploy:rules": "tsx --env-file=../.env.local src/deploy-rules.ts",
     "smoke": "tsx --env-file=../.env.local src/smoke-llm.ts",
-    "setup:elevenlabs": "tsx --env-file=../.env.local src/setup-elevenlabs.ts"
+    "setup:elevenlabs": "tsx --env-file=../.env.local src/setup-elevenlabs.ts",
+    "agent-test": "tsx --env-file=../.env.local src/agent-test.ts",
+    "scribe-test": "tsx --env-file=../.env.local src/scribe-test.ts"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

@@ -80,6 +80,7 @@ class AgentVoice implements Voice {
       clientTools: opts.clientTools,
       onMessage: (m) => {
         if (m.role !== "agent" || !m.message) return;
+        m = { ...m, message: stripAudioTags(m.message) }; // expressive v3 tags like [slow] are for the voice, not the transcript
         const spontaneous = v.expecting === 0;
         if (!spontaneous) v.expecting--;
         v.lastText = m.message;
@@ -191,3 +192,6 @@ export class BrowserVoice implements Voice {
   listen() {}
   async stop() { speechSynthesis.cancel(); }
 }
+
+/** Remove eleven_v3 audio tags ("[excited]", "[slow]") from agent text. */
+export const stripAudioTags = (t: string) => t.replace(/\[[a-z][a-z ]{1,24}\]\s*/gi, "").replace(/\s{2,}/g, " ").trim();

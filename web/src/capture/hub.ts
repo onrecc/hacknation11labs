@@ -120,26 +120,37 @@ export class CaptureHub {
   }
 
   // ───────────── inputs ─────────────
+  /**
+   * Start Ada: voice (ElevenAgents → ElevenLabs TTS → browser) and the always-on transcript (Scribe → Web Speech).
+   * Each part degrades on its own: no mic still gives a speaking agent (TTS) and typed answers.
+   */
   async startListening() {
-    this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-    this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt));
-    this.micRec.start();
-    this.transcriber = await createTranscriber(() => this.now(), {
-      onSpeechStart: (t) => {
-        this.lastSpeechAt = t;
-        this.set({ expertSpeaking: true });
-        this.emit({ t, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "start" } });
-      },
-      onUtterance: (u) => this.onExpertUtterance(u),
-      onError: (e) => console.warn("stt", e),
-    });
-    await this.transcriber.start();
-    this.voice = await createVoice(this.opts.voice, {
+    let micOk = true;
+    try {
+      this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt));
+      this.micRec.start();
+      this.transcriber = await createTranscriber(() => this.now(), {
+        onSpeechStart: (t) => {
+          this.lastSpeechAt = t;
+          this.set({ expertSpeaking: true });
+          this.emit({ t, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "start" } });
+        },
+        onUtterance: (u) => this.onExpertUtterance(u),
+        onError: (e) => console.warn("stt", e),
+      });
+      await this.transcriber.start();
+    } catch (e) {
+      micOk = false;
+      this.set({ error: `Microphone unavailable (${(e as Error).message}); Ada will speak, answer by typing.` });
+    }
+    // the ElevenAgents conversation needs the mic; without it, speak through ElevenLabs TTS
+    this.voice = await createVoice(micOk ? this.opts.voice : { ...this.opts.voice, agentId: undefined }, {
       onSpeaking: (s) => this.set({ agentSpeaking: s }),
       onAgentTurn: (turn) => this.onAgentTurn(turn),
       onStatus: (st) => this.set({ voiceStatus: st }),
     });
-    this.set({ listening: true, stt: this.transcriber.name, voice: this.voice.name });
+    this.set({ listening: true, stt: this.transcriber?.name ?? "typed only", voice: this.voice.name });
   }
 
   async shareScreen() {

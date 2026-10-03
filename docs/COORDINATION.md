@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ ElevenLabs verified (agents, TTS, Scribe) + generic-site capture/teach
+- `npm run agent-test -w tools` drives both agents over WebSocket (text) and checks the protocol. **Interviewer:** calls `skip_turn` on thinking-aloud, rephrases `[ASK]`, acks answers ("Got it, five thousand."), says `[SAY]` verbatim. **Tutor:** Socratic first on `[INTERVENE]`, then explains with the expert's words and offers `replay_moment`, answers free questions from the Work Map. Expressive audio tags (`[slow]`) are stripped from logged text.
+- `npm run scribe-test -w tools`: Scribe v2 Realtime commits ~2 s after speech, with word timestamps **cumulative from connection start** (transcriber mapping verified).
+- **Mic-less fallback:** if the mic is blocked, Ada still speaks (ElevenLabs TTS) and answers can be typed. Verified in the browser: Gemini question → TTS → typed answer → `answer.linked` + `knowledge.correction` (3,000→5,000) + spoken ack.
+- **Generic sites:** `web/public/apprentice-embed.js` (same code as the extension, for same-origin apps) + demo app `/demo/procurex.html`. Capture: field changes with correct old→new, Gemini asked a guardrail question at the submit pause. Teach: Gemini `check_guardrails` held "Submit" on an opex €7,200 equipment request and let it through once fixed.
+- **For Toivo (debrief):** agent turns now come from `onAgentTurn` (the hub logs what was actually said). `hub.agentSay()` resolves when speech ends.
+
 ### 2026-10-04 · Rene's agent · ✅ Teach verified end-to-end (real Gemini) + extension v0.1
 - Browser test: T1 (INV-4490, €7,200 equipment). Opening it → **predict** card (Gemini graded the wrong answer "Not quite" plus feedback). Approve on 4711 → **save held**, Socratic question, then Gemini explanation with Sabine's quote and her screen moment in the overlay. Re-code without an asset no. → nudge. With asset → saved. Mastery report written. `validate_bundle.py --part teach` → 0 errors.
 - Overlay: docked strip in MiniERP (never covers app buttons), floating plus minimizable on other sites.
