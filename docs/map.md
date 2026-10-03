@@ -28,6 +28,16 @@
     python3 scripts/eval_guardrails.py <your_workmap.json>   # your guardrail conditions must pass Teach's cases
     ```
 
+## Where the code is (boilerplate status)
+
+| What | File | Status |
+|---|---|---|
+| Draft (cases, gaps, common mistakes), log condensing, proposal → verified claims, versioning | `shared/workmap.ts` | ✅ verification is code (quotes, frames, condition fields) |
+| Read helpers (frame at t, verified quote spans) | `shared/logindex.ts` | ✅ |
+| Debrief + teach-back runner (runs on the CaptureHub voice) | `web/src/map/debrief.ts` | ✅ works with mock LLM; verdict detection is a regex, improve it |
+| Work Map UI: timeline, steps, evidence, quotes with audio, history | `web/src/map/MapPage.tsx` | ✅ renders the seeded demo map |
+| LLM prompts (extract_workmap, plan_debrief, teachback) | `functions/src/handlers.ts` | 📝 first drafts; check `assemble()` problems output |
+
 ## Hard constraints
 
 **Evidence**

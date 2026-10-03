@@ -1,0 +1,11 @@
+rules_version = '2';
+// Session blobs (frames, media chunks, model-call details): write-once, signed-in users only.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /sessions/{sessionId}/{path=**} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null && request.resource.size < 50 * 1024 * 1024;
+      allow update, delete: if false;
+    }
+  }
+}

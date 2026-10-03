@@ -1,0 +1,21 @@
+{
+  "name": "@apprentice/tools",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "seed": "tsx --env-file=../.env.local src/seed-fixture.ts",
+    "pull": "tsx --env-file=../.env.local src/pull-session.ts",
+    "probe": "tsx --env-file=../.env.local src/probe.ts",
+    "api": "tsx watch --env-file=../.env.local src/dev-api.ts",
+    "setup": "tsx --env-file=../.env.local src/setup-project.ts",
+    "deploy:rules": "tsx --env-file=../.env.local src/deploy-rules.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "@types/node": "^26.6.4",
+    "firebase-admin": "^14.5.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "zod": "^4.6.5"
+  }
+}

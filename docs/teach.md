@@ -27,6 +27,16 @@
   python3 scripts/eval_guardrails.py <workmap.json>
   ```
 
+## Where the code is (boilerplate status)
+
+| What | File | Status |
+|---|---|---|
+| Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T4) | ✅ |
+| Tutor panel: nudge on change, block on save, Socratic → expert quote, replay frame, mastery report | `web/src/teach/TeachPage.tsx` | ✅ T1 verified in the browser |
+| MiniERP teach cases T1–T4 | `web/src/erp/data.ts` | ✅ |
+| Predictions (`tutor.prediction`) | — | ❌ TODO |
+| Tutor via ElevenAgents (`VITE_ELEVENLABS_TUTOR_AGENT_ID`) | `web/src/voice/voice.ts` | ⚠️ untested without a key |
+
 ## Hard constraints
 
 1. **Teach only from the Work Map.** Never invent rules. If the case hits a situation the map doesn't cover, say so ("Sabine didn't cover this; ask the controller") and log it as a new open `Gap`. That gap feeds back to Map: the "living company memory" moonshot.

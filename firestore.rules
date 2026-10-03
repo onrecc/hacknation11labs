@@ -1,0 +1,29 @@
+rules_version = '2';
+// Hackathon access model: any signed-in user (team via Google, judges via anonymous auth).
+// Integrity rules mirror ARCHITECTURE.md §6a: event chunks are append-only, Work Map versions immutable.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+
+    match /sessions/{sessionId} {
+      allow read, create, update: if signedIn();
+      allow delete: if false;
+      match /chunks/{chunkId} {
+        allow read, create: if signedIn();
+        allow update, delete: if false;
+      }
+      match /report/{docId} {
+        allow read, write: if signedIn();
+      }
+    }
+
+    match /workmaps/{workMapId} {
+      allow read, create, update: if signedIn();
+      allow delete: if false;
+      match /versions/{versionId} {
+        allow read, create: if signedIn();
+        allow update, delete: if false;
+      }
+    }
+  }
+}

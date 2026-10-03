@@ -107,10 +107,9 @@ Firestore
 Cloud Storage  (bucket in us-central1 → Always Free tier)
   sessions/{sessionId}/{uri}                   uri exactly as in events: frames/frm_0012.webp, media/screen-003.webm, model_calls/mc_0042.json
 Cloud Functions (2nd gen; secrets in Secret Manager)
-  llm              callable: vision | question_pick | answer_link | correction_detect | extract | teachback | tutor_explain
-  voiceToken       ElevenLabs signed agent URL + Scribe realtime token
-  redact           Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
-  buildWorkMap     callable / trigger on session.ended: runs the Map pipeline
+  api (europe-west1)  POST /llm {task,input} (vision | pick_question | detect_correction | link_answer | extract_workmap | plan_debrief | teachback | tutor_explain)
+                      POST /voice-token (ElevenLabs signed agent URL / Scribe token) · GET /health
+  redact (TODO)       Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
 Hosting            the web app (/capture, /map/:id, /teach) + the MiniERP sandbox
 Auth               Google sign-in for the team, anonymous auth for judges; rules: request.auth != null
 ```
@@ -127,6 +126,8 @@ Auth               Google sign-in for the team, anonymous auth for judges; rules
 | Storage (us-central1) 5 GB-months, 100 GB egress/month, 5K uploads (Class A) and 50K downloads (Class B) per month | 600 frame uploads per session → past ~8 sessions/month, ~$0.005 per 1K uploads | Cents. Delete junk runs |
 | Functions 2M invocations, 400K GB-s/month | ≤1 vision call/s → ~600 per session | OK. Set `minInstances: 1` on `llm` during the demo to avoid cold starts (small idle cost) |
 | Hosting 10 GB stored, 360 MB/day transfer | static app | OK |
+
+**Current state (set up via the service account):** Firestore in `eur3`, Storage bucket `hacknation11labs.firebasestorage.app` in `us-east1` (Always Free region), web app `apprentice-web` registered (`web/src/lib/firebase-config.json`), anonymous auth enabled, rules deployed (`npm run deploy:rules`), demo fixture seeded (`npm run seed:fixture`). The service account **cannot** deploy Cloud Functions or create secrets, so `tools/src/dev-api.ts` serves the same handlers locally (`npm run api`). Deploy `functions/` from an Owner account when keys exist.
 
 **Never commit secrets.** The Firebase web config is fine to commit. LLM and ElevenLabs keys live only in Secret Manager or `.env.local` (gitignored). The repo is public.
 

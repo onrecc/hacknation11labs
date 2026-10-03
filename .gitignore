@@ -11,3 +11,6 @@ firebase-debug.log*
 __pycache__/
 fixtures/demo-session/.typecheck.ts
 data/
+*adminsdk*.json
+*-sa.json
+functions/lib/

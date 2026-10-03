@@ -1,0 +1,30 @@
+{
+  "name": "hacknation11labs",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "shared",
+    "web",
+    "tools",
+    "functions"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w web",
+    "api": "npm run api -w tools",
+    "build": "npm run build -w web && npm run build -w functions",
+    "typecheck": "tsc -p shared && tsc -p web --noEmit && tsc -p tools --noEmit && tsc -p functions --noEmit",
+    "test": "npm test -w shared",
+    "validate": "python3 scripts/validate_bundle.py fixtures/demo-session --workmap fixtures/demo-session/expected_workmap.json && python3 scripts/eval_guardrails.py",
+    "check": "npm run typecheck && npm test && npm run validate",
+    "seed:fixture": "npm run seed -w tools",
+    "pull": "npm run pull -w tools --",
+    "deploy:rules": "npm run deploy:rules -w tools",
+    "deploy:hosting": "npm run build -w web && firebase deploy --only hosting",
+    "deploy:functions": "firebase deploy --only functions"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true,
+    "protobufjs@7.6.6": true,
+    "@firebase/util@1.15.3": true
+  }
+}
