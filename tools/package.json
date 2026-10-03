@@ -13,7 +13,8 @@
     "setup:elevenlabs": "tsx --env-file=../.env.local src/setup-elevenlabs.ts",
     "agent-test": "tsx --env-file=../.env.local src/agent-test.ts",
     "scribe-test": "tsx --env-file=../.env.local src/scribe-test.ts",
-    "e2e:extension": "tsx --env-file=../.env.local src/extension-e2e.ts"
+    "e2e:extension": "tsx --env-file=../.env.local src/extension-e2e.ts",
+    "e2e:voice": "tsx --env-file=../.env.local src/voice-e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

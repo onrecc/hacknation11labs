@@ -16,6 +16,11 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Live voice loop verified in a real browser
+- `npm run e2e:voice -w tools`: real Capture page in Chrome for Testing with a synthetic microphone (Web Audio stream playing an ElevenLabs-TTS WAV of Sabine's answer; macOS blocks real/fake capture devices for test Chrome). Checks pass: **ElevenAgents interviewer connects → Scribe transcribes the mic → save pause → Gemini picks the question → the agent asks it in its own words ("Why did you change the cost center to zero four hundred and add an asset number?") → Sabine's spoken answer is transcribed verbatim → the agent acks ("Got it, five thousand.") → `answer.linked`**.
+- Fixes: punctuation-only agent "turns" (fillers) are no longer logged; unprompted agent speech is `follow_up` only while an answer window is open (the greeting is `other`).
+- **For Toivo:** the debrief can rely on this loop. `hub.ask()` → agent speaks → Scribe utterances are collected as replies.
+
 ### 2026-10-04 · Rene's agent · ✅ Real extension verified end-to-end (Chrome for Testing)
 - `npm run e2e:extension -w tools` (Puppeteer + Chrome for Testing + `extension/dist`; hub on `localhost`, work tab on `[::1]` = another origin). **All 10 checks pass:** cross-origin relay via the background worker, overlay status, a wrong "Submit" held before it happens and allowed once fixed, guardrail card on the foreign tab, labeled field changes captured from the foreign tab, frames from extension tab screenshots, pause detector.
 - `tutor.intervention` is now logged **the moment the save is held**; the final explanation is appended as a second `tutor.intervention` with `supersedes` (append-only).

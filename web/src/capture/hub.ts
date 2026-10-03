@@ -93,6 +93,7 @@ export class CaptureHub {
     send({ kind: "hello", from: "hub", mode: session.kind === "teach" ? "teach" : "capture" });
     this.timers.push(setInterval(() => this.tickPause(), 300));
     this.timers.push(setInterval(() => this.broadcastStatus(), 3000));
+    if (import.meta.env.DEV) (window as unknown as { __hub?: CaptureHub }).__hub = this; // tests + debugging
   }
 
   /** Tell overlays (MiniERP, extension) what's going on. */
@@ -127,6 +128,7 @@ export class CaptureHub {
   async startListening() {
     let micOk = true;
     try {
+      this.set({ voiceStatus: "mic…" });
       this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
       this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt));
       this.micRec.start();
@@ -139,12 +141,14 @@ export class CaptureHub {
         onUtterance: (u) => this.onExpertUtterance(u),
         onError: (e) => console.warn("stt", e),
       });
+      this.set({ voiceStatus: "stt…" });
       await this.transcriber.start();
     } catch (e) {
       micOk = false;
       this.set({ error: `Microphone unavailable (${(e as Error).message}); Ada will speak, answer by typing.` });
     }
     // the ElevenAgents conversation needs the mic; without it, speak through ElevenLabs TTS
+    this.set({ voiceStatus: "voice…", stt: this.transcriber?.name ?? "typed only" });
     this.voice = await createVoice(micOk ? this.opts.voice : { ...this.opts.voice, agentId: undefined }, {
       onSpeaking: (s) => this.set({ agentSpeaking: s }),
       onAgentTurn: (turn) => this.onAgentTurn(turn),
@@ -321,8 +325,10 @@ export class CaptureHub {
 
   /** Log what the agent actually said (ElevenAgents rephrases [ASK] messages). */
   private onAgentTurn(turn: SpokenTurn) {
+    if (!/[a-z0-9]/i.test(turn.text)) return; // "..." fillers / skipped turns are not speech
     const t = this.now();
-    const meta = turn.spontaneous ? { intent: "follow_up" as const } : this.turnMeta ?? { intent: "other" as const };
+    // unprompted speech is a follow-up only while we wait for an answer; otherwise it's a greeting / small talk
+    const meta = turn.spontaneous ? { intent: this.pending || this.replyWaiter ? ("follow_up" as const) : ("other" as const) } : this.turnMeta ?? { intent: "other" as const };
     if (!turn.spontaneous) this.turnMeta = null;
     const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
     const utteranceId = newId("utt");
