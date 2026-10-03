@@ -32,7 +32,7 @@
 | Voice | `web/src/voice/voice.ts`: ElevenAgents Interviewer (`[ASK]`/`[SAY]`, mic muted while working) → ElevenLabs TTS → browser | ✅ protocol verified (`npm run agent-test -w tools`); TTS verified in browser |
 | Always-on STT | `web/src/capture/transcriber.ts`: Scribe v2 Realtime (word timestamps verified with `npm run scribe-test -w tools`) → Web Speech; typed fallback | ✅ |
 | Frames | screen share (`screen.ts`) **or** extension tab screenshots (`frame` bridge messages) → Gemini vision | ✅ both |
-| Any web app | `extension/` (MV3) + `web/public/apprentice-embed.js`; demo app `/demo/procurex.html` | ✅ via embed in browser; ⚠️ extension relay/screenshots need a manual load in Chrome to verify |
+| Any web app | `extension/` (MV3) + `web/public/apprentice-embed.js`; demo app `/demo/procurex.html` | ✅ embed in browser + **real extension e2e** (`npm run e2e:extension -w tools`: relay, DOM capture, tab screenshots) |
 | MiniERP + bridge + `beforeSave` | `web/src/erp/`, `shared/bridge.ts`, `web/src/lib/bridge.ts` | ✅ |
 | ElevenAgents config | `tools/src/setup-elevenlabs.ts` (prompts, voices, tools) | ✅ |
 | Redaction | IBAN masked in MiniERP UI, sensitive fields masked by the extension, vision `piiRegions` blurred on later frames | ⚠️ no Presidio pass on transcripts yet |

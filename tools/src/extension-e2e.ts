@@ -1,0 +1,97 @@
+/**
+ * End-to-end test of the REAL browser extension (Chrome for Testing + extension/dist):
+ * hub tab on http://localhost:5173, work tab on http://[::1]:5173 (a different origin, so only the
+ * extension's background relay can connect them).
+ *   npm run build:extension && npm run e2e:extension -w tools      (needs `npm run dev` + `npm run api`)
+ */
+import puppeteer, { type Page } from "puppeteer";
+import { fileURLToPath } from "node:url";
+
+const EXT = fileURLToPath(new URL("../../extension/dist", import.meta.url));
+const HUB = "http://localhost:5173";
+const WORK = "http://[::1]:5173/demo/procurex.html"; // IPv6 literal = a different origin than localhost
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+let failures = 0;
+const check = (name: string, ok: boolean, detail = "") => {
+  console.log(`${ok ? "✔" : "✖"} ${name}${detail ? `: ${detail}` : ""}`);
+  if (!ok) failures++;
+};
+
+const browser = await puppeteer.launch({
+  headless: process.env.HEADFUL ? false : true,
+  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--window-size=1280,900"],
+  ignoreDefaultArgs: ["--disable-extensions"],
+  defaultViewport: { width: 1280, height: 860 },
+});
+
+const overlay = (p: Page) =>
+  p.evaluate(() => {
+    const r = document.getElementById("ai-apprentice-overlay")?.shadowRoot;
+    return { exists: !!r, pill: r?.querySelector(".pill")?.textContent ?? "", card: r?.querySelector(".card h4")?.textContent ?? "", ext: document.documentElement.dataset.apprenticeExt ?? "" };
+  });
+const feed = (p: Page) => p.$$eval(".feed-row", (rows) => rows.map((r) => r.textContent ?? ""));
+const clickButton = (p: Page, text: string) =>
+  p.evaluate((t) => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes(t))?.click(), text);
+
+try {
+  // ── Teach on a foreign-origin app ──
+  const hub = await browser.newPage();
+  await hub.goto(`${HUB}/teach`, { waitUntil: "networkidle2" });
+  await hub.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 20_000 });
+  await hub.evaluate(() => (window.open = () => null));
+  await clickButton(hub, "Start teach session");
+  await sleep(2500);
+
+  const work = await browser.newPage();
+  await work.goto(WORK, { waitUntil: "networkidle2" });
+  await sleep(4000);
+  let o = await overlay(work);
+  check("extension content script runs on the work tab", o.ext === "1");
+  check("overlay shows teach status via cross-origin relay", o.pill.includes("Ada is coaching"), o.pill);
+
+  await work.click("#submit");
+  await sleep(9000);
+  const toast = await work.$eval("#toast", (e) => e.textContent ?? "");
+  o = await overlay(work);
+  check("wrong submit is held (not submitted)", toast === "", `toast="${toast}"`);
+  check("guardrail card shown on the work tab", /held/i.test(o.card), o.card);
+  check("hub logged tutor.intervention", (await feed(hub)).some((r) => r.includes("tutor.intervention")));
+
+  await work.select("#gl", "0400");
+  await work.type("#asset", "AN-2026-140");
+  await work.click("#why");
+  await work.click("#submit");
+  await sleep(9000);
+  check("fixed submit goes through", (await work.$eval("#toast", (e) => e.textContent ?? "")).includes("Submitted"));
+
+  // ── Capture on a foreign-origin app (DOM events + tab screenshots) ──
+  await hub.bringToFront();
+  await hub.goto(`${HUB}/capture`, { waitUntil: "networkidle2" });
+  await hub.evaluate(() => (window.open = () => null));
+  await clickButton(hub, "Start session");
+  await sleep(3000);
+  await work.bringToFront();
+  await work.goto(WORK, { waitUntil: "networkidle2" });
+  await sleep(4000);
+  o = await overlay(work);
+  check("overlay shows recording status", o.pill.includes("learning from"), o.pill);
+  await work.select("#category", "Consumables");
+  await sleep(2500);
+  await work.click("#save");
+  await sleep(9000);
+  const rows = await feed(hub);
+  check("hub received labeled field change from the foreign tab", rows.some((r) => r.includes('Set "Category"') && r.includes("Consumables")), rows.find((r) => r.includes("Category")) ?? "");
+  const pills = await hub.$$eval(".pill", (ps) => ps.map((p) => p.textContent ?? "").join(" | "));
+  check("frames captured from extension screenshots", /frames from: extension/.test(pills) && !/frames: 0\b/.test(pills), pills);
+  check("pause detector reacted", rows.some((r) => r.includes("pause.detected")));
+  await clickButton(hub, "End task");
+  await sleep(1500);
+  await clickButton(hub, "Close session");
+  await sleep(3000);
+  const sid = await hub.$eval("h1 .mono", (e) => e.textContent ?? "");
+  console.log(`capture session: ${sid}`);
+} finally {
+  await browser.close();
+}
+console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
+process.exit(failures ? 1 : 0);

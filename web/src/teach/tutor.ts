@@ -160,6 +160,8 @@ export class Tutor {
       return;
     }
     this.intervening = true;
+    // log the moment it happens; the final explanation is appended later as a superseding event
+    const first = this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
     try {
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
@@ -171,16 +173,16 @@ export class Tutor {
         await this.hub.agentSay(spoken, "intervention");
       }
       await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${this.expert}: "${quote}". ${g.requiredAction}.` : spoken, guardrail: g }, moment);
-      this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0);
+      this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0, first.id);
     } finally {
       this.intervening = false;
     }
   }
 
   private intervening = false;
-  private logIntervention(g: Guardrail, beforeSave: boolean, spoken: string, moment: Guardrail["evidence"]["moments"][number] | undefined, caseLabel: string, t: number, answered: boolean) {
-    this.hub.emit({
-      t, type: "tutor.intervention", source: "tutor",
+  private logIntervention(g: Guardrail, beforeSave: boolean, spoken: string, moment: Guardrail["evidence"]["moments"][number] | undefined, caseLabel: string, t: number, answered: boolean, supersedes?: Id) {
+    return this.hub.emit({
+      t, type: "tutor.intervention", source: "tutor", ...(supersedes ? { supersedes } : {}),
       payload: {
         guardrailId: g.id, triggerAppEventId: this.lastAppEventId(), beforeSave, newHireAction: this.facts ? describeFacts(this.facts) : caseLabel,
         expectedAction: g.requiredAction, spokenText: spoken, ...(moment ? { replayedScreenMoment: moment } : {}), outcome: answered ? "argued" : "pending",

@@ -16,6 +16,11 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Real extension verified end-to-end (Chrome for Testing)
+- `npm run e2e:extension -w tools` (Puppeteer + Chrome for Testing + `extension/dist`; hub on `localhost`, work tab on `[::1]` = another origin). **All 10 checks pass:** cross-origin relay via the background worker, overlay status, a wrong "Submit" held before it happens and allowed once fixed, guardrail card on the foreign tab, labeled field changes captured from the foreign tab, frames from extension tab screenshots, pause detector.
+- `tutor.intervention` is now logged **the moment the save is held**; the final explanation is appended as a second `tutor.intervention` with `supersedes` (append-only).
+- Firestore tidy: only `ses_demo_sabine_01` plus the two samples listed below remain from me.
+
 ### 2026-10-04 · Rene's agent · ✅ Full Capture run on real Gemini + docs
 - MiniERP run (Sabine's 3 invoices, typed answers): **3 live questions** at save/case-end pauses (`guardrail_limit`, `why`, `scope`), verbatim `answer.linked`, and the spoken "Oh, no, that's wrong… needs Weber first" became `knowledge.correction action_was_mistake` targeting the Approve action. Validator: only "no frames" (no screen share in the preview browser; frames via screen share and via extension screenshots were tested separately).
 - **Sample sessions for Map (Toivo):** `ses_01M41YMCP25MA2GDQRJC535AB1` (MiniERP, 3 cases, 111 events, ended in phase debrief, debrief not run) and `ses_01M41Y8K9G13RBP7JNXFCRMH34` (ProcureX via embed, 3 extension frames). Both are real Gemini output, so good for testing `extract_workmap` / debrief on non-fixture data. `npm run pull -- <id>`.
