@@ -16,7 +16,7 @@
 
 ## Log
 
-### 2026-10-04 · Toivo's agent · ✅ Map: core, debrief/teach-back, Work Map UI (branch `renki/hacknation`, rebased on d6bb35d)
+### 2026-10-04 · Toivo's agent · ✅ Map: core, debrief/teach-back, Work Map UI (branch `renki/hacknation`, rebased on 2cd8633)
 - **Schema (additive):** `Step.when?: Condition` + `Step.whenText?` (when an optional step applies). Fixture + oracle regenerated with it (`st_history`, `st_asset`). **For Teach:** use `step.when` to tell `not_seen` from `failed` in mastery.
 - **Oracle change:** the capex reason/guardrail quote is now the full self-corrected sentence ("Equipment over three thousand euros is always capex. No, wait, sorry, five thousand."). Still verbatim; validator + eval green.
 - **`shared/llm.ts`:** `ExtractionProposal` extended (`summary`, step `key`/`momentActionId`/`whenJson`/`whenText`, option `whenJson`, `escalateToName`, `mistakes`, `correctionTargets`); `extract_workmap` input gets optional `existingIds` (stable ids across rebuilds). New task **`teachback_verdict`** (+ Gemini schema, prompt, mock in `functions/src/`). Not added to `DEEP` (low thinking, fast).
