@@ -18,23 +18,36 @@ export class FrameSampler {
   /** Regions to blur on every frame (e.g. last known PII from vision, or known app fields). */
   piiRegions: BBox[] = [];
 
-  constructor(readonly stream: MediaStream, readonly maxWidth = 1280) {
-    this.video.srcObject = stream;
-    this.video.muted = true;
-    void this.video.play();
+  /** stream = screen share; null = frames come from the extension (grabImage). */
+  constructor(readonly stream: MediaStream | null, readonly maxWidth = 1280) {
+    if (stream) {
+      this.video.srcObject = stream;
+      this.video.muted = true;
+      void this.video.play();
+    }
     this.tiny.width = 32;
     this.tiny.height = 18;
   }
 
-  async grab(): Promise<SampledFrame | null> {
-    const v = this.video;
-    if (!v.videoWidth) return null;
-    const scale = Math.min(1, this.maxWidth / v.videoWidth);
-    const w = Math.round(v.videoWidth * scale), h = Math.round(v.videoHeight * scale);
+  /** Frame from an extension screenshot (JPEG data URL of the work tab). */
+  async grabImage(dataUrl: string): Promise<SampledFrame | null> {
+    const img = new Image();
+    img.src = dataUrl;
+    await img.decode().catch(() => null);
+    if (!img.naturalWidth) return null;
+    return this.grab(img, img.naturalWidth, img.naturalHeight);
+  }
+
+  async grab(source?: CanvasImageSource, sw?: number, sh?: number): Promise<SampledFrame | null> {
+    const src = source ?? this.video;
+    const srcW = sw ?? this.video.videoWidth, srcH = sh ?? this.video.videoHeight;
+    if (!srcW) return null;
+    const scale = Math.min(1, this.maxWidth / srcW);
+    const w = Math.round(srcW * scale), h = Math.round(srcH * scale);
     this.canvas.width = w;
     this.canvas.height = h;
     const ctx = this.canvas.getContext("2d")!;
-    ctx.drawImage(v, 0, 0, w, h);
+    ctx.drawImage(src, 0, 0, w, h);
     for (const r of this.piiRegions) {
       ctx.save();
       ctx.filter = "blur(12px)";

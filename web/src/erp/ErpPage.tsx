@@ -95,7 +95,7 @@ export default function ErpPage() {
     setOpen(key);
     setView("invoice");
     setBanner(null);
-    send({ kind: "case", state: "start", case: caseRef(i), at: Date.now() });
+    send({ kind: "case", state: "start", case: caseRef(i), facts: facts(i), at: Date.now() });
     send({ kind: "app", payload: { action: "view", entity: entity(i), route: `/ap/invoices/${key}` }, verb: "open", description: `Opened invoice INV-${key} (${i.supplier}, ${i.amount.toLocaleString("en", { minimumFractionDigits: 2 })} EUR, ${i.category})`, facts: facts(i), at: Date.now() });
   }
 

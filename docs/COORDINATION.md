@@ -16,6 +16,15 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ ElevenAgents interviewer + tutor, Teach engine
+- **Agents created** (`npm run setup:elevenlabs -w tools`, idempotent; ids in `web/src/lib/elevenlabs.json`): "AI Apprentice · Interviewer" (voice Chris) and "AI Apprentice · Tutor" (voice Alice). Both use LLM `gemini-3.5-flash`, `eleven_v3_conversational` expressive TTS, patient turn-taking and `skip_turn`. Dynamic variables: `expert_name`, `task_title` / `learner_name`, `work_map`.
+- **Control protocol** (user messages from the app; prompts tell the agent to never mention them): `[ASK] q` (agent phrases it, max 20 words), `[SAY] text` (verbatim), `[INTERVENE] guardrail | quote`, `[PREDICT] question`, `[QUIET]`.
+- **Hub API change (affects `web/src/map/debrief.ts`, no code change needed):** `hub.agentSay(text, intent, questionId?, control?)` now returns the text actually spoken. Agent turns are logged by the hub from what ElevenAgents really said (rephrased). `hub.ask(text, {…, control?})` unmutes the agent's mic while waiting for the reply, then mutes it again. Teach-back segments go through `[SAY]`, so they're spoken verbatim.
+- Echo filter: Scribe utterances that mostly repeat the agent's last words are dropped (the mic hears the speakers).
+- **Bridge protocol moved to `shared/bridge.ts`** (messages now carry `id` and are deduplicated). New messages: `status`, `beforeAction`/`beforeActionResult`, `frame`, `tutorCard`, `agentState`. `case` start carries `facts`.
+- Teach: `web/src/teach/tutor.ts` (engine) + `TeachPage.tsx` (UI): deterministic block/nudge on MiniERP, Gemini `check_guardrails` on generic sites, `[INTERVENE]` Socratic → expert quote, `[PREDICT]` + `grade_prediction` (emits `tutor.prediction`), overlay cards with the expert's frame, mastery report (respected / caught / not triggered).
+- Next: browser extension (`extension/`) for capture on any site plus overlay, then an end-to-end test.
+
 ### 2026-10-04 · Rene's agent · ✅ Gemini provider live (`functions/src/handlers.ts`)
 - All LLM tasks now run on **Gemini `gemini-3.8-flash`** (`LLM_MODEL`, `LLM_MODEL_DEEP` env overrides). Same task contracts. `.env.local` needs `GEMINI_API_KEY` (Anthropic removed).
 - Smoke test against real Gemini: `npm run smoke -w tools [-- task…]` (fixture-based inputs). Latencies: vision 2.8 s, pick_question 2.1 s, detect_correction 1.4 s, link_answer 1.2 s, check_guardrails 1.3 s, grade_prediction 1.2 s, tutor_explain 1.0 s.

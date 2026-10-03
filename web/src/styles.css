@@ -61,3 +61,4 @@ input, select { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--l
 .erp-bar button { background: transparent; color: #fff; border-color: rgba(255,255,255,0.4); } .erp-bar .pill { background: rgba(255,255,255,0.1); color: #dce6f2; border-color: transparent; } .erp-bar .pill.ok { color: #9be39f; }
 .erp main { padding: 1rem; max-width: 1100px; margin: 0 auto; } .erp .form { margin: 1rem 0; } .erp .actions { display: flex; gap: 0.5rem; align-items: center; } .erp .actions input { max-width: 260px; }
 .banner { padding: 0.6rem 1rem; font-weight: 500; } .banner.block { background: var(--danger); color: #fff; } .banner.info { background: var(--soft); }
+.intervention.nudge { border-color: var(--warn); } .intervention.predict { border-color: var(--accent-2); } .intervention.info { border-color: var(--ok); }

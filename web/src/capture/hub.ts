@@ -11,9 +11,9 @@ import { webStore } from "../lib/webStore";
 import { updateSession } from "../lib/sessions";
 import { llm } from "../lib/api";
 import { listen, send, type BridgeMsg } from "../lib/bridge";
-import { ChunkRecorder, FrameSampler } from "./screen";
+import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
-import { createVoice, type Voice } from "../voice/voice";
+import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
@@ -26,7 +26,10 @@ export interface HubState {
   agentSpeaking: boolean;
   expertSpeaking: boolean;
   voice: string;
+  voiceStatus: string;
   stt: string;
+  extension: boolean;
+  frameSource: "none" | "screen" | "extension";
   lastPause: string;
   liveQuestions: number;
   frames: number;
@@ -69,11 +72,17 @@ export class CaptureHub {
   private pending: { questionId: Id; endedAt: number; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
   private replyWaiter: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
 
-  constructor(readonly session: Session, readonly opts: { writer: string; vision: boolean; agentId?: string }) {
+  /** what the next agent turn is (set right before we make the agent speak) */
+  private turnMeta: { intent: "question" | "follow_up" | "ack" | "clarify" | "teachback" | "intervention" | "other"; questionId?: Id } | null = null;
+  private agentSpokeAt: Array<{ t: number; text: string }> = [];
+  private extFrameBusy = false;
+  private lastExtFrameAt = -1e9;
+
+  constructor(readonly session: Session, readonly opts: { writer: string; vision: boolean; voice: AgentOptions }) {
     this.clock = SessionClock.fromWall(session.clock.wallAtT0);
     this.state = {
       phase: session.kind === "teach" ? "teach" : "capture", offRecord: false, sharing: false, listening: false, agentSpeaking: false,
-      expertSpeaking: false, voice: "-", stt: "-", lastPause: "", liveQuestions: 0, frames: 0, error: null,
+      expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, error: null,
     };
     this.log = new EventLog({
       store: webStore, sessionId: session.id, clock: this.clock, writer: opts.writer, getPhase: () => this.state.phase,
@@ -83,6 +92,12 @@ export class CaptureHub {
     this.unlisten = listen((m) => this.onBridge(m));
     send({ kind: "hello", from: "hub", mode: session.kind === "teach" ? "teach" : "capture" });
     this.timers.push(setInterval(() => this.tickPause(), 300));
+    this.timers.push(setInterval(() => this.broadcastStatus(), 3000));
+  }
+
+  /** Tell overlays (MiniERP, extension) what's going on. */
+  broadcastStatus() {
+    send({ kind: "status", mode: this.session.kind === "teach" ? "teach" : "capture", sessionId: this.session.id, offRecord: this.state.offRecord, recording: this.state.phase === "capture" && !this.state.offRecord, expert: this.session.participant.displayName });
   }
 
   // ───────────── observable state ─────────────
@@ -91,8 +106,11 @@ export class CaptureHub {
     return () => void this.listeners.delete(fn);
   }
   set(patch: Partial<HubState>) {
+    const prev = this.state;
     this.state = { ...this.state, ...patch };
     this.listeners.forEach((l) => l());
+    if (prev.offRecord !== this.state.offRecord || prev.phase !== this.state.phase) this.broadcastStatus();
+    if (prev.agentSpeaking !== this.state.agentSpeaking) send({ kind: "agentState", speaking: this.state.agentSpeaking, listening: this.listening });
   }
   now() {
     return this.clock.now();
@@ -116,7 +134,11 @@ export class CaptureHub {
       onError: (e) => console.warn("stt", e),
     });
     await this.transcriber.start();
-    this.voice = await createVoice(this.opts.agentId, (s) => this.set({ agentSpeaking: s }));
+    this.voice = await createVoice(this.opts.voice, {
+      onSpeaking: (s) => this.set({ agentSpeaking: s }),
+      onAgentTurn: (turn) => this.onAgentTurn(turn),
+      onStatus: (st) => this.set({ voiceStatus: st }),
+    });
     this.set({ listening: true, stt: this.transcriber.name, voice: this.voice.name });
   }
 
@@ -127,7 +149,7 @@ export class CaptureHub {
     this.screenRec.start();
     this.display.getVideoTracks()[0].addEventListener("ended", () => this.stopScreen());
     this.timers.push(setInterval(() => void this.sampleFrame(), 1000));
-    this.set({ sharing: true });
+    this.set({ sharing: true, frameSource: "screen" });
   }
 
   stopScreen() {
@@ -135,7 +157,8 @@ export class CaptureHub {
     this.display?.getTracks().forEach((t) => t.stop());
     this.sampler?.stop();
     this.sampler = null;
-    this.set({ sharing: false });
+    this.display = null;
+    this.set({ sharing: false, frameSource: "none" });
   }
 
   private humanSpeaker() {
@@ -149,9 +172,12 @@ export class CaptureHub {
   }
 
   private async sampleFrame() {
-    if (!this.sampler || this.state.offRecord) return;
+    if (!this.sampler || !this.display || this.state.offRecord) return;
     const f = await this.sampler.grab();
-    if (!f) return;
+    if (f) await this.storeFrame(f);
+  }
+
+  private async storeFrame(f: SampledFrame) {
     const t = this.now();
     const frameId = newId("frm");
     const uri = `frames/${frameId}.webp`;
@@ -204,7 +230,12 @@ export class CaptureHub {
 
   // ───────────── MiniERP bridge ─────────────
   private onBridge(m: BridgeMsg) {
-    if (m.kind === "hello" && m.from === "erp") send({ kind: "hello", from: "hub", mode: this.session.kind === "teach" ? "teach" : "capture" });
+    if (m.kind === "hello" && (m.from === "erp" || m.from === "ext")) {
+      send({ kind: "hello", from: "hub", mode: this.session.kind === "teach" ? "teach" : "capture" });
+      this.broadcastStatus();
+      if (m.from === "ext") this.set({ extension: true });
+    }
+    if (m.kind === "frame") return void this.onExtensionFrame(m.dataUrl);
     if (m.kind === "marker") return this.onMarker(m.marker, "button");
     if (this.state.offRecord) return;
     const t = this.now();
@@ -260,10 +291,66 @@ export class CaptureHub {
     }
   }
 
+  /** Screenshot of the work tab from the extension: used as the frame source when nobody shares a screen. */
+  private async onExtensionFrame(dataUrl: string) {
+    if (this.display || this.state.offRecord || this.extFrameBusy || this.state.phase !== (this.session.kind === "teach" ? "teach" : "capture")) return;
+    const t = this.now();
+    if (t - this.lastExtFrameAt < 900) return;
+    this.extFrameBusy = true;
+    this.lastExtFrameAt = t;
+    try {
+      this.sampler ??= new FrameSampler(null);
+      const f = await this.sampler.grabImage(dataUrl);
+      if (f) await this.storeFrame(f);
+      if (this.state.frameSource !== "extension") this.set({ frameSource: "extension" });
+    } finally {
+      this.extFrameBusy = false;
+    }
+  }
+
+  /** Log what the agent actually said (ElevenAgents rephrases [ASK] messages). */
+  private onAgentTurn(turn: SpokenTurn) {
+    const t = this.now();
+    const meta = turn.spontaneous ? { intent: "follow_up" as const } : this.turnMeta ?? { intent: "other" as const };
+    if (!turn.spontaneous) this.turnMeta = null;
+    const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
+    const utteranceId = newId("utt");
+    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: turn.text, words: interpolateWords(turn.text, t, tEnd), language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
+    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: turn.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
+    this.agentSpokeAt.push({ t, text: turn.text.toLowerCase() });
+    if (this.agentSpokeAt.length > 20) this.agentSpokeAt.shift();
+    send({ kind: "agentState", speaking: true, listening: this.listening, caption: turn.text });
+    // a spontaneous follow-up while waiting for an answer: keep the answer window open
+    if (turn.spontaneous && this.pending) {
+      clearTimeout(this.pending.timer);
+      this.pending.endedAt = this.now();
+    }
+  }
+
+  private listening = false;
+  /** Agent mic on/off (Scribe keeps transcribing regardless). */
+  private agentListen(on: boolean) {
+    this.listening = on;
+    this.voice?.listen(on);
+    send({ kind: "agentState", speaking: this.state.agentSpeaking, listening: on });
+  }
+
+  /** The mic hears the agent's own voice; drop utterances that are just an echo of what the agent said. */
+  private isEcho(u: TranscribedUtterance) {
+    const words = u.text.toLowerCase().match(/[a-z0-9']+/g) ?? [];
+    if (!words.length) return true;
+    return this.agentSpokeAt.some((a) => {
+      if (u.t - a.t > 15_000 || a.t - u.tEnd > 2000) return false;
+      const hit = words.filter((w) => a.text.includes(w)).length;
+      return hit / words.length > 0.7;
+    });
+  }
+
   // ───────────── speech ─────────────
   private onExpertUtterance(u: TranscribedUtterance) {
     this.lastSpeechAt = u.tEnd;
     this.set({ expertSpeaking: false });
+    if (u.sttModel !== "typed" && this.isEcho(u)) return;
     const lower = u.text.toLowerCase();
     if (/\boff the record\b/.test(lower)) return this.onMarker("off_record_start", "voice"); // the command itself is not persisted
     if (/\b(back on (the )?record|on the record again)\b/.test(lower)) return this.onMarker("off_record_end", "voice");
@@ -298,7 +385,10 @@ export class CaptureHub {
   }
 
   private async linkAnswer(questionId: Id, replies: Utterance[]) {
-    if (this.pending?.questionId === questionId) this.pending = null;
+    if (this.pending?.questionId === questionId) {
+      this.pending = null;
+      this.agentListen(false);
+    }
     const q = this.events.find((e) => e.type === "agent.question" && e.payload.questionId === questionId);
     if (!q || q.type !== "agent.question") return;
     const t0 = performance.now();
@@ -404,34 +494,41 @@ export class CaptureHub {
     this.set({ liveQuestions: this.state.liveQuestions + 1 });
     await this.agentSay(text, "question", questionId);
     this.pending = { questionId, endedAt: this.now(), replies: [] };
+    this.agentListen(true);
+    // nobody answered: close the window
+    setTimeout(() => {
+      if (this.pending?.questionId === questionId && !this.pending.replies.length) {
+        this.pending = null;
+        this.agentListen(false);
+      }
+    }, 30_000);
   }
 
-  /** Speak as the agent and log it (agent.turn + word-timed agent utterance). */
-  async agentSay(text: string, intent: "question" | "follow_up" | "ack" | "clarify" | "teachback" | "intervention" | "other", questionId?: Id) {
-    const t = this.now();
-    const done = this.voice?.say(text) ?? Promise.resolve();
-    await done;
-    const tEnd = this.now();
-    const utteranceId = newId("utt");
-    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text, words: interpolateWords(text, t, tEnd), language: "en", transcriptVersion: 1, sttModel: "tts", addressedTo: "other_person" } });
-    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text, intent, interrupted: false, utteranceId, ...(questionId ? { questionId } : {}) } });
+  /** Make the agent speak; the real spoken text is logged by onAgentTurn. Returns what was said. */
+  async agentSay(text: string, intent: "question" | "follow_up" | "ack" | "clarify" | "teachback" | "intervention" | "other", questionId?: Id, control?: string): Promise<string> {
+    if (!this.voice) return text;
+    this.turnMeta = { intent, ...(questionId ? { questionId } : {}) };
+    if (control) return this.voice.control(control, text);
+    return intent === "question" || intent === "follow_up" ? this.voice.ask(text) : this.voice.say(text);
   }
 
   /**
    * Ask something and collect the human's reply (debrief, teach-back, tutor prompts).
    * Resolves after `PAUSE.replySilenceMs` of silence following the first reply, or after `timeoutMs`.
    */
-  async ask(text: string, opts: { category?: QuestionCategory; gapId?: Id; actionIds?: Id[]; intent?: "question" | "follow_up" | "teachback" | "intervention"; timeoutMs?: number } = {}): Promise<{ questionId: Id; replies: Utterance[] }> {
+  async ask(text: string, opts: { category?: QuestionCategory; gapId?: Id; actionIds?: Id[]; intent?: "question" | "follow_up" | "teachback" | "intervention"; timeoutMs?: number; control?: string } = {}): Promise<{ questionId: Id; replies: Utterance[] }> {
     const questionId = newId("q");
     if (opts.category) {
       this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
     }
-    await this.agentSay(text, opts.intent ?? (opts.gapId ? "follow_up" : "question"), opts.category ? questionId : undefined);
+    await this.agentSay(text, opts.intent ?? (opts.gapId ? "follow_up" : "question"), opts.category ? questionId : undefined, opts.control);
+    this.agentListen(true);
     const replies = await new Promise<Utterance[]>((resolve) => {
       const w: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } = { resolve, replies: [] };
       w.timer = setTimeout(() => (this.replyWaiter = null, resolve(w.replies)), opts.timeoutMs ?? 30_000);
       this.replyWaiter = w;
     });
+    this.agentListen(false);
     // tag the replies (already emitted) by emitting answer links where a question was logged
     if (opts.category && replies.length) await this.linkAnswer(questionId, replies);
     return { questionId, replies };
