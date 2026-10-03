@@ -1,0 +1,28 @@
+# Coordination log (Rene's agent ⇄ Toivo's agent)
+
+**Protocol:** both agents `git pull --rebase` before starting work and before every push, and **append** an entry here with each push (newest at the top of the log). Rules:
+- Announce interface changes (schema, LLM tasks, hub API, bridge messages) **before** relying on them.
+- Never edit the other side's owned files; propose changes in this log instead.
+- Small, frequent commits with a clear prefix: `capture:`, `teach:`, `map:`, `shared:`.
+
+## Ownership
+
+| Area | Owner | Files |
+|---|---|---|
+| Part 1 Capture (expert side, MiniERP, extension capture) | **Rene's agent** | `web/src/capture/**`, `web/src/erp/**`, `web/src/voice/**`, `extension/**`, `web/src/lib/bridge.ts` |
+| Part 3 Teach (tutor, overlay, predictions, mastery) | **Rene's agent** | `web/src/teach/**`, `shared/conditions.ts`, `extension/**` |
+| Part 2 Map (Work Map build, debrief, teach-back, Map UI) | **Toivo's agent** | `web/src/map/**`, `shared/workmap.ts`, `shared/logindex.ts` |
+| Shared contract | both, by agreement here | `shared/schema.ts`, `shared/llm.ts`, `shared/eventlog.ts`, `functions/src/**` |
+
+## Log
+
+### 2026-10-04 · Rene's agent · plan for Capture + Teach (heads-up, interface changes)
+1. **LLM provider → Google Gemini** (user decision). `functions/src/handlers.ts` switches from Anthropic to Gemini (`gemini-3.8-flash` default, `LLM_MODEL` to override). **Task names, inputs and outputs in `shared/llm.ts` stay the same**, so Map code calling `llm("extract_workmap" | "plan_debrief" | "teachback")` keeps working. Only the provider changes. Notes: the key works with the `x-goog-api-key` header; `gemini-2.5-*` returns 404 for new users; `thinkingLevel: "minimal"` is rejected (use `low`).
+2. **New LLM tasks (additive):** `check_guardrails` (for generic websites without CaseFacts), `grade_prediction` (Teach). Nothing existing is removed.
+3. **ElevenLabs:** the key has TTS, STT (Scribe) and Agents access. Two ElevenAgents get created by `tools/src/setup-elevenlabs.ts`: **Interviewer** (Capture + debrief voice) and **Tutor** (Teach). Agent IDs are committed in `web/src/lib/elevenlabs.json` (not secret). The API key stays only in `.env.local` / Secret Manager.
+   - The `CaptureHub` API Map uses stays the same: `hub.ask()`, `hub.agentSay()`, `hub.emit()`, `hub.setPhase()`, `hub.events`. Under the hood the voice becomes the ElevenAgents conversation (fallback: ElevenLabs TTS via `/tts`, then browser speech).
+   - The agent's mic is **muted while the expert works** (Scribe keeps transcribing everything) and unmuted while waiting for an answer, so the agent never talks over thinking-aloud.
+4. **Browser extension** (`extension/`, MV3): captures DOM interactions on *any* website (so capture isn't limited to MiniERP) and shows the overlay (recording state, off-record, tutor guidance cards). It relays the existing bridge messages (`web/src/lib/bridge.ts`) between tabs through its background worker. The website screen-share path stays as is.
+5. Teach: tutor = ElevenAgents with the confirmed Work Map injected into its prompt, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`. Adds `tutor.prediction` (predict-the-decision) and the mastery report.
+
+**Asks for Toivo:** none blocking. If Map needs a new LLM task, add it to `shared/llm.ts` plus a Gemini schema in `functions/src/handlers.ts` and log it here. `web/src/map/debrief.ts` is yours; it runs on `hub.ask()`, which now speaks through ElevenAgents.
