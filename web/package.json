@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:map": "node --import tsx --experimental-test-module-mocks --test src/map/debrief.sim.test.ts"
   },
   "devDependencies": {
     "@types/react": "^19.3.0",
