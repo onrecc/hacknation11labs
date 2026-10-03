@@ -32,7 +32,7 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
       const quote = text.split(/(?<=[.!?])\s+/)[0] ?? text;
       return { quote, summary: quote, completeness: "partial", needsFollowUp: false };
     },
-    extract_workmap: () => ({ steps: [], decisions: [], guardrails: [], glossary: [] }),
+    extract_workmap: () => ({ summary: "", steps: [], decisions: [], guardrails: [], glossary: [], mistakes: [], correctionTargets: [] }),
     plan_debrief: (i) => ({
       gaps: [
         ...i.deferredQuestions.map((q) => ({ kind: "deferred_question", description: q, proposedQuestion: q, priority: 0.8, aboutActionIds: [] })),
@@ -44,6 +44,13 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
     teachback: (i) => ({ segments: i.workmap.steps.map((s) => ({ text: `${s.title}. ${s.instructions}`, stepIds: [s.id] })) }),
     check_guardrails: () => ({ violations: [] }),
     grade_prediction: (i) => ({ correct: i.answer.toLowerCase().includes(i.expected.toLowerCase().split(" ")[0] ?? ""), feedback: `${i.reason}` }),
+    teachback_verdict: (i) => {
+      const r = i.reply.trim();
+      if (!r) return { verdict: "unclear", correction: "", correctedText: "" };
+      const yes = /^\s*(yes|yeah|yep|right|correct|exactly|mm-?hm|that'?s right)\b/i.test(r);
+      const change = /\b(but|not|no|except|actually|instead|wrong)\b/i.test(r);
+      return yes && !change ? { verdict: "confirmed", correction: "", correctedText: "" } : { verdict: "corrected", correction: r, correctedText: `${i.segment} (Correction: ${r})` };
+    },
     tutor_explain: (i) => ({
       spoken: i.socratic
         ? `${i.expertName} would stop here. Why do you think?`

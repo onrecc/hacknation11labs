@@ -62,7 +62,7 @@ export interface LlmTasks {
   };
   /** Map: propose steps / decisions / guardrails from the condensed log. Code verifies everything. */
   extract_workmap: {
-    input: { log: string; factPaths: string[] };
+    input: { log: string; factPaths: string[]; existingIds?: Array<{ id: Id; kind: "step" | "decision" | "guardrail"; title: string }> };
     output: ExtractionProposal;
   };
   /** Map: rank gaps and phrase debrief questions. */
@@ -90,6 +90,11 @@ export interface LlmTasks {
     input: { question: string; expected: string; reason: string; answer: string };
     output: { correct: boolean; feedback: string };
   };
+  /** Map: classify the expert's reply to one teach-back segment. */
+  teachback_verdict: {
+    input: { segment: string; reply: string; workmapContext: string };
+    output: { verdict: "confirmed" | "corrected" | "unclear"; correction: string; correctedText: string };
+  };
   /** Teach: phrase an intervention in the expert's words. */
   tutor_explain: {
     input: { expertName: string; guardrail: Pick<Guardrail, "statement" | "requiredAction">; quote: string; facts: CaseFacts; socratic: boolean };
@@ -101,33 +106,60 @@ export type LlmTask = keyof LlmTasks;
 export type LlmInput<T extends LlmTask> = LlmTasks[T]["input"];
 export type LlmOutput<T extends LlmTask> = LlmTasks[T]["output"];
 
+/**
+ * What the LLM proposes for a Work Map. Code (shared/workmap.ts `assemble`) verifies every quote, action id,
+ * condition field and correction id before anything becomes a claim. Keys are stable slugs: reuse the
+ * `existingIds` from the previous version so links (gaps, teach-back, Teach) survive rebuilds.
+ * Empty string = "none" for every *Json / optional string field (structured outputs have no optionals).
+ */
 export interface ExtractionProposal {
-  steps: Array<{ title: string; goal: string; instructions: string; actionIds: Id[]; decisionKeys: string[]; guardrailKeys: string[]; optional: boolean }>;
+  summary: string;
+  steps: Array<{
+    key: string; // "st_code" (reuse existing ids)
+    title: string;
+    goal: string;
+    instructions: string;
+    actionIds: Id[];
+    /** The one action whose screen moment best shows this step ("" = first of actionIds). */
+    momentActionId: Id;
+    decisionKeys: string[];
+    guardrailKeys: string[];
+    optional: boolean;
+    /** JSON Condition over CaseFacts: when an optional step applies. "" for always-on steps. */
+    whenJson: string;
+    whenText: string;
+  }>;
   decisions: Array<{
-    key: string;
+    key: string; // "dec_capex"
     kind: Decision["kind"];
     question: string;
     observedChoice: string;
-    options: Array<{ option: string; whenText: string }>;
+    /** whenJson: JSON Condition when this option is right ("" for the fallback option). */
+    options: Array<{ option: string; whenText: string; whenJson: string }>;
     reasonUtteranceId: Id;
     reasonQuote: string;
     reasonSummary: string;
     actionIds: Id[];
   }>;
   guardrails: Array<{
-    key: string;
+    key: string; // "gr_capex_threshold"
     kind: Guardrail["kind"];
     statement: string;
     /** JSON-encoded Condition (violation predicate over CaseFacts), "" if not expressible. */
     conditionJson: string;
     requiredAction: string;
     escalateToRole: string;
+    escalateToName: string;
     scope: string;
     severity: Guardrail["severity"];
     quotes: Array<{ utteranceId: Id; quote: string }>;
     actionIds: Id[];
   }>;
   glossary: Array<{ term: string; meaning: string }>;
+  /** For CORRECTION lines of kind action_was_mistake: how to teach it. */
+  mistakes: Array<{ correctionEventId: Id; description: string; correctBehavior: string; relatedKeys: string[] }>;
+  /** For every other CORRECTION line: which steps/decisions/guardrails it changed. */
+  correctionTargets: Array<{ correctionEventId: Id; keys: string[] }>;
 }
 
 /** Field paths Work Map conditions may use (keep in sync with CaseFacts). */

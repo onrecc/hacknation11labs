@@ -52,18 +52,24 @@ const schemas = {
     needsFollowUp: z.boolean(),
   }),
   extract_workmap: z.object({
-    steps: z.array(z.object({ title: z.string(), goal: z.string(), instructions: z.string(), actionIds: z.array(z.string()), decisionKeys: z.array(z.string()), guardrailKeys: z.array(z.string()), optional: z.boolean() })),
+    summary: z.string(),
+    steps: z.array(z.object({
+      key: z.string(), title: z.string(), goal: z.string(), instructions: z.string(), actionIds: z.array(z.string()), momentActionId: z.string(),
+      decisionKeys: z.array(z.string()), guardrailKeys: z.array(z.string()), optional: z.boolean(), whenJson: z.string(), whenText: z.string(),
+    })),
     decisions: z.array(z.object({
       key: z.string(), kind: z.enum(["rule", "judgment", "habit", "mistake", "unknown"]), question: z.string(), observedChoice: z.string(),
-      options: z.array(z.object({ option: z.string(), whenText: z.string() })), reasonUtteranceId: z.string(), reasonQuote: z.string(),
+      options: z.array(z.object({ option: z.string(), whenText: z.string(), whenJson: z.string() })), reasonUtteranceId: z.string(), reasonQuote: z.string(),
       reasonSummary: z.string(), actionIds: z.array(z.string()),
     })),
     guardrails: z.array(z.object({
       key: z.string(), kind: z.enum(["limit", "exception", "stop_and_ask", "never", "always", "approval_required"]), statement: z.string(),
-      conditionJson: z.string(), requiredAction: z.string(), escalateToRole: z.string(), scope: z.string(), severity: z.enum(["info", "warn", "block"]),
+      conditionJson: z.string(), requiredAction: z.string(), escalateToRole: z.string(), escalateToName: z.string(), scope: z.string(), severity: z.enum(["info", "warn", "block"]),
       quotes: z.array(z.object({ utteranceId: z.string(), quote: z.string() })), actionIds: z.array(z.string()),
     })),
     glossary: z.array(z.object({ term: z.string(), meaning: z.string() })),
+    mistakes: z.array(z.object({ correctionEventId: z.string(), description: z.string(), correctBehavior: z.string(), relatedKeys: z.array(z.string()) })),
+    correctionTargets: z.array(z.object({ correctionEventId: z.string(), keys: z.array(z.string()) })),
   }),
   plan_debrief: z.object({
     gaps: z.array(z.object({ kind: z.string(), description: z.string(), proposedQuestion: z.string(), priority: z.number(), aboutActionIds: z.array(z.string()) })),
@@ -71,6 +77,7 @@ const schemas = {
   teachback: z.object({ segments: z.array(z.object({ text: z.string(), stepIds: z.array(z.string()) })) }),
   check_guardrails: z.object({ violations: z.array(z.object({ guardrailId: z.string(), reason: z.string(), confidence: z.number() })) }),
   grade_prediction: z.object({ correct: z.boolean(), feedback: z.string() }),
+  teachback_verdict: z.object({ verdict: z.enum(["confirmed", "corrected", "unclear"]), correction: z.string(), correctedText: z.string() }),
   tutor_explain: z.object({ spoken: z.string() }),
 } satisfies Record<LlmTask, z.ZodType>;
 
@@ -85,17 +92,32 @@ If the live budget is 0 or the question can wait, set ask=false and deferInstead
   detect_correction: `Decide whether the expert's latest utterance corrects something they said or did earlier ("no wait", "actually", "that's wrong", "about what I said earlier"...).
 quote must be copied verbatim from the utterance. Target the earlier utterances/actions it corrects by id. before/after describe the knowledge, not the words. If it is not a correction, set isCorrection=false and leave other fields empty.`,
   link_answer: `Link the expert's answer to the question. quote must be a verbatim substring of one utterance: the shortest span that carries the reason or rule.`,
-  extract_workmap: `You turn an expert's recorded work session into a Work Map that teaches a new hire.
-Steps generalize across cases (5-9 steps, one per kind of work, not per click). Decisions are judgment calls with their reason in the expert's words. Guardrails are limits, exceptions, stop-and-ask rules, nevers and approvals.
-Rules:
-- Every quote MUST be copied verbatim from an utterance in the log, with its utterance id. Prefer the corrected version when the expert corrected themselves; CORRECTION lines override earlier statements.
-- Actions the expert called a mistake are NOT steps.
-- Habits are not guardrails.
-- conditionJson: a JSON Condition that is TRUE WHEN SAVING NOW WOULD VIOLATE the guardrail, using only the given fact paths. Shape: {"op":"and"|"or","all":[...]} | {"op":"not","c":{...}} | {"op":"eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"contains"|"missing","field":"invoice.amount","value":5000}. Use "" if the rule can't be expressed.
-- Reference actions by their ACTION ids.`,
-  plan_debrief: `Plan a short spoken debrief with the expert. Find what a new hire still could not decide from the Work Map: unexplained actions, unknown scope, missing thresholds, unseen cases, rule conflicts, rule-vs-habit, who decides.
-Never repeat a question that was already answered in the session. Questions are short and name the concrete case. Priority 0..1.`,
-  teachback: `Explain the whole process back to the expert in under 90 seconds of speech, in plain words, as 3-6 segments. Each segment covers one or more steps (give their ids). Use the expert's thresholds and names exactly.`,
+  extract_workmap: `You turn an expert's recorded work session into a Work Map that teaches a new hire to do the same work.
+The log lines are tagged with ids: ACTION evt_…, EXPERT utt_…, QUESTION q_…, CORRECTION evt_…. Off-record parts were removed; never mention or guess them.
+
+Produce:
+- steps: 5-9 steps, one per KIND of work generalized across cases (not one per click), in work order. key: reuse an id from existingIds when it is the same step, else "st_<short_slug>". actionIds: the ACTION ids that are instances of this step. momentActionId: the single action whose screen best shows the step. optional=true if the step only happens in some cases; then whenJson says WHEN it applies and whenText says it in plain words.
+- decisions: the judgment calls and rules the expert applied (2-5). kind: rule (always the same given facts) | judgment (weighs things) | habit (personal routine, not required) | mistake. options: every choice with whenText and, when expressible, whenJson (when this option is right; "" for the fallback "otherwise" option). reasonUtteranceId + reasonQuote: the expert's own words giving the reason.
+- guardrails: limits, exceptions, stop-and-ask rules, nevers, required approvals (2-6). conditionJson is a VIOLATION predicate: TRUE when saving the case right now would break the guardrail (so it must become false once the expert's required action is done, e.g. include "costCenter neq 0400" or "status not in [on_hold]"). severity block only if conditionJson is set. quotes: the expert's own words. escalateToRole/escalateToName: who to ask, "" if nobody.
+- glossary: codes and names a new hire must know (cost centers, subsidiaries, people).
+- mistakes: one entry per CORRECTION of kind action_was_mistake (description = what was done wrong, correctBehavior = what to do instead, relatedKeys = decision/guardrail keys).
+- correctionTargets: for every other CORRECTION, the step/decision/guardrail keys whose content it changed.
+- summary: one sentence.
+
+Hard rules:
+- Every quote is copied CHARACTER FOR CHARACTER from one EXPERT utterance (with its utt id). Prefer the sentence that states the rule; it may include the self-correction ("…three thousand… No, wait, sorry, five thousand."). Never quote the agent. If the expert never said it aloud, do not invent a quote: leave that guardrail out.
+- Later CORRECTION lines override earlier statements; use the corrected values everywhere (thresholds, names, scope).
+- Actions the expert called a mistake are NOT steps. Habits are NOT guardrails.
+- Conditions use only the given fact paths. Condition JSON shape: {"op":"and"|"or","all":[...]} | {"op":"not","c":{...}} | {"op":"eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"contains"|"missing","field":"invoice.amount","value":5000}. "missing" is true for null/empty. Use "" when not expressible.
+- Reference only ids that appear in the log.`,
+  plan_debrief: `Plan a short spoken debrief with the expert, right after they finished the task. Find what a new hire STILL could not decide from what was seen and said:
+unknown_scope (rule seen on one supplier/case: does it apply to others?), who_decides (who releases/approves/escalates), unseen_case (a guardrail's other branch never seen, e.g. no asset number), conflict (two rules that could both apply to one case), habit_vs_rule (something done once without a stated reason), missing_threshold (a limit without a number).
+Rules: never ask anything already answered in the log; deferred questions come first (priority 0.9). Each proposedQuestion is max 20 words, spoken, and names the concrete case ("the Hofmann invoice"). Priority 0..1 = how badly a new hire needs it. 3-6 gaps.`,
+  teachback: `Explain the whole process back to the expert, in the second person ("you open…"), in under 90 seconds of speech (max ~220 words), as 3-6 segments in work order. Each segment covers one or more steps (give their ids).
+Use ONLY facts from the Work Map you are given, with the expert's thresholds, codes and names exactly. Do not add rules, numbers or names that are not in it. Plain spoken language, no lists.`,
+  teachback_verdict: `The apprentice just read one part of its explanation back to the expert and asked "is that right?". Classify the expert's reply.
+confirmed: they agree (yes, right, exactly, mm-hm) with no change. corrected: they change or add something (even after a "yes, but…"); write the corrected version of the segment in correctedText, keeping everything else the same. unclear: no answer or off-topic.
+correction: the expert's own words that carry the change, copied verbatim from the reply ("" if none).`,
   check_guardrails: `A new hire is about to perform an action on a web page. Given the expert's guardrails and the visible form fields, list ONLY guardrails that this action would clearly violate. Be conservative: no violation if the fields don't show it. confidence 0..1.`,
   grade_prediction: `Grade whether the new hire's predicted decision matches the expert's decision in substance (wording may differ). Feedback: one short, encouraging sentence that uses the expert's reason.`,
   tutor_explain: `You are a patient tutor coaching a new hire on their screen. The new hire is about to break a guardrail. If socratic=true, ask them why the expert would stop here (one sentence) and wait. Otherwise explain using the expert's quote verbatim, naming the expert. Max 2 sentences.`,
