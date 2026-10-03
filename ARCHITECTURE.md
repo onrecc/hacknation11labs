@@ -47,12 +47,12 @@ Why we do it this way:
 |---|---|---|---|
 | Continuous screen video | `getDisplayMedia` + `MediaRecorder` (WebM, chunked 10 s) | `media.chunk` | continuous. Needed for **replay of screen moments** in Map/Teach |
 | Frames | canvas grab from the same stream | `frame.captured` | 1 fps **always stored**, plus a perceptual-hash diff score |
-| Vision | changed frames (diff > threshold, or every 5 s heartbeat) → vision LLM with previous frame + recent action context | `screen.observed`, `model.call` | ~0.5–1 Hz |
+| Vision | changed frames (diff > threshold, or every 5 s heartbeat) → Gemini vision with previous summary + recent action context. Frames come from screen share **or** the extension's tab screenshots | `screen.observed`, `model.call` | ~0.5–1 Hz |
 | Semantic actions | normalize observations to `{verb, entity, field, from, to}` | `screen.action` | on change |
-| **Sandbox instrumentation** (strongly recommended) | we build the sandbox ERP ourselves and it emits exact field changes, clicks and focus via `postMessage`/WebSocket | `app.event`, `input.activity` | per interaction |
+| **App instrumentation** | MiniERP emits exact field changes and `CaseFacts`. **Any other web app:** the extension (or `apprentice-embed.js`) emits labeled field changes, clicks, submits and navigation with sensitive values masked | `app.event`, `input.activity` | per interaction |
 | Mic audio | `MediaRecorder` raw, separate from the agent | `media.chunk` | continuous |
 | Live transcript | Scribe v2 Realtime: partial + final, word timestamps, VAD | `speech.vad`, `utterance` | real time |
-| Agent | ElevenAgents (`@elevenlabs/react`). Screen events go in via `sendContextualUpdate`. Client tools: `get_recent_screen_events`, `mark_question_asked`. System tool `skip_turn` to stay quiet | `agent.context_pushed`, `agent.turn`, `agent.tool_call`, `agent.skipped_turn` | per turn |
+| Agent | ElevenAgents Interviewer (`@elevenlabs/client`, LLM gemini-3.5-flash, expressive v3 voice). Screen events go in via `sendContextualUpdate`. Our pause detector decides *when*, and sends `[ASK] …`. The agent's mic is muted while the expert works. Client tool `get_recent_screen_events`; `skip_turn` for thinking-aloud | `agent.context_pushed`, `agent.turn`, `agent.tool_call`, `agent.skipped_turn` | per turn |
 | Pause detector | fuses typing activity, VAD, screen diff and case boundaries | `pause.detected` with decision `ask`/`hold`/`skip` and reason | on signal |
 | Question picker | candidates scored by "would the screen already answer this?" and guardrail value. Budget: 3–5 per 10 min, the rest queued for the debrief | `agent.question` (with rejected candidates), `question.deferred` | on pause |
 | Expert controls | hotkey/voice: "off the record", "bookmark", "next invoice" | `marker.*` | user-driven |
@@ -110,7 +110,7 @@ Cloud Functions (2nd gen; secrets in Secret Manager)
   api (europe-west1)  POST /llm {task,input} (vision | pick_question | detect_correction | link_answer | extract_workmap | plan_debrief | teachback | tutor_explain)
                       POST /voice-token (ElevenLabs signed agent URL / Scribe token) · GET /health
   redact (TODO)       Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
-Hosting            the web app (/capture, /map/:id, /teach) + the MiniERP sandbox
+Hosting            the web app (/capture, /map/:id, /teach) + the MiniERP sandbox + /apprentice-embed.js
 Auth               Google sign-in for the team, anonymous auth for judges; rules: request.auth != null
 ```
 

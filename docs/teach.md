@@ -27,15 +27,16 @@
   python3 scripts/eval_guardrails.py <workmap.json>
   ```
 
-## Where the code is (boilerplate status)
+## Where the code is (status 2026-10-04)
 
 | What | File | Status |
 |---|---|---|
 | Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T4) | ✅ |
-| Tutor panel: nudge on change, block on save, Socratic → expert quote, replay frame, mastery report | `web/src/teach/TeachPage.tsx` | ✅ T1 verified in the browser |
-| MiniERP teach cases T1–T4 | `web/src/erp/data.ts` | ✅ |
-| Predictions (`tutor.prediction`) | — | ❌ TODO |
-| Tutor via ElevenAgents (`VITE_ELEVENLABS_TUTOR_AGENT_ID`) | `web/src/voice/voice.ts` | ⚠️ untested without a key |
+| Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser with real Gemini; `validate_bundle --part teach` → 0 errors |
+| Generic web apps | Gemini `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
+| Tutor voice | ElevenAgents Tutor with the Work Map as `{{work_map}}`, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` | ✅ protocol verified (`npm run agent-test -w tools`) |
+| Overlay | `extension/src/overlay.ts`: docked in MiniERP, floating on other sites | ✅ |
+| Predictions | `[PREDICT]` + `grade_prediction` → `tutor.prediction` | ✅ |
 
 ## Hard constraints
 

@@ -22,9 +22,8 @@ Create `.env.local` in the repo root. It is **gitignored and must never be commi
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/hacknation11labs-firebase-adminsdk-....json   # ask the team, never commit
 FIREBASE_PROJECT_ID=hacknation11labs
-ANTHROPIC_API_KEY=        # empty = mock LLM (every flow still works)
-ELEVENLABS_API_KEY=       # empty = browser speech fallback (Chrome Web Speech + speechSynthesis)
-ELEVENLABS_AGENT_ID=
+GEMINI_API_KEY=           # Google Gemini (all LLM tasks); empty = mock LLM (every flow still works)
+ELEVENLABS_API_KEY=       # needs Text to Speech, Speech to Text and Agents access; empty = browser speech fallback
 ```
 
 Run (two terminals):
@@ -37,10 +36,28 @@ npm run api
 npm run dev
 ```
 
+First time only (creates/updates the two ElevenAgents and writes their ids to `web/src/lib/elevenlabs.json`):
+
+```bash
+npm run setup:elevenlabs -w tools
+```
+
 Open http://localhost:5173:
 - **Map:** `/map/ses_demo_sabine_01` is the seeded demo session with its confirmed Work Map (live from Firestore).
 - **Teach:** `/teach` → pick the Work Map → start. MiniERP opens in teach mode. Open INV-4490 (€7,200 equipment) and press Approve on cost center 4711. The tutor holds the save and quotes Sabine.
-- **Capture:** `/capture` → start a session → listen / share screen → open MiniERP and work. The agent asks at pauses, then End task → debrief → teach-back.
+- **Capture:** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.
+- **Any other web app:** `/demo/procurex.html` is a plain third-party-style form. With the extension (or the one-line embed it includes) Capture records its field changes and Teach holds a wrong "Submit for approval".
+
+## Browser extension (capture on any site + tutor overlay)
+
+```bash
+npm run build:extension
+```
+
+In Chrome: `chrome://extensions` → Developer mode → **Load unpacked** → select `extension/dist`. Then start a Capture or Teach session in the web app and work in any other tab:
+- **Capture:** records field changes, clicks and navigation (passwords, IBANs and card numbers are masked). Screenshots the active work tab once per second as frames, so no screen-share dialog is needed. The overlay pill shows recording, with off-record and bookmark buttons.
+- **Teach:** the overlay shows Ada's guidance cards with the expert's quote and screen moment. Save/Submit/Approve-like clicks are held until Gemini has checked them against the Work Map's guardrails.
+- For same-origin apps without the extension: `<script src="https://<host>/apprentice-embed.js" defer></script>`.
 
 ## Repo
 
@@ -53,7 +70,8 @@ shared/            contract + logic used everywhere (no framework code)
   conditions.ts      deterministic guardrail engine (violation predicates over CaseFacts)
   llm.ts             typed contract of every LLM task (vision, pick_question, extract_workmap, …)
 web/               Vite + React app: /capture /map /teach /erp (MiniERP sandbox)
-functions/         `api` Cloud Function: LLM tasks (Claude) + ElevenLabs tokens; keys never in the browser
+functions/         `api` Cloud Function: LLM tasks (Gemini) + ElevenLabs tokens/TTS; keys never in the browser
+extension/         Chrome MV3 extension: DOM capture on any site, overlay, cross-tab relay, tab screenshots
 tools/             admin scripts: dev-api server, seed fixture, pull session, deploy rules, project setup
 fixtures/          demo session + expected Work Map (test oracle)
 scripts/           Python: fixture generator, bundle validator, guardrail reference evaluator
@@ -74,11 +92,13 @@ python3 scripts/validate_bundle.py data/sessions/<id> --part capture|map|teach
 Firestore (`eur3`) and Storage (`us-east1`) are set up. A web app is registered, anonymous auth is enabled and the rules are deployed (`npm run deploy:rules`). Cloud Functions need an account with Functions + Secret Manager rights (the service account doesn't have them). Until then, `npm run api` serves the same handlers locally. To deploy them:
 
 ```bash
-firebase functions:secrets:set ANTHROPIC_API_KEY
+firebase functions:secrets:set GEMINI_API_KEY
 ```
 
 ```bash
 npm run deploy:functions
 ```
 
-Stack: ElevenAgents + Scribe v2 Realtime · Claude (`claude-opus-5-5` by default, `LLM_MODEL` to override) · Firebase. All data is fictional sandbox data.
+Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Google Gemini (`gemini-3.8-flash`, `LLM_MODEL` / `LLM_MODEL_DEEP` to override) · Firebase · Chrome MV3 extension. All data is fictional sandbox data.
+
+Tool checks against the real services: `npm run smoke -w tools` (every Gemini task), `npm run agent-test -w tools` (both agents' control protocol over WebSocket), `npm run scribe-test -w tools` (Scribe realtime with word timestamps).

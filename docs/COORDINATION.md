@@ -16,6 +16,11 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Full Capture run on real Gemini + docs
+- MiniERP run (Sabine's 3 invoices, typed answers): **3 live questions** at save/case-end pauses (`guardrail_limit`, `why`, `scope`), verbatim `answer.linked`, and the spoken "Oh, no, that's wrong… needs Weber first" became `knowledge.correction action_was_mistake` targeting the Approve action. Validator: only "no frames" (no screen share in the preview browser; frames via screen share and via extension screenshots were tested separately).
+- **Sample sessions for Map (Toivo):** `ses_01M41YMCP25MA2GDQRJC535AB1` (MiniERP, 3 cases, 111 events, ended in phase debrief, debrief not run) and `ses_01M41Y8K9G13RBP7JNXFCRMH34` (ProcureX via embed, 3 extension frames). Both are real Gemini output, so good for testing `extract_workmap` / debrief on non-fixture data. `npm run pull -- <id>`.
+- README, ARCHITECTURE, capture.md and teach.md are updated (setup for `GEMINI_API_KEY`, `setup:elevenlabs`, extension install, embed, test tools).
+
 ### 2026-10-04 · Rene's agent · ✅ ElevenLabs verified (agents, TTS, Scribe) + generic-site capture/teach
 - `npm run agent-test -w tools` drives both agents over WebSocket (text) and checks the protocol. **Interviewer:** calls `skip_turn` on thinking-aloud, rephrases `[ASK]`, acks answers ("Got it, five thousand."), says `[SAY]` verbatim. **Tutor:** Socratic first on `[INTERVENE]`, then explains with the expert's words and offers `replay_moment`, answers free questions from the Work Map. Expressive audio tags (`[slow]`) are stripped from logged text.
 - `npm run scribe-test -w tools`: Scribe v2 Realtime commits ~2 s after speech, with word timestamps **cumulative from connection start** (transcriber mapping verified).

@@ -24,18 +24,18 @@
   python3 scripts/validate_bundle.py <bundle> --part capture
   ```
 
-## Where the code is (boilerplate status)
+## Where the code is (status 2026-10-04)
 
 | What | File | Status |
 |---|---|---|
-| Session orchestration: pause detector, question picker, answer linking, corrections, off-record | `web/src/capture/hub.ts` (`CaptureHub`, tunables in `PAUSE`) | ✅ works end-to-end with mock LLM (typed answers), tune with real keys |
-| Frames (1 fps, diff, PII blur) + standalone 10 s media chunks | `web/src/capture/screen.ts` | ✅ |
-| Always-on STT | `web/src/capture/transcriber.ts` (Scribe v2 Realtime, Web Speech fallback) | ⚠️ Scribe path untested without a key |
-| Agent voice | `web/src/voice/voice.ts` (ElevenAgents, `speechSynthesis` fallback) | ⚠️ day-1: verify "say this verbatim" mechanism |
-| MiniERP + bridge + `beforeSave` | `web/src/erp/`, `web/src/lib/bridge.ts` | ✅ |
-| Event writer | `shared/eventlog.ts` + `web/src/lib/webStore.ts` | ✅ (tested: two writers, gap-free seq) |
-| LLM prompts (vision, pick_question, detect_correction, link_answer) | `functions/src/handlers.ts` | 📝 first drafts, iterate |
-| Panel UI | `web/src/capture/CapturePage.tsx` | ✅ basic |
+| Session orchestration: pause detector, question picker, answer linking, corrections, off-record, echo filter | `web/src/capture/hub.ts` (`CaptureHub`, tunables in `PAUSE`) | ✅ full MiniERP run on real Gemini: 3 live questions at save/case-end pauses (1 guardrail), verbatim answers, `action_was_mistake` correction |
+| Voice | `web/src/voice/voice.ts`: ElevenAgents Interviewer (`[ASK]`/`[SAY]`, mic muted while working) → ElevenLabs TTS → browser | ✅ protocol verified (`npm run agent-test -w tools`); TTS verified in browser |
+| Always-on STT | `web/src/capture/transcriber.ts`: Scribe v2 Realtime (word timestamps verified with `npm run scribe-test -w tools`) → Web Speech; typed fallback | ✅ |
+| Frames | screen share (`screen.ts`) **or** extension tab screenshots (`frame` bridge messages) → Gemini vision | ✅ both |
+| Any web app | `extension/` (MV3) + `web/public/apprentice-embed.js`; demo app `/demo/procurex.html` | ✅ via embed in browser; ⚠️ extension relay/screenshots need a manual load in Chrome to verify |
+| MiniERP + bridge + `beforeSave` | `web/src/erp/`, `shared/bridge.ts`, `web/src/lib/bridge.ts` | ✅ |
+| ElevenAgents config | `tools/src/setup-elevenlabs.ts` (prompts, voices, tools) | ✅ |
+| Redaction | IBAN masked in MiniERP UI, sensitive fields masked by the extension, vision `piiRegions` blurred on later frames | ⚠️ no Presidio pass on transcripts yet |
 
 ## Hard constraints
 
