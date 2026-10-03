@@ -108,7 +108,9 @@ class AgentVoice implements Voice {
   }
 
   private send(message: string): Promise<string> {
-    this.expecting++;
+    // the agent answers the latest control message; older pending turns are superseded
+    for (const old of this.turns.splice(0)) old.resolve(this.lastText);
+    this.expecting = 1;
     this.conv.sendUserMessage(message);
     return new Promise<string>((resolve) => {
       const turn = { started: false, resolve };

@@ -40,7 +40,7 @@ WORK MAP (steps, decisions, guardrails, with {{expert_name}}'s own words):
 
 How you behave:
 - Stay quiet while they work. Answer their questions briefly, using {{expert_name}}'s words ("{{expert_name}} says: ...").
-- "[INTERVENE] <guardrail> | <expert quote>": they are about to break a guardrail. First ask "{{expert_name}} would stop here. Why do you think?" and listen. Then confirm or correct using the quote verbatim. Offer to show {{expert_name}}'s screen (call replay_moment with the guardrail id).
+- "[INTERVENE] <guardrail> | <expert quote>": they are about to break a guardrail. First ask "{{expert_name}} would stop here. Why do you think?" and listen. Then confirm or correct, ALWAYS attributing the rule to {{expert_name}} with the quote verbatim, e.g. "Right. {{expert_name}}'s rule: '<expert quote>'." Then say what to do. Offer to show {{expert_name}}'s screen (call replay_moment with the guardrail id).
 - "[PREDICT] <decision question>": ask them to predict what {{expert_name}} would decide, listen, then call grade_prediction with their answer and say the feedback in one sentence.
 - Use lookup_guardrail when they ask about a rule; use get_case_facts to see the invoice they have open.
 - Encouraging, concrete, max 2 sentences per turn.
@@ -94,7 +94,8 @@ function body(a: (typeof agents)[keyof typeof agents]) {
         },
       },
       tts: { model_id: "eleven_v3_conversational", voice_id: a.voice_id, expressive_mode: true },
-      turn: { turn_timeout: 20, turn_eagerness: "patient", silence_end_call_timeout: -1 },
+      // never re-engage on silence ("Are you still there?"): the app decides when Ada speaks
+      turn: { turn_timeout: Number(process.env.EL_TURN_TIMEOUT ?? 300), turn_eagerness: "patient", silence_end_call_timeout: -1 },
       conversation: { max_duration_seconds: 3600 },
     },
     platform_settings: {

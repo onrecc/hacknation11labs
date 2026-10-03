@@ -152,22 +152,28 @@ export class Tutor {
     const quote = g.evidence.quotes[0]?.text ?? g.statement;
     const moment = g.evidence.moments[0];
     const socratic = `${this.expert} would stop here. Why do you think?`;
-    await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
     const t = this.hub.now();
-    this.pendingPrediction = null; // an intervention supersedes an open prediction
+    // claim the floor synchronously, before any await: an intervention supersedes an open prediction
+    this.pendingPrediction = null;
     if (this.intervening) {
       this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
+      void this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
       return;
     }
     this.intervening = true;
     // log the moment it happens; the final explanation is appended later as a superseding event
     const first = this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
     try {
+      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
-      const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 15_000, control: `[INTERVENE] ${g.statement} | ${quote}` });
+      const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}` });
       let spoken = socratic;
-      if (!agentVoice) {
+      if (agentVoice && !replies.length) {
+        // no answer: don't leave them hanging, say it in the expert's words
+        spoken = `${this.expert} says: "${quote}" ${g.requiredAction}.`;
+        await this.hub.agentSay(spoken, "intervention");
+      } else if (!agentVoice) {
         const ex = await llm("tutor_explain", { expertName: this.expert, guardrail: g, quote, facts: this.facts ?? emptyFacts(caseLabel), socratic: false }).catch(() => ({ spoken: `${this.expert} says: "${quote}". ${g.requiredAction}.` }));
         spoken = ex.spoken;
         await this.hub.agentSay(spoken, "intervention");
@@ -199,6 +205,7 @@ export class Tutor {
     this.pendingPrediction = { guardrail: g, question };
     this.predictions.asked++;
     await this.showCard({ tone: "predict", title: "Predict the decision", text: question });
+    if (this.intervening || this.pendingPrediction?.question !== question) return; // an intervention took over meanwhile
     {
       const { replies } = await this.hub.ask(question, { intent: "question", timeoutMs: 25_000, control: `[PREDICT] ${question}` });
       // agent voice grades through its grade_prediction tool; other voices: grade here

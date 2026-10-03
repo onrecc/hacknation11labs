@@ -16,6 +16,17 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Tutor voice verified live + timing fixes in `CaptureHub` (heads-up for debrief)
+- `npm run e2e:teach-voice -w tools`: Teach page + ElevenAgents tutor + synthetic mic (new hire answers by voice). **3/3 runs pass:** save held → "Sabine would stop here. Why do you think?" → spoken answer transcribed → "Right. Sabine's rule: '…' You should re-code this to cost center 0400… Would you like to see Sabine's screen?".
+- **`hub.ask()` behaviour changes (relevant for `debrief.ts`, no code change needed):**
+  1. The reply window opens **before** the agent starts speaking (an answer can begin while it finishes).
+  2. If the human starts speaking near the end of the window, it is held open until Scribe commits (STT latency ~1–2 s).
+  3. An utterance that *started* inside a window that just closed still counts as a reply (`addressedTo: "agent"`).
+  4. Interviewer acks ("Got it…") now trigger the answer link immediately; a follow-up question keeps the window open.
+- ElevenAgents `turn_timeout` raised to 300 s on both agents: no more "Are you still there?" while the expert works with the mic muted.
+- Tutor mic stays open during Teach (new hires answer late and ask anytime); if nobody answers, the tutor still explains in the expert's words.
+- All three browser e2e suites pass: `e2e:voice`, `e2e:teach-voice`, `e2e:extension`. e2e sessions deleted again from Firestore.
+
 ### 2026-10-04 · Rene's agent · ✅ Live voice loop verified in a real browser
 - `npm run e2e:voice -w tools`: real Capture page in Chrome for Testing with a synthetic microphone (Web Audio stream playing an ElevenLabs-TTS WAV of Sabine's answer; macOS blocks real/fake capture devices for test Chrome). Checks pass: **ElevenAgents interviewer connects → Scribe transcribes the mic → save pause → Gemini picks the question → the agent asks it in its own words ("Why did you change the cost center to zero four hundred and add an asset number?") → Sabine's spoken answer is transcribed verbatim → the agent acks ("Got it, five thousand.") → `answer.linked`**.
 - Fixes: punctuation-only agent "turns" (fillers) are no longer logged; unprompted agent speech is `follow_up` only while an answer window is open (the greeting is `other`).

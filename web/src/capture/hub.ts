@@ -136,6 +136,7 @@ export class CaptureHub {
         onSpeechStart: (t) => {
           this.lastSpeechAt = t;
           this.set({ expertSpeaking: true });
+          this.holdReplyWindow();
           this.emit({ t, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "start" } });
         },
         onUtterance: (u) => this.onExpertUtterance(u),
@@ -155,6 +156,7 @@ export class CaptureHub {
       onStatus: (st) => this.set({ voiceStatus: st }),
     });
     this.set({ listening: true, stt: this.transcriber?.name ?? "typed only", voice: this.voice.name });
+    if (this.session.kind === "teach") this.agentListen(true);
   }
 
   async shareScreen() {
@@ -337,16 +339,21 @@ export class CaptureHub {
     this.agentSpokeAt.push({ t, text: turn.text.toLowerCase() });
     if (this.agentSpokeAt.length > 20) this.agentSpokeAt.shift();
     send({ kind: "agentState", speaking: true, listening: this.listening, caption: turn.text });
-    // a spontaneous follow-up while waiting for an answer: keep the answer window open
-    if (turn.spontaneous && this.pending) {
-      clearTimeout(this.pending.timer);
-      this.pending.endedAt = this.now();
+    // agent spoke on its own while we wait for an answer: a follow-up QUESTION keeps the window open for more
+    // replies; an acknowledgment means the answer is complete, so link it now
+    const p = this.pending;
+    if (turn.spontaneous && p) {
+      clearTimeout(p.timer);
+      p.endedAt = this.now();
+      if (p.replies.length) p.timer = setTimeout(() => void this.linkAnswer(p.questionId, p.replies), /\?\s*$/.test(turn.text) ? 15_000 : 500);
     }
   }
 
   private listening = false;
+  private windowClosedAt = 0;
   /** Agent mic on/off (Scribe keeps transcribing regardless). */
   private agentListen(on: boolean) {
+    if (this.session.kind === "teach") on = true; // the tutor always listens: new hires answer late and ask questions anytime
     this.listening = on;
     this.voice?.listen(on);
     send({ kind: "agentState", speaking: this.state.agentSpeaking, listening: on });
@@ -374,7 +381,9 @@ export class CaptureHub {
     if (this.state.offRecord) return;
 
     const replyTo = this.replyWaiter ? undefined : this.pending && u.t - this.pending.endedAt < 30_000 ? this.pending.questionId : undefined;
-    const addressedTo = this.replyWaiter || replyTo ? "agent" : "self";
+    // started speaking inside a window that closed before the transcript arrived (STT latency): still a reply
+    const lateReply = !this.replyWaiter && this.windowClosedAt > 0 && u.t <= this.windowClosedAt + 500 && this.now() - this.windowClosedAt < 20_000;
+    const addressedTo = this.replyWaiter || replyTo || lateReply ? "agent" : "self";
     this.emit({ t: u.tEnd, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "end" } });
     const ev = this.emit({
       t: u.t, tEnd: u.tEnd, type: "utterance", source: "stt",
@@ -396,6 +405,20 @@ export class CaptureHub {
       p.timer = setTimeout(() => void this.linkAnswer(p.questionId, p.replies), PAUSE.replySilenceMs);
     }
     if (this.session.kind === "capture") void this.detectCorrection(ev);
+  }
+
+  /**
+   * Someone started speaking while we wait for an answer: keep the window open until the transcript arrives
+   * (Scribe commits only after the speaker stops, which can be after the nominal timeout).
+   */
+  private holdReplyWindow() {
+    const w = this.replyWaiter;
+    if (!w || w.replies.length || !w.timer) return;
+    clearTimeout(w.timer);
+    w.timer = setTimeout(() => {
+      if (this.replyWaiter === w) this.replyWaiter = null;
+      w.resolve(w.replies);
+    }, 20_000);
   }
 
   /** Typed fallback for when the mic/STT fails: becomes an utterance like any other. */
@@ -512,9 +535,10 @@ export class CaptureHub {
     const questionId = newId("q");
     this.emit({ t: this.now(), type: "agent.question", source: "question_picker", causedBy: [pauseId], payload: { questionId, text, category, about: { actionIds, ...(this.lastFrameId ? { frameId: this.lastFrameId } : {}) }, triggerPauseId: pauseId, scores, rejectedCandidates: rejected } });
     this.set({ liveQuestions: this.state.liveQuestions + 1 });
-    await this.agentSay(text, "question", questionId);
-    this.pending = { questionId, endedAt: this.now(), replies: [] };
+    this.pending = { questionId, endedAt: this.now(), replies: [] }; // answers may start before the agent has finished
     this.agentListen(true);
+    await this.agentSay(text, "question", questionId);
+    if (this.pending?.questionId === questionId) this.pending.endedAt = this.now();
     // nobody answered: close the window
     setTimeout(() => {
       if (this.pending?.questionId === questionId && !this.pending.replies.length) {
@@ -541,22 +565,27 @@ export class CaptureHub {
     if (opts.category) {
       this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
     }
-    await this.agentSay(text, opts.intent ?? (opts.gapId ? "follow_up" : "question"), opts.category ? questionId : undefined, opts.control);
+    // open the reply window BEFORE the agent speaks: answers can start while it's still finishing its turn
+    const prev = this.replyWaiter; // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)
+    if (prev) {
+      clearTimeout(prev.timer);
+      this.replyWaiter = null;
+      prev.resolve(prev.replies);
+    }
+    let resolveReplies!: (u: Utterance[]) => void;
+    const done = new Promise<Utterance[]>((r) => (resolveReplies = r));
+    const w: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } = { resolve: resolveReplies, replies: [] };
+    this.replyWaiter = w;
     this.agentListen(true);
-    const replies = await new Promise<Utterance[]>((resolve) => {
-      // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)
-      const prev = this.replyWaiter;
-      if (prev) {
-        clearTimeout(prev.timer);
-        prev.resolve(prev.replies);
-      }
-      const w: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } = { resolve, replies: [] };
+    await this.agentSay(text, opts.intent ?? (opts.gapId ? "follow_up" : "question"), opts.category ? questionId : undefined, opts.control);
+    if (!w.replies.length && this.replyWaiter === w) {
       w.timer = setTimeout(() => {
         if (this.replyWaiter === w) this.replyWaiter = null;
-        resolve(w.replies);
+        this.windowClosedAt = this.now();
+        resolveReplies(w.replies);
       }, opts.timeoutMs ?? 30_000);
-      this.replyWaiter = w;
-    });
+    }
+    const replies = await done;
     this.agentListen(false);
     // tag the replies (already emitted) by emitting answer links where a question was logged
     if (opts.category && replies.length) await this.linkAnswer(questionId, replies);
