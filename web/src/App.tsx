@@ -32,7 +32,7 @@ export default function App() {
 function Home() {
   const [h, setH] = useState<string>("checking…");
   useEffect(() => {
-    apiHealth().then((x) => setH(`api ok · ${x.mock ? "MOCK LLM (no ANTHROPIC_API_KEY)" : x.model} · voice ${x.voice ? "ElevenLabs" : "browser fallback"}`)).catch(() => setH("api not reachable: run `npm run api`"));
+    apiHealth().then((x) => setH(`api ok · ${x.mock ? "MOCK LLM (no GEMINI_API_KEY)" : x.model} · voice ${x.voice ? "ElevenLabs" : "browser fallback"}`)).catch(() => setH("api not reachable: run `npm run api`"));
   }, []);
   return (
     <div className="page narrow">

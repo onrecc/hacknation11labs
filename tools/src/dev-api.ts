@@ -6,7 +6,7 @@
 import { createServer } from "node:http";
 import { getAuth } from "firebase-admin/auth";
 import "./admin";
-import { handle, HttpError } from "../../functions/src/handlers";
+import { handle, HttpError, isBinary } from "../../functions/src/handlers";
 
 const port = Number(process.env.DEV_API_PORT ?? 8787);
 createServer(async (req, res) => {
@@ -23,8 +23,13 @@ createServer(async (req, res) => {
     let raw = "";
     for await (const c of req) raw += c;
     const out = await handle(path, raw ? JSON.parse(raw) : {});
-    res.setHeader("Content-Type", "application/json");
-    res.end(JSON.stringify(out));
+    if (isBinary(out)) {
+      res.setHeader("Content-Type", out.contentType);
+      res.end(Buffer.from(out.binary));
+    } else {
+      res.setHeader("Content-Type", "application/json");
+      res.end(JSON.stringify(out));
+    }
     console.log(`${req.method} ${path} ${(JSON.parse(raw || "{}") as { task?: string }).task ?? ""} ${Date.now() - t0}ms`);
   } catch (err) {
     const status = err instanceof HttpError ? err.status : (err as { code?: string }).code?.startsWith("auth/") ? 401 : 500;
@@ -32,4 +37,4 @@ createServer(async (req, res) => {
     res.end(JSON.stringify({ error: (err as Error).message }));
     console.error(`${req.url} → ${status} ${(err as Error).message}`);
   }
-}).listen(port, () => console.log(`dev api on http://localhost:${port} (mock LLM: ${process.env.LLM_MOCK === "1" || !process.env.ANTHROPIC_API_KEY})`));
+}).listen(port, () => console.log(`dev api on http://localhost:${port} (LLM: ${process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY ? "mock" : "gemini"}, voice: ${process.env.ELEVENLABS_API_KEY ? "elevenlabs" : "browser"})`));

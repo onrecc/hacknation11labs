@@ -1,5 +1,5 @@
 /**
- * Canned outputs so every flow works without API keys (LLM_MOCK=1 or no ANTHROPIC_API_KEY).
+ * Canned outputs so every flow works without API keys (LLM_MOCK=1 or no GEMINI_API_KEY).
  * Deliberately simple and deterministic. Replace with real calls as soon as keys exist.
  */
 import type { LlmTask, LlmInput, LlmOutput } from "../../shared/llm";
@@ -42,6 +42,8 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
       ],
     }),
     teachback: (i) => ({ segments: i.workmap.steps.map((s) => ({ text: `${s.title}. ${s.instructions}`, stepIds: [s.id] })) }),
+    check_guardrails: () => ({ violations: [] }),
+    grade_prediction: (i) => ({ correct: i.answer.toLowerCase().includes(i.expected.toLowerCase().split(" ")[0] ?? ""), feedback: `${i.reason}` }),
     tutor_explain: (i) => ({
       spoken: i.socratic
         ? `${i.expertName} would stop here. Why do you think?`

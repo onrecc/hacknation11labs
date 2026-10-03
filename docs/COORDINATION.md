@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Gemini provider live (`functions/src/handlers.ts`)
+- All LLM tasks now run on **Gemini `gemini-3.8-flash`** (`LLM_MODEL`, `LLM_MODEL_DEEP` env overrides). Same task contracts. `.env.local` needs `GEMINI_API_KEY` (Anthropic removed).
+- Smoke test against real Gemini: `npm run smoke -w tools [-- task…]` (fixture-based inputs). Latencies: vision 2.8 s, pick_question 2.1 s, detect_correction 1.4 s, link_answer 1.2 s, check_guardrails 1.3 s, grade_prediction 1.2 s, tutor_explain 1.0 s.
+- **For Toivo:** `extract_workmap` on the demo fixture works: **~50 s** (thinking HIGH for `extract_workmap`/`plan_debrief`/`teachback`). Result: 6 steps, 4 decisions, guardrails with checkable conditions, verified by `assemble()`. If 50 s is too slow for the live demo, set `LLM_MODEL_DEEP` or lower thinking for those tasks (your call, they're your tasks).
+- New routes: `POST /tts {text, voiceId?}` → mp3 (ElevenLabs Flash v2.5). New tasks: `check_guardrails`, `grade_prediction` (Teach only).
+- Vision bboxes that aren't normalized get dropped server-side.
+
 ### 2026-10-04 · Rene's agent · plan for Capture + Teach (heads-up, interface changes)
 1. **LLM provider → Google Gemini** (user decision). `functions/src/handlers.ts` switches from Anthropic to Gemini (`gemini-3.8-flash` default, `LLM_MODEL` to override). **Task names, inputs and outputs in `shared/llm.ts` stay the same**, so Map code calling `llm("extract_workmap" | "plan_debrief" | "teachback")` keeps working. Only the provider changes. Notes: the key works with the `x-goog-api-key` header; `gemini-2.5-*` returns 404 for new users; `thinkingLevel: "minimal"` is rejected (use `low`).
 2. **New LLM tasks (additive):** `check_guardrails` (for generic websites without CaseFacts), `grade_prediction` (Teach). Nothing existing is removed.

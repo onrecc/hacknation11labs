@@ -75,6 +75,21 @@ export interface LlmTasks {
     input: { workmap: Pick<WorkMap, "steps" | "decisions" | "guardrails" | "glossary"> };
     output: { segments: Array<{ text: string; stepIds: Id[] }> };
   };
+  /** Teach (generic websites without CaseFacts): which guardrails would this action break? */
+  check_guardrails: {
+    input: {
+      guardrails: Array<{ id: Id; statement: string; requiredAction: string; scope: string }>;
+      page: { url: string; title: string };
+      fields: Record<string, string>;
+      action: string;
+    };
+    output: { violations: Array<{ guardrailId: Id; reason: string; confidence: number }> };
+  };
+  /** Teach: grade a new hire's predicted decision against the expert's. */
+  grade_prediction: {
+    input: { question: string; expected: string; reason: string; answer: string };
+    output: { correct: boolean; feedback: string };
+  };
   /** Teach: phrase an intervention in the expert's words. */
   tutor_explain: {
     input: { expertName: string; guardrail: Pick<Guardrail, "statement" | "requiredAction">; quote: string; facts: CaseFacts; socratic: boolean };
