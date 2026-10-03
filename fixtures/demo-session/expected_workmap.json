@@ -229,6 +229,35 @@
         "case_4472"
       ],
       "typicalDurationMs": 14000,
+      "when": {
+        "op": "or",
+        "all": [
+          {
+            "op": "and",
+            "all": [
+              {
+                "op": "in",
+                "field": "supplier.name",
+                "value": [
+                  "Hofmann Industriebedarf",
+                  "Schreiber Logistik"
+                ]
+              },
+              {
+                "op": "eq",
+                "field": "invoice.month",
+                "value": 12
+              }
+            ]
+          },
+          {
+            "op": "eq",
+            "field": "supplier.isNew",
+            "value": true
+          }
+        ]
+      },
+      "whenText": "Hofmann or Schreiber Logistik in December, or a new supplier",
       "confidence": 0.9,
       "provenance": [
         "observed",
@@ -345,8 +374,8 @@
             "utteranceIds": [
               "utt_0003"
             ],
-            "text": "No, wait, sorry, five thousand.",
-            "t": 51994,
+            "text": "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand.",
+            "t": 48938,
             "tEnd": 53803,
             "phase": "capture",
             "questionId": "q_0001"
@@ -389,6 +418,12 @@
         "case_4471"
       ],
       "typicalDurationMs": 5500,
+      "when": {
+        "op": "eq",
+        "field": "invoice.costCenter",
+        "value": "0400"
+      },
+      "whenText": "Coded to capex (cost center 0400)",
       "confidence": 0.95,
       "provenance": [
         "observed",
@@ -651,8 +686,8 @@
         "utteranceIds": [
           "utt_0003"
         ],
-        "text": "No, wait, sorry, five thousand.",
-        "t": 51994,
+        "text": "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand.",
+        "t": 48938,
         "tEnd": 53803,
         "phase": "capture",
         "questionId": "q_0001"
@@ -989,8 +1024,8 @@
             "utteranceIds": [
               "utt_0003"
             ],
-            "text": "No, wait, sorry, five thousand.",
-            "t": 51994,
+            "text": "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand.",
+            "t": 48938,
             "tEnd": 53803,
             "phase": "capture",
             "questionId": "q_0001"

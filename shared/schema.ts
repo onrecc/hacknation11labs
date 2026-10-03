@@ -450,6 +450,10 @@ export interface Step extends Claim {
   guardrailIds: Id[];
   appliesToCaseKinds: string[];
   optional: boolean;
+  /** Optional steps: the step applies when this is true (drives the Work Map flowchart's yes/no diamond and Teach's "not_seen"). */
+  when?: Condition;
+  /** Plain-language version of `when`, e.g. "Hofmann or Schreiber in December, or a new supplier". */
+  whenText?: string;
   observedInCases: Id[];
   typicalDurationMs?: number;
 }
