@@ -368,7 +368,10 @@ export class CaptureHub {
       const w = this.replyWaiter;
       w.replies.push(ev);
       clearTimeout(w.timer);
-      w.timer = setTimeout(() => (this.replyWaiter = null, w.resolve(w.replies)), PAUSE.replySilenceMs);
+      w.timer = setTimeout(() => {
+        if (this.replyWaiter === w) this.replyWaiter = null;
+        w.resolve(w.replies);
+      }, PAUSE.replySilenceMs);
     } else if (replyTo && this.pending) {
       const p = this.pending;
       p.replies.push(ev);
@@ -524,8 +527,17 @@ export class CaptureHub {
     await this.agentSay(text, opts.intent ?? (opts.gapId ? "follow_up" : "question"), opts.category ? questionId : undefined, opts.control);
     this.agentListen(true);
     const replies = await new Promise<Utterance[]>((resolve) => {
+      // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)
+      const prev = this.replyWaiter;
+      if (prev) {
+        clearTimeout(prev.timer);
+        prev.resolve(prev.replies);
+      }
       const w: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } = { resolve, replies: [] };
-      w.timer = setTimeout(() => (this.replyWaiter = null, resolve(w.replies)), opts.timeoutMs ?? 30_000);
+      w.timer = setTimeout(() => {
+        if (this.replyWaiter === w) this.replyWaiter = null;
+        resolve(w.replies);
+      }, opts.timeoutMs ?? 30_000);
       this.replyWaiter = w;
     });
     this.agentListen(false);

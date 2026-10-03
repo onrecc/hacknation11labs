@@ -61,7 +61,6 @@ export class Tutor {
   private predicted = new Set<string>();
   private pendingPrediction: { guardrail: Guardrail; question: string } | null = null;
   private off: (() => void) | null = null;
-  private busy = false;
 
   constructor(readonly wm: WorkMap, readonly onCard: (c: TutorCard) => void) {}
 
@@ -137,6 +136,7 @@ export class Tutor {
     for (const g of violations(this.wm, f)) {
       if (Date.now() - (this.nudged.get(g.id) ?? -1e12) < NUDGE_COOLDOWN_MS) continue;
       this.nudged.set(g.id, Date.now());
+      this.caught.add(g.id); // caught early, before it reached a save
       void this.showCard({ tone: "nudge", title: "Heads-up", text: g.statement, guardrail: g }, g.evidence.moments[0]);
       this.hub.emit({
         t: this.hub.now(), type: "tutor.intervention", source: "tutor",
@@ -169,8 +169,12 @@ export class Tutor {
     const socratic = `${this.expert} would stop here. Why do you think?`;
     await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
     const t = this.hub.now();
-    if (this.busy) return;
-    this.busy = true;
+    this.pendingPrediction = null; // an intervention supersedes an open prediction
+    if (this.intervening) {
+      this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
+      return;
+    }
+    this.intervening = true;
     try {
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
@@ -182,37 +186,39 @@ export class Tutor {
         await this.hub.agentSay(spoken, "intervention");
       }
       await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${this.expert}: "${quote}". ${g.requiredAction}.` : spoken, guardrail: g }, moment);
-      this.hub.emit({
-        t, type: "tutor.intervention", source: "tutor",
-        payload: {
-          guardrailId: g.id, triggerAppEventId: this.lastAppEventId(), beforeSave, newHireAction: this.facts ? describeFacts(this.facts) : caseLabel,
-          expectedAction: g.requiredAction, spokenText: spoken, ...(moment ? { replayedScreenMoment: moment } : {}), outcome: replies.length ? "argued" : "pending",
-        },
-      });
+      this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0);
     } finally {
-      this.busy = false;
+      this.intervening = false;
     }
+  }
+
+  private intervening = false;
+  private logIntervention(g: Guardrail, beforeSave: boolean, spoken: string, moment: Guardrail["evidence"]["moments"][number] | undefined, caseLabel: string, t: number, answered: boolean) {
+    this.hub.emit({
+      t, type: "tutor.intervention", source: "tutor",
+      payload: {
+        guardrailId: g.id, triggerAppEventId: this.lastAppEventId(), beforeSave, newHireAction: this.facts ? describeFacts(this.facts) : caseLabel,
+        expectedAction: g.requiredAction, spokenText: spoken, ...(moment ? { replayedScreenMoment: moment } : {}), outcome: answered ? "argued" : "pending",
+      },
+    });
   }
 
   // ───────────── predictions ─────────────
   async predict(g: Guardrail, f: CaseFacts) {
     const key = `${f.invoice.key}:${g.id}`;
-    if (this.predicted.has(key) || this.busy) return;
+    if (this.predicted.has(key) || this.intervening) return;
     this.predicted.add(key);
     const question = `Before you work on INV-${f.invoice.key} (${f.supplier.name}, ${f.invoice.amount.toLocaleString("en")} ${f.invoice.currency}, ${f.invoice.category}): what would ${this.expert} do here, and why?`;
     this.pendingPrediction = { guardrail: g, question };
     this.predictions.asked++;
     await this.showCard({ tone: "predict", title: "Predict the decision", text: question });
-    this.busy = true;
-    try {
+    {
       const { replies } = await this.hub.ask(question, { intent: "question", timeoutMs: 25_000, control: `[PREDICT] ${question}` });
       // agent voice grades through its grade_prediction tool; other voices: grade here
       if (this.pendingPrediction && replies.length && this.hub.voice?.name !== "elevenagents") {
         const feedback = await this.gradePrediction(replies.map((r) => r.payload.text).join(" "));
         await this.hub.agentSay(feedback, "other");
       }
-    } finally {
-      this.busy = false;
     }
   }
 

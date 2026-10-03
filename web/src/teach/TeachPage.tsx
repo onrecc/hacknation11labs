@@ -21,14 +21,18 @@ export default function TeachPage() {
   const [report, setReport] = useState<MasteryReport | null>(null);
   const [learner, setLearner] = useState("Lena");
   const [err, setErr] = useState<string | null>(null);
+  const [typed, setTyped] = useState("");
   const tutor = useRef<Tutor | null>(null);
   const state = useStore(hub, () => hub?.state ?? null);
 
   useEffect(() => void signedIn.then(async () => {
     const list = await listWorkMaps();
     setMaps(list);
-    const confirmed = list.find((m) => m.status === "confirmed");
-    if (confirmed) setWm(await loadWorkMap(confirmed.id));
+    // default: the newest confirmed map that actually has guardrails to teach
+    for (const m of list.filter((x) => x.status === "confirmed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
+      const full = await loadWorkMap(m.id);
+      if (full?.guardrails.length) return setWm(full);
+    }
   }), []);
   useEffect(() => {
     if (!hub) return;
@@ -100,6 +104,10 @@ export default function TeachPage() {
           <button disabled={s.listening} onClick={() => void hub.startListening().catch((e) => setErr((e as Error).message))}>1 · Start Ada (voice)</button>
           <button onClick={() => window.open("/erp?mode=teach", "minierp")}>2 · Open MiniERP</button>
           <button onClick={finish}>Finish → mastery report</button>
+        </div>
+        <div className="row">
+          <input placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
+          <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
         <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Any other website works too with the extension (Gemini checks the visible form against the guardrails).</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}

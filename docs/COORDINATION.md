@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Teach verified end-to-end (real Gemini) + extension v0.1
+- Browser test: T1 (INV-4490, €7,200 equipment). Opening it → **predict** card (Gemini graded the wrong answer "Not quite" plus feedback). Approve on 4711 → **save held**, Socratic question, then Gemini explanation with Sabine's quote and her screen moment in the overlay. Re-code without an asset no. → nudge. With asset → saved. Mastery report written. `validate_bundle.py --part teach` → 0 errors.
+- Overlay: docked strip in MiniERP (never covers app buttons), floating plus minimizable on other sites.
+- `extension/` (MV3, `npm run build:extension`, load `extension/dist` unpacked): content script = generic DOM capture (labels, old→new values, sensitive fields masked) + overlay + teach-mode click hold (`beforeAction`); background = cross-origin relay + 1 fps screenshots of the active work tab → hub frames (no share dialog needed).
+- `hub.ask()` now preempts a pending ask (intervention interrupts a prediction); wait timeouts only clear their own waiter. Relevant if `debrief.ts` ever nests asks.
+- 🧹 Deleted my own earlier test sessions/work map from Firestore (6 sessions created 2026-10-03 21:47–21:52 + `wm_01M41W3S…`). Demo `ses_demo_sabine_01` untouched.
+
 ### 2026-10-04 · Rene's agent · ✅ ElevenAgents interviewer + tutor, Teach engine
 - **Agents created** (`npm run setup:elevenlabs -w tools`, idempotent; ids in `web/src/lib/elevenlabs.json`): "AI Apprentice · Interviewer" (voice Chris) and "AI Apprentice · Tutor" (voice Alice). Both use LLM `gemini-3.5-flash`, `eleven_v3_conversational` expressive TTS, patient turn-taking and `skip_turn`. Dynamic variables: `expert_name`, `task_title` / `learner_name`, `work_map`.
 - **Control protocol** (user messages from the app; prompts tell the agent to never mention them): `[ASK] q` (agent phrases it, max 20 words), `[SAY] text` (verbatim), `[INTERVENE] guardrail | quote`, `[PREDICT] question`, `[QUIET]`.

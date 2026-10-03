@@ -6,13 +6,14 @@
     "shared",
     "web",
     "tools",
-    "functions"
+    "functions",
+    "extension"
   ],
   "scripts": {
     "dev": "npm run dev -w web",
     "api": "npm run api -w tools",
     "build": "npm run build -w web && npm run build -w functions",
-    "typecheck": "tsc -p shared && tsc -p web --noEmit && tsc -p tools --noEmit && tsc -p functions --noEmit",
+    "typecheck": "tsc -p shared && tsc -p web --noEmit && tsc -p tools --noEmit && tsc -p functions --noEmit && tsc -p extension --noEmit",
     "test": "npm test -w shared",
     "validate": "python3 scripts/validate_bundle.py fixtures/demo-session --workmap fixtures/demo-session/expected_workmap.json && python3 scripts/eval_guardrails.py",
     "check": "npm run typecheck && npm test && npm run validate",
@@ -20,7 +21,8 @@
     "pull": "npm run pull -w tools --",
     "deploy:rules": "npm run deploy:rules -w tools",
     "deploy:hosting": "npm run build -w web && firebase deploy --only hosting",
-    "deploy:functions": "firebase deploy --only functions"
+    "deploy:functions": "firebase deploy --only functions",
+    "build:extension": "npm run build -w extension"
   },
   "allowScripts": {
     "esbuild@0.28.2": true,

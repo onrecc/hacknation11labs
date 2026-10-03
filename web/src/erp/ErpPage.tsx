@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseFacts } from "@shared/schema";
 import { beforeSave, listen, send, type ErpMode } from "../lib/bridge";
+import { startOverlay } from "../../../extension/src/overlay";
 import { APPROVERS, COST_CENTERS, HISTORY, KNOWN_SUPPLIERS, SEED, type Invoice } from "./data";
 
 const LS = "minierp.v1";
@@ -38,6 +39,7 @@ export default function ErpPage() {
   const [hub, setHub] = useState(false);
   const [offRecord, setOffRecord] = useState(false);
   const counts = useRef({ keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 });
+  const dock = useRef<HTMLDivElement>(null);
   const inv = rows.find((r) => r.key === open) ?? null;
   const visible = useMemo(() => rows.filter((r) => (mode === "teach" ? r.set !== "demo" : r.set !== "teach")), [rows, mode]);
 
@@ -45,9 +47,9 @@ export default function ErpPage() {
   useEffect(() => {
     const off = listen((m) => {
       if (m.kind === "hello" && m.from === "hub") setHub(true);
-      if (m.kind === "tutorSay") setBanner({ tone: "info", text: m.text });
     });
     send({ kind: "hello", from: "erp", mode });
+    const stopOverlay = mode === "free" ? () => {} : startOverlay({ send, listen }, { controls: false, mount: dock.current ?? undefined }); // tutor cards + Ada's captions
     // activity counts (no content) every 2 s
     const onKey = (e: KeyboardEvent) => {
       counts.current.keystrokes++;
@@ -72,6 +74,7 @@ export default function ErpPage() {
     }, 2000);
     return () => {
       off();
+      stopOverlay();
       clearInterval(timer);
       removeEventListener("keydown", onKey);
       removeEventListener("click", onClick);
@@ -154,6 +157,7 @@ export default function ErpPage() {
       </header>
 
       {banner && <div className={`banner ${banner.tone}`}>{banner.text}</div>}
+      <div ref={dock} className="apprentice-dock" />
 
       {view === "list" && (
         <main>
