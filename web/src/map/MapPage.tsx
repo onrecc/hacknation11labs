@@ -4,18 +4,24 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import type { Event, Guardrail, Session, Step, WorkMap } from "@shared/schema";
-import { LogIndex, fmtT } from "@shared/logindex";
-import { assemble, buildDraft, condenseLog, nextVersion } from "@shared/workmap";
-import { describe } from "@shared/conditions";
+import { doc, onSnapshot } from "firebase/firestore";
+import type { Event, Session, WorkMap } from "@shared/schema";
+import { LogIndex } from "@shared/logindex";
+import { buildDraft, buildWorkMap, condenseLog, existingIds } from "@shared/workmap";
 import { FACT_PATHS } from "@shared/llm";
-import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, subscribeEvents, updateSession, type WorkMapHead } from "../lib/sessions";
-import { signedIn } from "../lib/firebase";
+import { col } from "@shared/paths";
+import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
+import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
-import { EventFeed, FrameImg, Quote, summarize } from "../components/ui";
+import { EventFeed } from "../components/ui";
+import { WorkMapView } from "./WorkMapView";
+import type { FrameSource } from "./WorkMapView";
+
+const DEMO_ID = "demo";
 
 export default function MapPage() {
   const { sessionId } = useParams();
+  if (sessionId === DEMO_ID) return <DemoMap />;
   return sessionId ? <SessionMap sessionId={sessionId} /> : <MapIndex />;
 }
 
@@ -31,6 +37,7 @@ function MapIndex() {
   return (
     <div className="page">
       <h1>Work Maps</h1>
+      <p><Link to={`/map/${DEMO_ID}`}>Open the demo Work Map (bundled, works offline)</Link></p>
       <div className="cols">
         <div className="card">
           <h3>Sessions</h3>
@@ -63,38 +70,71 @@ function MapIndex() {
   );
 }
 
-const PROV_LABEL: Record<string, string> = { observed: "seen", stated_live: "said live", stated_debrief: "said in debrief", teachback_correction: "teach-back", inferred: "inferred" };
+/** Bundled fixture: no Firestore, no Storage, no API. The demo/video safety net. */
+function DemoMap() {
+  // loaded on demand so the 200 demo frames + events don't weigh down /capture and /teach
+  const [demo, setDemo] = useState<{ events: Event[]; workmap: WorkMap; frame: FrameSource } | null>(null);
+  useEffect(() => {
+    void import("./fixture").then((f) => setDemo({ ...f.loadFixture(), frame: f.fixtureFrameUrl }));
+  }, []);
+  if (!demo) return <div className="page">Loading demo…</div>;
+  return (
+    <>
+      <WorkMapView wm={demo.workmap} events={demo.events} frameSource={demo.frame} />
+      <div className="page"><details className="card"><summary>Raw event feed ({demo.events.length} events)</summary><EventFeed events={demo.events} max={400} /></details></div>
+    </>
+  );
+}
+
+const storageFrame = async (sessionId: string, frameId: string): Promise<string | null> => {
+  for (const ext of ["webp", "png", "jpg", "svg"]) {
+    try {
+      return await blobUrl(sessionId, `frames/${frameId}.${ext}`);
+    } catch { /* try next */ }
+  }
+  return null;
+};
 
 function SessionMap({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [wm, setWm] = useState<WorkMap | null>(null);
-  const [sel, setSel] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
 
+  // live: events + whichever Work Map version is latest (the map grows while the expert works / debriefs)
   useEffect(() => {
-    let off = () => {};
+    let offEvents = () => {}, offSession = () => {}, offHead = () => {};
+    let headFor: string | null = null;
     void signedIn.then(async () => {
-      const s = await getSession(sessionId);
-      setSession(s);
-      off = subscribeEvents(sessionId, setEvents);
-      if (s?.workMapId) setWm(await loadWorkMap(s.workMapId));
+      setSession(await getSession(sessionId));
+      offEvents = subscribeEvents(sessionId, setEvents);
+      offSession = onSnapshot(doc(db, col.sessions, sessionId), (d) => {
+        const s = d.data() as Session | undefined;
+        if (!s) return;
+        setSession(s);
+        if (s.workMapId && s.workMapId !== headFor) {
+          headFor = s.workMapId;
+          offHead();
+          offHead = onSnapshot(doc(db, col.workmaps, s.workMapId), () => void loadWorkMap(s.workMapId!).then((w) => w && setWm(w)));
+        }
+      });
     });
-    return () => off();
+    return () => (offEvents(), offSession(), offHead());
   }, [sessionId]);
 
   const ix = useMemo(() => new LogIndex(sessionId, events), [sessionId, events]);
-  const draft = useMemo(() => (session ? buildDraft(session, events) : null), [session, events]);
+  const draft = useMemo(() => (session ? buildDraft(session, events, wm?.id) : null), [session, events, wm?.id]);
   const shown = wm ?? draft;
 
   async function rebuild() {
     if (!session) return;
     setBusy("Extracting with the LLM…");
     try {
-      const proposal = await llm("extract_workmap", { log: condenseLog(ix), factPaths: [...FACT_PATHS] });
-      const { workmap, problems } = assemble(buildDraft(session, events, wm?.id), proposal, ix);
-      const next = nextVersion(wm, { ...workmap, status: wm?.status === "confirmed" ? "teachback_pending" : workmap.status, teachBack: wm?.teachBack ?? workmap.teachBack }, "map", "Re-extracted from session log");
+      const proposal = await llm("extract_workmap", { log: condenseLog(ix), factPaths: [...FACT_PATHS], existingIds: existingIds(wm) });
+      const { workmap, problems } = buildWorkMap(session, events, proposal, wm, "Re-extracted from session log");
+      if (!workmap.steps.length) throw new Error("The LLM returned no steps (mock mode without ANTHROPIC_API_KEY?). Nothing saved.");
+      const next = { ...workmap, status: wm?.status === "confirmed" ? ("teachback_pending" as const) : workmap.status };
       await saveWorkMapVersion(next);
       if (!session.workMapId) await updateSession(session.id, { workMapId: next.id });
       setWm(next);
@@ -107,120 +147,18 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   }
 
   if (!session) return <div className="page">Loading session…</div>;
-  const step = shown?.steps.find((s) => s.id === sel) ?? null;
-
   return (
-    <div className="page">
-      <h1>{session.task.title}</h1>
-      <p className="muted">
-        {session.participant.displayName} · {session.kind} · {session.status} · {events.length} events · {ix.frames.length} frames
-        {shown && <> · Work Map <b>{wm ? `v${wm.version} ${wm.status}` : "draft (not saved)"}</b></>}
-      </p>
-      <div className="btns">
-        <button onClick={rebuild} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
-        <Link to="/map">← all sessions</Link>
-      </div>
-      {problems.length > 0 && <details className="card"><summary>{problems.length} evidence problems (claims dropped or downgraded)</summary><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></details>}
-
-      <Timeline ix={ix} events={events} onPick={(stepId) => setSel(stepId)} wm={shown} />
-
-      {shown && (
-        <div className="cols map">
-          <div>
-            <h3>Steps</h3>
-            {shown.steps.length === 0 && <p className="muted">No steps yet. Build the Work Map from the session log.</p>}
-            {shown.steps.map((s) => (
-              <button key={s.id} className={`step ${sel === s.id ? "sel" : ""}`} onClick={() => setSel(s.id)}>
-                <b>{s.order}. {s.title}</b>
-                <span className="muted small">{s.decisionIds.length} decisions · {s.guardrailIds.length} guardrails{s.history.length ? " · corrected" : ""}</span>
-              </button>
-            ))}
-            <h3>Common mistakes</h3>
-            {shown.commonMistakes.map((m) => (
-              <div key={m.id} className="card mistake">
-                <b>{m.description}</b> → {m.correctBehavior}
-                <Quote q={m.quote} events={events} who={shown.expert.displayName} />
-              </div>
-            ))}
-            <h3>Gaps</h3>
-            {shown.gaps.map((g) => <div key={g.id} className="small">{g.status === "resolved" ? "✓" : "○"} {g.description}</div>)}
-          </div>
-          <div>{step ? <StepDetail step={step} wm={shown} events={events} /> : <p className="muted">Select a step.</p>}</div>
+    <>
+      {shown && <WorkMapView wm={shown} events={events} frameSource={storageFrame} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} />}
+      <div className="page">
+        <div className="btns">
+          <button onClick={rebuild} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
+          <span className="muted small">{session.participant.displayName} · {session.kind} · {session.status} · {events.length} events · {ix.frames.length} frames · {wm ? `v${wm.version} ${wm.status}` : "draft (not saved)"}</span>
+          <Link to="/map">← all sessions</Link>
         </div>
-      )}
-      <details className="card"><summary>Raw event feed</summary><EventFeed events={events} max={300} /></details>
-    </div>
-  );
-}
-
-function Timeline({ ix, wm, onPick }: { ix: LogIndex; events: Event[]; wm: WorkMap | null; onPick: (stepId: string) => void }) {
-  const end = Math.max(1, ...ix.events.map((e) => e.tEnd ?? e.t));
-  const pct = (t: number) => `${(t / end) * 100}%`;
-  const marks = ix.events.filter((e) => ["agent.question", "knowledge.correction", "screen.action", "marker.bookmark"].includes(e.type));
-  return (
-    <div className="timeline card">
-      <div className="lane"><span className="lane-label">cases</span>
-        {wm?.cases.map((c) => <div key={c.id} className="seg case" style={{ left: pct(c.t), width: pct(c.tEnd - c.t) }} title={`${c.key} ${c.outcome ?? ""}`}>{c.key}</div>)}
-        {ix.offRecord.map(([a, b]) => <div key={a} className="seg off" style={{ left: pct(a), width: pct(b - a) }} title="off the record">off</div>)}
+        {problems.length > 0 && <details className="card"><summary>{problems.length} evidence problems (claims dropped or downgraded)</summary><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></details>}
+        <details className="card"><summary>Raw event feed</summary><EventFeed events={events} max={300} /></details>
       </div>
-      <div className="lane"><span className="lane-label">steps</span>
-        {wm?.steps.map((s) => s.screenMoment && <button key={s.id} className="dot step-dot" style={{ left: pct(s.screenMoment.t) }} title={s.title} onClick={() => onPick(s.id)}>{s.order}</button>)}
-      </div>
-      <div className="lane"><span className="lane-label">events</span>
-        {marks.map((e) => <span key={e.id} className={`tick t-${e.type.replace(".", "-")}`} style={{ left: pct(e.t) }} title={`${fmtT(e.t)} ${e.type}: ${summarize(e)}`} />)}
-      </div>
-      <div className="axis"><span>0:00</span><span>{fmtT(end)}</span></div>
-    </div>
-  );
-}
-
-function StepDetail({ step, wm, events }: { step: Step; wm: WorkMap; events: Event[] }) {
-  const decisions = wm.decisions.filter((d) => step.decisionIds.includes(d.id));
-  const guardrails = wm.guardrails.filter((g) => step.guardrailIds.includes(g.id));
-  const m = step.screenMoment;
-  return (
-    <div className="card detail">
-      <h2>Step {step.order} of {wm.steps.length}: {step.title}</h2>
-      <Prov p={step.provenance} confirmed={step.confirmedByExpert} />
-      {m && <><p className="muted small">Screen moment {fmtT(m.t)}</p><FrameImg sessionId={m.sessionId} frameId={m.frameId} bbox={m.bbox} /></>}
-      <p>{step.instructions}</p>
-      {decisions.map((d) => (
-        <div key={d.id} className="block">
-          <h4>Decision ({d.kind}): {d.question}</h4>
-          <p>{d.observedChoice}</p>
-          <ul>{d.options.map((o) => <li key={o.option}><b>{o.option}</b>{o.whenText ? `: ${o.whenText}` : ""}</li>)}</ul>
-          <Quote q={d.reason} events={events} who={wm.expert.displayName} />
-          <History h={d.history} />
-        </div>
-      ))}
-      {guardrails.map((g) => <GuardrailCard key={g.id} g={g} wm={wm} events={events} />)}
-      <History h={step.history} />
-    </div>
-  );
-}
-
-function GuardrailCard({ g, wm, events }: { g: Guardrail; wm: WorkMap; events: Event[] }) {
-  return (
-    <div className={`block guardrail ${g.severity}`}>
-      <h4>Guardrail ({g.kind}, {g.severity}): {g.statement}</h4>
-      <p><b>Do:</b> {g.requiredAction}{g.escalateTo ? ` · escalate to ${g.escalateTo.role}${g.escalateTo.name ? ` (${g.escalateTo.name})` : ""}` : ""}</p>
-      {g.condition && <p className="mono small">violated when: {describe(g.condition)}</p>}
-      <Prov p={g.provenance} confirmed={g.confirmedByExpert} />
-      {g.evidence.quotes.map((q, i) => <Quote key={i} q={q} events={events} who={wm.expert.displayName} />)}
-      <History h={g.history} />
-    </div>
-  );
-}
-
-function Prov({ p, confirmed }: { p: string[]; confirmed: boolean }) {
-  return <div className="badges">{p.map((x) => <span key={x} className={`badge ${x}`}>{PROV_LABEL[x] ?? x}</span>)}{confirmed && <span className="badge ok">confirmed</span>}</div>;
-}
-
-function History({ h }: { h: Step["history"] }) {
-  if (!h.length) return null;
-  return (
-    <details className="history"><summary>corrected {h.length}×</summary>
-      <ul>{h.map((x) => <li key={x.correctionEventId}><s>{x.before}</s> → {x.after} <span className="muted small">({x.phase}, {fmtT(x.at)})</span></li>)}</ul>
-    </details>
+    </>
   );
 }
