@@ -24,6 +24,8 @@ const CSS = `
 :host { all: initial; }
 .wrap { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
   font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1f24; max-width: min(420px, calc(100vw - 32px)); }
+/* floating: cards top-right (bottom-right is where apps put their primary buttons), pill + caption bottom-right */
+.wrap:not(.docked) .cards { position: fixed; top: 72px; right: 16px; width: min(400px, calc(100vw - 32px)); }
 .wrap.docked { position: static; max-width: none; flex-direction: row-reverse; align-items: flex-start; flex-wrap: wrap; padding: 8px 16px; }
 .wrap.docked .cards { flex: 1 1 420px; } .wrap.docked .card { display: grid; grid-template-columns: 1fr 260px; gap: 4px 16px; } .wrap.docked .card > :not(.frame):not(.label) { grid-column: 1; } .wrap.docked .card .label, .wrap.docked .card .frame { grid-column: 2; grid-row: 1 / span 4; } .wrap.docked .card .label { display: none; }
 .wrap:not(.docked) .card.min > :not(h4):not(.x):not(.m) { display: none; }

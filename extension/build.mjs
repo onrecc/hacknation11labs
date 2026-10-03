@@ -10,5 +10,12 @@ const opts = {
   entryPoints: { background: "src/background.ts", content: "src/content.ts" },
   bundle: true, outdir: "dist", format: "esm", target: "chrome120", sourcemap: "inline", logLevel: "info",
 };
-if (watch) await (await context(opts)).watch();
-else await build(opts);
+// embeddable build for same-origin apps (served by the web app at /apprentice-embed.js)
+const embed = { entryPoints: ["src/embed.ts"], bundle: true, outfile: "../web/public/apprentice-embed.js", format: "iife", target: "es2022", logLevel: "info" };
+if (watch) {
+  await (await context(opts)).watch();
+  await (await context(embed)).watch();
+} else {
+  await build(opts);
+  await build(embed);
+}

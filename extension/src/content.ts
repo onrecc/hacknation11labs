@@ -5,8 +5,8 @@
  *  - any other site: generic DOM capture + overlay, active while a hub session runs.
  */
 import { Dedupe, newMsgId, type BridgeBody, type BridgeMsg } from "../../shared/bridge";
-import { startOverlay, type Transport } from "./overlay";
-import { startDomCapture } from "./capture-dom";
+import type { Transport } from "./overlay";
+import { startSite } from "./site";
 
 /** Pages of the AI Apprentice web app carry <meta name="apprentice-app"> (hub + MiniERP): relay only. */
 const role: "app" | "site" = document.querySelector('meta[name="apprentice-app"]') ? "app" : "site";
@@ -32,6 +32,7 @@ window.addEventListener("message", (e: MessageEvent<{ __apprentice?: BridgeMsg; 
 });
 
 if (role === "site") {
+  document.documentElement.dataset.apprenticeExt = "1"; // the embed script steps aside when the extension runs
   const transport: Transport = {
     send(body: BridgeBody) {
       const msg = { ...body, id: newMsgId() } as BridgeMsg;
@@ -43,17 +44,7 @@ if (role === "site") {
       return () => void listeners.delete(fn);
     },
   };
-  let mode: "capture" | "teach" | "off" = "off";
-  let offRecord = false;
-  transport.listen((m) => {
-    if (m.kind === "status") {
-      mode = m.mode === "capture" || m.mode === "teach" ? m.mode : "off";
-      offRecord = m.offRecord;
-    }
-  });
-  startOverlay(transport, { controls: true });
-  startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }));
-  transport.send({ kind: "hello", from: "ext", app: location.hostname });
-  // ask the background for the current hub status (we may have loaded mid-session)
-  void chrome.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {});
+  // we may have loaded mid-session: ask the background for the current hub status
+  startSite(transport, () =>
+    void chrome.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {}));
 }

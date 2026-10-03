@@ -59,7 +59,7 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
   };
   const holdAndCheck = async (el: HTMLElement, text: string) => {
     const reqId = newMsgId();
-    const outline = el.style.outline;
+    const outline = (el.dataset.apOutline ??= el.style.outline); // the app's own outline, before we ever touched it
     el.style.outline = "3px solid #3b6fb6";
     const res = await new Promise<{ allow: boolean }>((resolve) => {
       const timer = setTimeout(() => (stop(), resolve({ allow: true })), 6000); // never strand the user
@@ -92,11 +92,15 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
 
   let lastUrl = "";
   const navCheck = () => {
+    seedBaseline();
     if (location.href === lastUrl) return;
     lastUrl = location.href;
     emit({ kind: "app", at: Date.now(), verb: "navigate", page: snapshot(), description: `Opened "${document.title}" (${location.hostname}${location.pathname})`, payload: { action: "navigate", route: location.href } });
   };
 
+  // baseline values, so changes made without a focus event (pickers, autofill, scripts) still get a correct "from"
+  const seedBaseline = () => document.querySelectorAll<HTMLElement>("input, select, textarea").forEach((el) => isField(el) && !focusValues.has(el) && focusValues.set(el, valueOf(el)));
+  seedBaseline();
   document.addEventListener("focusin", onFocus, true);
   document.addEventListener("change", onChange, true);
   window.addEventListener("click", onClick, true);

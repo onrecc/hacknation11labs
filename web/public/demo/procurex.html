@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ProcureX · Purchase request</title>
+  <!-- A plain third-party-style web app with NO apprentice code of its own. The extension (or this one embed tag
+       for same-origin hosting) adds capture + the tutor overlay generically. -->
+  <script src="/apprentice-embed.js" defer></script>
+  <style>
+    :root { --bg: #f5f3ef; --panel: #fff; --ink: #222; --muted: #6b6560; --line: #e2ddd5; --brand: #7a3e1d; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font: 15px/1.45 Georgia, "Times New Roman", serif; background: var(--bg); color: var(--ink); }
+    header { background: var(--brand); color: #fff; padding: 14px 24px; display: flex; gap: 16px; align-items: baseline; }
+    header b { font-size: 20px; letter-spacing: .5px; } header span { opacity: .8; font-size: 13px; }
+    main { max-width: 880px; margin: 24px auto; padding: 0 16px; }
+    .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 20px 24px; }
+    h1 { font-size: 22px; margin: 0 0 4px; } p.sub { color: var(--muted); margin: 0 0 18px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
+    label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+    input, select, textarea { font: inherit; color: var(--ink); padding: 8px 10px; border: 1px solid var(--line); border-radius: 4px; background: #fffdf9; }
+    .wide { grid-column: 1 / -1; }
+    .actions { display: flex; gap: 10px; justify-content: flex-end; margin-top: 18px; }
+    button { font: inherit; padding: 9px 16px; border-radius: 4px; border: 1px solid var(--brand); background: #fff; color: var(--brand); cursor: pointer; }
+    button.primary { background: var(--brand); color: #fff; }
+    #toast { margin-top: 14px; color: #2e6b2e; min-height: 1.4em; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <header><b>ProcureX</b><span>Purchase requests · Plant Stuttgart</span></header>
+  <main>
+    <div class="panel">
+      <h1>Purchase request PR-20931</h1>
+      <p class="sub">Requested by Maintenance · needed by 2026-12-15</p>
+      <form id="pr" class="grid" onsubmit="return false">
+        <label>Vendor<input id="vendor" name="vendor" value="Gerätebau Schmidt KG" /></label>
+        <label>Vendor group<select id="vgroup" name="vendor_group"><option>External</option><option>Intercompany CZ</option></select></label>
+        <label>Item<input id="item" name="item" value="Hydraulic press tooling set" /></label>
+        <label>Category<select id="category" name="category"><option>Equipment</option><option>Consumables</option><option>Services</option><option>Spare parts</option></select></label>
+        <label>Amount (EUR)<input id="amount" name="amount" value="7200.00" inputmode="decimal" /></label>
+        <label>GL account<select id="gl" name="gl_account"><option value="6100">6100 · Opex maintenance</option><option value="0400">0400 · Capex machinery</option></select></label>
+        <label>Asset tag<input id="asset" name="asset_tag" placeholder="e.g. AN-2026-140" /></label>
+        <label>Approver<select id="approver" name="approver"><option>Team lead</option><option>M. Weber (Controlling)</option></select></label>
+        <label class="wide">Justification<textarea id="why" name="justification" rows="2">Replacement tooling for press line 3.</textarea></label>
+        <label>Bank account (IBAN)<input id="iban" name="iban" value="DE75 5121 0800 1245 1261 99" /></label>
+      </form>
+      <div class="actions">
+        <button id="save">Save draft</button>
+        <button id="submit" class="primary">Submit for approval</button>
+      </div>
+      <div id="toast"></div>
+    </div>
+  </main>
+  <script>
+    const toast = (t) => (document.getElementById("toast").textContent = t);
+    document.getElementById("save").addEventListener("click", () => toast("Draft saved."));
+    document.getElementById("submit").addEventListener("click", () => toast("Submitted for approval ✓"));
+  </script>
+</body>
+</html>
