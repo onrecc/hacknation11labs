@@ -10,6 +10,7 @@ import { signedIn } from "../lib/firebase";
 import agents from "../lib/elevenlabs.json";
 import { CaptureHub } from "../capture/hub";
 import { REDACTION_CONFIG } from "../capture/redaction";
+import { SessionStatus } from "../capture/SessionStatus";
 import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
@@ -66,6 +67,7 @@ export default function TeachPage() {
       t.attach(h);
       tutor.current = t;
       setHub(h);
+      await h.startListening(); // one start: session + Ada's voice
     } catch (e) {
       setErr((e as Error).message);
     }
@@ -93,7 +95,7 @@ export default function TeachPage() {
           {modules.length === 0 && maps.length > 0 && <p className="muted small wide">No confirmed Work Maps with guardrails yet. An expert needs to record and debrief a task first.</p>}
           {wm && <p className="muted small wide">{wm.steps.length} steps · {wm.guardrails.length} guardrails ({wm.guardrails.filter((g) => g.condition).length} machine-checkable) · expert {wm.expert.displayName} · {wm.status}</p>}
           {wm && wm.status !== "confirmed" && <p className="error small wide">This map isn't confirmed by the expert yet (docs/teach.md rule 1).</p>}
-          <button className="primary" disabled={!wm} onClick={start}>Start teach session</button>
+          <button className="primary" disabled={!wm} onClick={start}>Start practising with Ada</button>
         </div>
         {err && <p className="error">{err}</p>}
       </div>
@@ -103,17 +105,10 @@ export default function TeachPage() {
   return (
     <div className="page split">
       <section>
-        <h1>Tutor <span className="muted small mono">{hub.session.id}</span></h1>
-        <div className="status-row">
-          <span className="pill">voice: {s.voice}{s.voiceStatus ? ` (${s.voiceStatus})` : ""}</span>
-          <span className="pill">stt: {s.stt}</span>
-          <span className={`pill ${s.extension ? "ok" : ""}`}>extension: {s.extension ? "connected" : "not detected"}</span>
-          {s.agentSpeaking && <span className="pill ok">Ada speaking</span>}
-          {s.expertSpeaking && <span className="pill ok">{learner} speaking</span>}
-        </div>
+        <h1>Tutor</h1>
+        <SessionStatus s={s}><p className="muted small mono">{hub.session.id}</p></SessionStatus>
         <div className="btns">
-          <button disabled={s.listening} onClick={() => void hub.startListening().catch((e) => setErr((e as Error).message))}>1 · Start Ada (voice)</button>
-          <button onClick={() => window.open("/erp?mode=teach", "minierp")}>2 · Open MiniERP</button>
+          <button onClick={() => window.open("/erp?mode=teach", "minierp")}>Open MiniERP</button>
           <button onClick={finish}>Finish → mastery report</button>
         </div>
         <div className="row">

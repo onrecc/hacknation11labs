@@ -14,6 +14,7 @@ import { DebriefPanel } from "../map/DebriefPanel";
 import { EventFeed } from "../components/ui";
 import { AdaPanel } from "./AdaPanel";
 import { PAUSE } from "./hub";
+import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
@@ -159,15 +160,7 @@ export default function DayPage() {
     <div className="page split">
       <section>
         <h1>{user.short}'s day <span className="muted small">{day.date}</span></h1>
-        <div className="status-row">
-          <span className={`pill ${ended ? "" : "ok"}`}>{ended ? "day ended" : s.offRecord ? "off the record" : "recording"}</span>
-          {s.offRecord && <span className="pill danger">OFF THE RECORD</span>}
-          <span className="pill">voice: {s.voice}{s.voiceStatus ? ` (${s.voiceStatus})` : ""}</span>
-          <span className="pill">stt: {s.stt}</span>
-          <span className={`pill ${s.extension ? "ok" : ""}`}>extension: {s.extension ? "connected" : "not detected"}</span>
-          <span className="pill">frames: {s.frameSource}</span>
-          {s.agentSpeaking && <span className="pill ok">Ada speaking</span>}
-        </div>
+        <SessionStatus s={s} ended={ended}><p className="muted small mono">{rec.hub.session.id}</p></SessionStatus>
 
         {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
 

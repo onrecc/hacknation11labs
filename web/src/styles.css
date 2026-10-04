@@ -166,6 +166,11 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .ada-why { margin: 0 0 6px; }
 .ada-pause { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); }
 .ada-stats { margin: 8px 0 0; }
+.session-status { margin: 0 0 16px; }
+.status-line { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 13px; font-weight: 500; }
+.status-line i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.status-line.off { color: var(--danger); } .status-line.off i { background: var(--danger); }
+.status-line.idle { color: var(--muted); } .status-line.idle i { background: var(--faint); }
 details.devlog > summary, details.diagnostics > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); padding: 4px 0; }
 details.devlog[open] > summary, details.diagnostics[open] > summary { color: var(--text); margin-bottom: 8px; }
 
