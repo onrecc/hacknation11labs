@@ -79,6 +79,8 @@ npm run build:extension
 
 Then start a Capture or Teach session in the web app and work in any other tab:
 - **Capture:** records field changes, clicks and navigation (passwords, IBANs and card numbers are masked). Screenshots the active work tab once per second as frames, so no screen-share dialog is needed. The overlay pill shows recording, with off-record and bookmark buttons.
+- **Privacy basics:** personal-data fields (IBAN, email, phone, passwords, cards, anything marked `data-pii`) are pixelated in every frame *before* it is stored or sent to vision; transcripts have IBANs, emails and phone numbers masked before they are saved (regex today, Presidio next); a spoken "off the record" is never kept, neither in the transcript nor in the mic audio.
+- **Teach holds fail safe:** if the guardrail check can't run (no answer in 15 s, LLM error), the save stays held with "Couldn't verify, check with the controller". Form submits by Enter are held too.
 - **Teach:** the overlay shows Ada's guidance cards with the expert's quote and screen moment. Save/Submit/Approve-like clicks are held until Claude has checked them against the Work Map's guardrails.
 - Fallback for a same-origin demo page without the extension: `<script src="https://<host>/apprentice-embed.js" defer></script>` (same overlay code).
 

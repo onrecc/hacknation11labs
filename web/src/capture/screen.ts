@@ -7,6 +7,7 @@ export interface SampledFrame {
   height: number;
   diff: number; // 0..1 vs previous frame
   phash: string;
+  piiBlurred: number;
   base64: () => Promise<string>;
 }
 
@@ -14,6 +15,7 @@ export class FrameSampler {
   private video = document.createElement("video");
   private canvas = document.createElement("canvas");
   private tiny = document.createElement("canvas");
+  private pix = document.createElement("canvas");
   private prev: Uint8ClampedArray | null = null;
   /** Regions to blur on every frame (e.g. last known PII from vision, or known app fields). */
   piiRegions: BBox[] = [];
@@ -29,16 +31,17 @@ export class FrameSampler {
     this.tiny.height = 18;
   }
 
-  /** Frame from an extension screenshot (JPEG data URL of the work tab). */
-  async grabImage(dataUrl: string): Promise<SampledFrame | null> {
+  /** Frame from an extension screenshot (JPEG data URL of the work tab); `pii` = personal-data fields to blur. */
+  async grabImage(dataUrl: string, pii: BBox[] = []): Promise<SampledFrame | null> {
     const img = new Image();
     img.src = dataUrl;
     await img.decode().catch(() => null);
     if (!img.naturalWidth) return null;
-    return this.grab(img, img.naturalWidth, img.naturalHeight);
+    return this.grab(img, img.naturalWidth, img.naturalHeight, pii);
   }
 
-  async grab(source?: CanvasImageSource, sw?: number, sh?: number): Promise<SampledFrame | null> {
+  /** Blurs `piiRegions` (+ `extraPii`) BEFORE the frame exists as a blob: nothing unblurred is stored or sent to vision. */
+  async grab(source?: CanvasImageSource, sw?: number, sh?: number, extraPii: BBox[] = []): Promise<SampledFrame | null> {
     const src = source ?? this.video;
     const srcW = sw ?? this.video.videoWidth, srcH = sh ?? this.video.videoHeight;
     if (!srcW) return null;
@@ -48,11 +51,20 @@ export class FrameSampler {
     this.canvas.height = h;
     const ctx = this.canvas.getContext("2d")!;
     ctx.drawImage(src, 0, 0, w, h);
-    for (const r of this.piiRegions) {
+    let piiBlurred = 0;
+    for (const r of [...this.piiRegions, ...extraPii]) {
+      // pixelate (shrink to ~1/16) then blur back up: no characters survive, the layout stays recognizable
+      const rx = Math.max(0, r.x * w), ry = Math.max(0, r.y * h), rw = Math.min(w - rx, r.w * w), rh = Math.min(h - ry, r.h * h);
+      if (rw < 1 || rh < 1) continue;
+      const tw = Math.max(1, Math.round(rw / 16)), th = Math.max(1, Math.round(rh / 16));
+      this.pix.width = tw;
+      this.pix.height = th;
+      this.pix.getContext("2d")!.drawImage(this.canvas, rx, ry, rw, rh, 0, 0, tw, th);
       ctx.save();
-      ctx.filter = "blur(12px)";
-      ctx.drawImage(this.canvas, r.x * w, r.y * h, r.w * w, r.h * h, r.x * w, r.y * h, r.w * w, r.h * h);
+      ctx.filter = "blur(4px)";
+      ctx.drawImage(this.pix, 0, 0, tw, th, rx, ry, rw, rh);
       ctx.restore();
+      piiBlurred++;
     }
     // diff on a 32x18 grayscale thumbnail
     const t = this.tiny.getContext("2d", { willReadFrequently: true })!;
@@ -73,7 +85,7 @@ export class FrameSampler {
     const phash = BigInt("0b" + bits).toString(16).padStart(16, "0");
     const blob = await new Promise<Blob>((res) => this.canvas.toBlob((b) => res(b!), "image/webp", 0.7));
     return {
-      blob, width: w, height: h, diff: Math.round(diff * 1000) / 1000, phash,
+      blob, width: w, height: h, diff: Math.round(diff * 1000) / 1000, phash, piiBlurred,
       base64: async () => {
         const buf = new Uint8Array(await blob.arrayBuffer());
         let s = "";
@@ -94,33 +106,63 @@ export class FrameSampler {
  */
 export class ChunkRecorder {
   private rec: MediaRecorder | null = null;
+  private slice: { drop: boolean } | null = null; // the slice being recorded right now
   private n = 0;
   private timer: ReturnType<typeof setInterval> | null = null;
   private paused = false;
+  private stopping = false;
+  /** Finished slices wait `holdMs` before upload, so a spoken "off the record" can still take its slice back. */
+  private held: Array<{ blob: Blob; startedAt: number; endedAt: number; timer?: ReturnType<typeof setTimeout> }> = [];
 
   constructor(
     readonly stream: MediaStream,
     readonly mime: string,
     readonly onChunk: (blob: Blob, index: number, durationMs: number, startedAtPerf: number) => void,
     readonly sliceMs = 10_000,
+    readonly holdMs = 0,
   ) {}
 
   private begin() {
     const startedAt = performance.now();
     const parts: Blob[] = [];
+    const slice = { drop: false };
     const rec = new MediaRecorder(this.stream, MediaRecorder.isTypeSupported(this.mime) ? { mimeType: this.mime } : undefined);
     rec.ondataavailable = (e) => e.data.size && parts.push(e.data);
     rec.onstop = () => {
-      if (!parts.length) return;
-      this.onChunk(new Blob(parts, { type: rec.mimeType }), this.n++, Math.round(performance.now() - startedAt), startedAt);
+      if (!parts.length || slice.drop) return;
+      const c = { blob: new Blob(parts, { type: rec.mimeType }), startedAt, endedAt: performance.now() } as (typeof this.held)[number];
+      if (!this.holdMs || this.stopping) return this.deliver(c);
+      c.timer = setTimeout(() => this.deliver(c), this.holdMs);
+      this.held.push(c);
     };
     rec.start();
     this.rec = rec;
+    this.slice = slice;
+  }
+
+  private deliver(c: (typeof this.held)[number]) {
+    clearTimeout(c.timer);
+    this.held = this.held.filter((x) => x !== c);
+    this.onChunk(c.blob, this.n++, Math.round(c.endedAt - c.startedAt), c.startedAt);
+  }
+
+  /**
+   * Throw away everything recorded since `perfT` (performance.now() time): held slices that overlap it and the
+   * slice in progress. For the spoken off-record command: its audio is never uploaded.
+   */
+  dropSince(perfT: number) {
+    for (const c of [...this.held]) {
+      if (c.endedAt < perfT) continue;
+      clearTimeout(c.timer);
+      this.held = this.held.filter((x) => x !== c);
+    }
+    if (this.slice) this.slice.drop = true;
   }
 
   private cut() {
     if (this.rec && this.rec.state !== "inactive") this.rec.stop();
     this.rec = null;
+    this.slice = null;
   }
 
   start() {
@@ -142,7 +184,9 @@ export class ChunkRecorder {
     this.begin();
   }
   stop() {
+    this.stopping = true;
     if (this.timer) clearInterval(this.timer);
     this.cut();
+    [...this.held].forEach((c) => this.deliver(c)); // nothing waits past the end of the session
   }
 }

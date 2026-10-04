@@ -27,8 +27,8 @@ def evaluate(c, facts):
     if op == "not":
         return not evaluate(c["c"], facts)
     v, want = get(facts, c["field"]), c.get("value")
-    if op == "missing":
-        return v is None or v == ""
+    if op == "missing":  # a boolean flag that isn't set (False) counts as missing, as in shared/conditions.ts
+        return v is None or v == "" or v is False
     if v is None:
         return False
     return {

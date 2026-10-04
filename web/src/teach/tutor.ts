@@ -107,6 +107,12 @@ export class Tutor {
     } else if (m.kind === "beforeAction") {
       this.page = m.page;
       const out = await this.checkGeneric(m.page, m.action);
+      if (out === "failed") {
+        // could not check (LLM error): hold, never wave a possibly wrong save through
+        send({ kind: "beforeActionResult", reqId: m.reqId, allow: false, guardrailIds: [], message: UNVERIFIED });
+        void this.showCard({ tone: "block", title: "Couldn't verify this save", text: `${UNVERIFIED} You can try again in a moment.` });
+        return;
+      }
       send({ kind: "beforeActionResult", reqId: m.reqId, allow: !out.length, guardrailIds: out.map((g) => g.id), message: out[0] ? `Hold on: ${out[0].statement}` : undefined });
       if (out[0]) void this.intervene(out[0], true, m.page.title);
     } else if (m.kind === "case" && m.state === "start" && m.facts) {
@@ -140,7 +146,8 @@ export class Tutor {
     }
   }
 
-  private async checkGeneric(page: PageSnapshot, action: string): Promise<Guardrail[]> {
+  /** Guardrails the visible form would break, or "failed" when the check itself could not run. */
+  private async checkGeneric(page: PageSnapshot, action: string): Promise<Guardrail[] | "failed"> {
     try {
       const out = await llm("check_guardrails", {
         guardrails: this.wm.guardrails.map((g) => ({ id: g.id, statement: g.statement, requiredAction: g.requiredAction, scope: g.scope })),
@@ -151,32 +158,44 @@ export class Tutor {
         .map((v) => this.wm.guardrails.find((g) => g.id === v.guardrailId))
         .filter((g): g is Guardrail => !!g && g.severity === "block");
     } catch {
-      return []; // never block on an error
+      return "failed"; // the caller holds the save: an unchecked save is not a safe default
     }
   }
 
   // ───────────── interventions ─────────────
-  async intervene(g: Guardrail, beforeSave: boolean, caseLabel: string) {
+  /** `queued`: this hold was already logged and shown while an older intervention had the floor. */
+  async intervene(g: Guardrail, beforeSave: boolean, caseLabel: string, queued?: { firstId: Id; t: number; action: string; trigger: Id }) {
     this.caught.add(g.id);
     const quote = g.evidence.quotes[0]?.text ?? g.statement;
     const moment = g.evidence.moments[0];
     const socratic = `${this.expert} would stop here. Why do you think?`;
-    const t = this.hub.now();
+    const t = queued?.t ?? this.hub.now();
+    // what the new hire did, as of THIS hold (the facts move on when they open the next case)
+    const at = queued ?? { action: this.facts ? describeFacts(this.facts) : caseLabel, trigger: this.lastAppEventId() };
     // claim the floor synchronously, before any await: an intervention supersedes an open prediction
     this.pendingPrediction = null;
     if (this.intervening) {
-      this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
+      // a newer held save (e.g. the next case) takes the floor: show it now, end the older "why?" so its
+      // explanation never lands on top of this card, then run this one's full flow once the older one unwinds
+      const first = this.logIntervention(g, beforeSave, socratic, moment, at, t, false);
+      this.next = { g, beforeSave, caseLabel, firstId: first.id, t, ...at };
       void this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
+      this.hub.cancelAsk();
       return;
     }
     this.intervening = true;
     // log the moment it happens; the final explanation is appended later as a superseding event
-    const first = this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
+    const first = queued ? { id: queued.firstId } : this.logIntervention(g, beforeSave, socratic, moment, at, t, false);
     try {
-      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
+      if (!queued) await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
       const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}` });
+      if (this.next) {
+        // superseded while waiting: no stale explanation (the newer card and voice flow come next)
+        this.logIntervention(g, beforeSave, socratic, moment, at, t, replies.length > 0, first.id);
+        return;
+      }
       let spoken = socratic;
       if (agentVoice && !replies.length) {
         // no answer: don't leave them hanging, say it in the expert's words
@@ -187,19 +206,23 @@ export class Tutor {
         spoken = ex.spoken;
         await this.hub.agentSay(spoken, "intervention");
       }
-      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${this.expert}: "${quote}". ${g.requiredAction}.` : spoken, guardrail: g }, moment);
-      this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0, first.id);
+      if (!this.next) await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${this.expert}: "${quote}". ${g.requiredAction}.` : spoken, guardrail: g }, moment);
+      this.logIntervention(g, beforeSave, spoken, moment, at, t, replies.length > 0, first.id);
     } finally {
       this.intervening = false;
+      const n = this.next;
+      this.next = null;
+      if (n) void this.intervene(n.g, n.beforeSave, n.caseLabel, n);
     }
   }
 
   private intervening = false;
-  private logIntervention(g: Guardrail, beforeSave: boolean, spoken: string, moment: Guardrail["evidence"]["moments"][number] | undefined, caseLabel: string, t: number, answered: boolean, supersedes?: Id) {
+  private next: { g: Guardrail; beforeSave: boolean; caseLabel: string; firstId: Id; t: number; action: string; trigger: Id } | null = null;
+  private logIntervention(g: Guardrail, beforeSave: boolean, spoken: string, moment: Guardrail["evidence"]["moments"][number] | undefined, at: { action: string; trigger: Id }, t: number, answered: boolean, supersedes?: Id) {
     return this.hub.emit({
       t, type: "tutor.intervention", source: "tutor", ...(supersedes ? { supersedes } : {}),
       payload: {
-        guardrailId: g.id, triggerAppEventId: this.lastAppEventId(), beforeSave, newHireAction: this.facts ? describeFacts(this.facts) : caseLabel,
+        guardrailId: g.id, triggerAppEventId: at.trigger, beforeSave, newHireAction: at.action,
         expectedAction: g.requiredAction, spokenText: spoken, ...(moment ? { replayedScreenMoment: moment } : {}), outcome: answered ? "argued" : "pending",
       },
     });
@@ -306,3 +329,5 @@ function afterAction(f: CaseFacts, action: string): CaseFacts {
     : f.invoice.status === "open" ? "coded" : f.invoice.status;
   return { ...f, invoice: { ...f.invoice, status } };
 }
+
+const UNVERIFIED = "Couldn't verify this against the expert's rules. Check with the controller before saving.";

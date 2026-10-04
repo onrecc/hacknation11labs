@@ -158,6 +158,8 @@ export type FrameCaptured = EventBase<"frame.captured", {
   diffFromPrev: number; // 0..1
   sentToVision: boolean;
   skipReason?: "no_change" | "rate_limited" | "off_record";
+  /** personal-data regions blurred in this image before it was stored or sent to vision */
+  piiBlurred?: number;
 }>;
 
 export interface ScreenEntity {
@@ -539,7 +541,7 @@ export interface Guardrail extends Claim {
   /**
    * VIOLATION predicate over CaseFacts: true = saving now would break this guardrail.
    * (Not "when does it apply": the intercompany rule must not fire once Weber is set as approver.)
-   * "missing" is true for null, undefined and "". Teach evaluates this deterministically; never via an LLM.
+   * "missing" is true for null, undefined, "" and false (an unset flag). Teach evaluates this deterministically; never via an LLM.
    */
   condition?: Condition;
   requiredAction: string; // "Stop and ask the controller"

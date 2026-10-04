@@ -283,10 +283,12 @@
   // src/capture-dom.ts
   var ACTION_RE = /\b(save|submit|approve|confirm|book|post|send|pay|release|finish|complete|create|update)\b/i;
   var MAX_FIELDS = 60;
+  var UNVERIFIED = "Couldn't verify this against the expert's rules. Check with the controller before saving.";
   function startDomCapture(t, isActive, opts = { events: true }) {
     const counts = { keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 };
     const focusValues = /* @__PURE__ */ new WeakMap();
     let bypass = null;
+    let bypassForm = null;
     let last = null;
     const on = () => isActive().capture || isActive().teach;
     const emit = (b) => opts.events && on() && t.send(b);
@@ -320,10 +322,13 @@
       if (isActive().teach && ACTION_RE.test(text) && bypass !== el) {
         e.preventDefault();
         e.stopImmediatePropagation();
-        void holdAndCheck(el, text);
+        void holdAndCheck(el, text, () => {
+          bypass = el;
+          el.click();
+        });
         return;
       }
-      if (bypass === el) bypass = null;
+      if (bypass === el) setTimeout(() => bypass === el && (bypass = null), 0);
       emit({
         kind: "app",
         at: Date.now(),
@@ -333,14 +338,14 @@
         payload: { action: ACTION_RE.test(text) ? "save" : "click", entity: { kind: "page", key: location.pathname }, selector: selectorOf(el), route: location.href }
       });
     };
-    const holdAndCheck = async (el, text) => {
+    const holdAndCheck = async (el, text, proceed) => {
       const reqId = newMsgId();
       const outline = el.dataset.apOutline ??= el.style.outline;
       el.style.outline = "3px solid #3b6fb6";
       const label = el.getAttribute("title");
       el.setAttribute("title", "Ada is checking this against the expert's rules\u2026");
       const res = await new Promise((resolve) => {
-        const timer2 = setTimeout(() => (stop(), resolve({ allow: true })), 15e3);
+        const timer2 = setTimeout(() => (stop(), resolve({ allow: false, timedOut: true })), 15e3);
         const stop = t.listen((m) => {
           if (m.kind === "beforeActionResult" && m.reqId === reqId) {
             clearTimeout(timer2);
@@ -353,14 +358,30 @@
       if (label === null) el.removeAttribute("title");
       else el.setAttribute("title", label);
       el.style.outline = res.allow ? outline : "3px solid #c62828";
+      if (res.timedOut) opts.notify?.({ kind: "tutorCard", tone: "block", title: "Couldn't verify this save", text: `${UNVERIFIED} Ada didn't answer in time; try again in a moment.` });
       if (res.allow) {
-        bypass = el;
-        el.click();
+        proceed();
         setTimeout(() => el.style.outline = outline, 300);
       }
     };
     const onSubmit = (e) => {
       const f = e.target;
+      const search = f.matches("[role=search]") || !!f.querySelector("input[type=search]");
+      if (isActive().teach && bypassForm !== f && !search) {
+        const submitter = e.submitter;
+        if (!(submitter && bypass === submitter)) {
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          const text = (submitter?.textContent || submitter?.value || f.getAttribute("name") || "submit form").trim().slice(0, 60);
+          void holdAndCheck(submitter ?? f, text, () => {
+            bypassForm = f;
+            f.requestSubmit(submitter && f.contains(submitter) ? submitter : void 0);
+            bypassForm = null;
+          });
+          return;
+        }
+      }
+      if (bypass && bypass === e.submitter) bypass = null;
       emit({ kind: "app", at: Date.now(), verb: "save", page: snapshot(), description: `Submitted form "${f.getAttribute("name") || f.id || "form"}" on "${document.title}"`, payload: { action: "submit", entity: { kind: "page", key: location.pathname }, route: location.href } });
     };
     const onKey = () => counts.keystrokes++;
@@ -448,8 +469,18 @@
         offRecord = m.offRecord;
       }
     });
-    const stopOverlay = startOverlay(transport, { controls: true });
-    const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }), { events: !opts.feed });
+    const local = /* @__PURE__ */ new Set();
+    const overlayTransport = {
+      send: (b) => transport.send(b),
+      listen(fn) {
+        const off = transport.listen(fn);
+        local.add(fn);
+        return () => (off(), local.delete(fn));
+      }
+    };
+    const notify = (b) => local.forEach((fn) => fn({ ...b, id: newMsgId() }));
+    const stopOverlay = startOverlay(overlayTransport, { controls: true });
+    const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }), { events: !opts.feed, notify });
     transport.send({ kind: "hello", from: "ext", app: location.hostname });
     onStatusRequest?.();
     return () => {

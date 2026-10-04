@@ -25,6 +25,8 @@ export interface LlmTasks {
       recentUtterances: Array<{ id: Id; t: number; speaker: string; text: string }>;
       askedQuestions: string[];
       liveBudgetLeft: number;
+      /** What vision last saw on screen (when vision is on): context for a concrete question. */
+      screenSummary?: string;
     };
     output: {
       ask: boolean;

@@ -56,7 +56,9 @@ const agents = {
     name: "AI Apprentice · Interviewer",
     voice_id: "iP95p4xoKVk53GoZ742B", // Chris: charming, down-to-earth
     prompt: INTERVIEWER,
-    first_message: "Hi {{expert_name}}, I'm Ada. Just work as usual. I'll stay quiet and only ask when you pause.",
+    // no greeting on connect (the agent reconnects for task switches and debriefs): the hub says ONE line itself,
+    // only when a fresh day or teach session starts (CaptureHub.startListening(greeting))
+    first_message: "",
     tools: [
       clientTool("get_recent_screen_events", "Recent actions the expert took on screen (newest last).", { limit: { type: "number", description: "max events" } }, []),
     ],
@@ -66,7 +68,7 @@ const agents = {
     name: "AI Apprentice · Tutor",
     voice_id: "Xb7hH8MSUJpSbSDYk0k2", // Alice: clear, engaging educator
     prompt: TUTOR,
-    first_message: "Hi {{learner_name}}, I'm Ada. Work as usual. I'll jump in if something needs {{expert_name}}'s eye.",
+    first_message: "", // see the interviewer: the Training page greets once, before work starts
     tools: [
       clientTool("lookup_guardrail", "Find the guardrails in the Work Map that match a topic.", { query: { type: "string", description: "topic, e.g. capex, asset number, Brno" } }, ["query"]),
       clientTool("replay_moment", "Show the expert's screen moment for a guardrail or step in the overlay.", { id: { type: "string", description: "guardrail or step id" } }, ["id"]),

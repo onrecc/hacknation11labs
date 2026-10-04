@@ -2,7 +2,8 @@
  * Generic instrumentation for ANY web app (the expert's or new hire's real tools):
  *  - field changes (label + old → new; sensitive values masked), clicks on buttons/links, form submits, navigation
  *  - activity counts every 2 s (no content) for the pause detector
- *  - teach mode: Save/Submit/Approve-like clicks are held until the hub answers `beforeAction`
+ *  - teach mode: Save/Submit/Approve-like clicks AND form submits (Enter key) are held until the hub answers
+ *    `beforeAction`. No answer in time or a failed check = the save stays held ("couldn't verify"), never waved through.
  * With `events: false` (apps that publish their own structured events) only the teach-mode hold runs.
  * Never captures passwords, card numbers, IBANs or anything matching SENSITIVE.
  */
@@ -12,10 +13,17 @@ import type { Transport } from "./overlay";
 const ACTION_RE = /\b(save|submit|approve|confirm|book|post|send|pay|release|finish|complete|create|update)\b/i;
 const MAX_FIELDS = 60;
 
-export function startDomCapture(t: Transport, isActive: () => { capture: boolean; teach: boolean }, opts: { events: boolean } = { events: true }): () => void {
+const UNVERIFIED = "Couldn't verify this against the expert's rules. Check with the controller before saving.";
+
+export function startDomCapture(
+  t: Transport,
+  isActive: () => { capture: boolean; teach: boolean },
+  opts: { events: boolean; notify?: (card: Extract<BridgeBody, { kind: "tutorCard" }>) => void } = { events: true },
+): () => void {
   const counts = { keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 };
   const focusValues = new WeakMap<Element, string>();
   let bypass: Element | null = null;
+  let bypassForm: HTMLFormElement | null = null;
   let last: [number, number] | null = null;
   const on = () => isActive().capture || isActive().teach;
   const emit = (b: BridgeBody) => opts.events && on() && t.send(b);
@@ -48,25 +56,28 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
     if (isActive().teach && ACTION_RE.test(text) && bypass !== el) {
       e.preventDefault();
       e.stopImmediatePropagation();
-      void holdAndCheck(el as HTMLElement, text);
+      void holdAndCheck(el as HTMLElement, text, () => {
+        bypass = el;
+        (el as HTMLElement).click();
+      });
       return;
     }
-    if (bypass === el) bypass = null;
+    if (bypass === el) setTimeout(() => bypass === el && (bypass = null), 0); // after the submit this click may trigger
     emit({
       kind: "app", at: Date.now(), verb: ACTION_RE.test(text) ? "save" : "other", page: snapshot(),
       description: `Clicked "${text}" on "${document.title}"`,
       payload: { action: ACTION_RE.test(text) ? "save" : "click", entity: { kind: "page", key: location.pathname }, selector: selectorOf(el), route: location.href },
     });
   };
-  const holdAndCheck = async (el: HTMLElement, text: string) => {
+  const holdAndCheck = async (el: HTMLElement, text: string, proceed: () => void) => {
     const reqId = newMsgId();
     const outline = (el.dataset.apOutline ??= el.style.outline); // the app's own outline, before we ever touched it
     el.style.outline = "3px solid #3b6fb6";
     const label = el.getAttribute("title");
     el.setAttribute("title", "Ada is checking this against the expert's rules…");
-    const res = await new Promise<{ allow: boolean }>((resolve) => {
-      // generous: the check is an LLM call (rate budget, overload retries); after 15 s we never strand the user
-      const timer = setTimeout(() => (stop(), resolve({ allow: true })), 15_000);
+    const res = await new Promise<{ allow: boolean; timedOut?: boolean }>((resolve) => {
+      // generous: the check may be an LLM call. No answer in 15 s = hold (the hub is gone or the check hung)
+      const timer = setTimeout(() => (stop(), resolve({ allow: false, timedOut: true })), 15_000);
       const stop = t.listen((m: BridgeMsg) => {
         if (m.kind === "beforeActionResult" && m.reqId === reqId) {
           clearTimeout(timer);
@@ -79,14 +90,32 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
     if (label === null) el.removeAttribute("title");
     else el.setAttribute("title", label);
     el.style.outline = res.allow ? outline : "3px solid #c62828";
+    if (res.timedOut) opts.notify?.({ kind: "tutorCard", tone: "block", title: "Couldn't verify this save", text: `${UNVERIFIED} Ada didn't answer in time; try again in a moment.` });
     if (res.allow) {
-      bypass = el;
-      el.click();
+      proceed();
       setTimeout(() => (el.style.outline = outline), 300);
     }
   };
   const onSubmit = (e: Event) => {
     const f = e.target as HTMLFormElement;
+    // teach: a submit that didn't come through a held button click (Enter key, "OK"/"Next" buttons) is held too;
+    // search boxes are not decisions, they pass
+    const search = f.matches("[role=search]") || !!f.querySelector("input[type=search]");
+    if (isActive().teach && bypassForm !== f && !search) {
+      const submitter = (e as SubmitEvent).submitter as HTMLElement | null;
+      if (!(submitter && bypass === submitter)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        const text = (submitter?.textContent || (submitter as HTMLInputElement | null)?.value || f.getAttribute("name") || "submit form").trim().slice(0, 60);
+        void holdAndCheck((submitter ?? f) as HTMLElement, text, () => {
+          bypassForm = f;
+          f.requestSubmit(submitter && f.contains(submitter) ? submitter : undefined);
+          bypassForm = null;
+        });
+        return;
+      }
+    }
+    if (bypass && bypass === (e as SubmitEvent).submitter) bypass = null;
     emit({ kind: "app", at: Date.now(), verb: "save", page: snapshot(), description: `Submitted form "${f.getAttribute("name") || f.id || "form"}" on "${document.title}"`, payload: { action: "submit", entity: { kind: "page", key: location.pathname }, route: location.href } });
   };
   const onKey = () => counts.keystrokes++;
@@ -132,6 +161,32 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
     window.removeEventListener("wheel", onWheel);
     window.removeEventListener("mousemove", onMove);
   };
+}
+
+const PII_FIELD = /e-?mail|phone|mobile|tel\b|iban|bic|swift|birth|address|passport/i;
+const PII_AUTOCOMPLETE = /^(cc-|email|tel|bday|street-address|address-line|postal-code|current-password|new-password)/;
+
+/**
+ * Where personal data is on screen right now (normalized to the viewport, slightly padded): passwords, card
+ * numbers, IBANs, emails, phones… and anything the app marks with [data-pii]. Screenshots get these blurred.
+ */
+export function piiRects(): Array<{ x: number; y: number; w: number; h: number }> {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const out: Array<{ x: number; y: number; w: number; h: number }> = [];
+  const els = document.querySelectorAll<HTMLElement>("input, textarea, select, [contenteditable=true], [data-pii]");
+  for (const el of els) {
+    const input = el as HTMLInputElement;
+    const label = el.matches("[data-pii]") ? "" : labelOf(el);
+    const sensitive = el.matches("[data-pii]") || ["password", "email", "tel"].includes(input.type) || PII_AUTOCOMPLETE.test(input.autocomplete ?? "")
+      || SENSITIVE.test(label) || PII_FIELD.test(label) || SENSITIVE.test(input.name ?? "") || PII_FIELD.test(input.name ?? "");
+    if (!sensitive) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 || r.height <= 0 || r.bottom < 0 || r.right < 0 || r.top > vh || r.left > vw) continue;
+    const pad = 4;
+    const x = Math.max(0, r.left - pad), y = Math.max(0, r.top - pad);
+    out.push({ x: x / vw, y: y / vh, w: Math.min(vw - x, r.width + 2 * pad) / vw, h: Math.min(vh - y, r.height + 2 * pad) / vh });
+  }
+  return out;
 }
 
 /** Visible form state: label → value (masked when sensitive). */

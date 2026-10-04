@@ -30,7 +30,8 @@ export type BridgeBody =
   | { kind: "beforeAction"; reqId: string; action: string; page: PageSnapshot; feed?: boolean }
   | { kind: "beforeActionResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string }
   /** Extension-captured screenshot of the work tab (JPEG data URL) — capture without the share dialog. */
-  | { kind: "frame"; dataUrl: string; at: number; url: string }
+  /** pii: normalized viewport boxes of personal-data fields; the hub blurs them before storing or sending to vision. */
+  | { kind: "frame"; dataUrl: string; at: number; url: string; pii?: Array<{ x: number; y: number; w: number; h: number }> }
   /** Overlay content on the work tab. */
   | { kind: "tutorSay"; text: string }
   | { kind: "tutorCard"; tone: "block" | "nudge" | "info" | "predict"; title: string; text: string; quote?: { text: string; who: string; when: string }; imageUrl?: string; bbox?: { x: number; y: number; w: number; h: number } }

@@ -42,7 +42,7 @@ async function converse(agentId: string, dynamic: Record<string, string>, steps:
 
 console.log("── Interviewer ──");
 console.log(await converse(ids.interviewerAgentId, { expert_name: "Sabine", task_title: "Process open supplier invoices" }, [
-  { waitMs: 6000 }, // first message
+  { send: "[SAY] Hi Sabine, I'm Ada. Work as usual; I'll only ask when you pause.", waitMs: 6000 }, // the hub greets once (no first_message)
   { context: "[screen t=27s] Re-coded INV-4471 cost center 4711 (Opex) -> 0400 (Capex)", waitMs: 1500 },
   { send: "Hmm, Krauss, the spindle again.", waitMs: 6000 }, // thinking aloud: should stay quiet (skip_turn)
   { send: "[ASK] You changed the cost center from 4711 to 0400. What made you do that?", waitMs: 8000 },

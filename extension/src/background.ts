@@ -49,8 +49,10 @@ async function shoot() {
   const [active] = await ext.tabs.query({ active: true, lastFocusedWindow: true });
   if (!active?.id || active.id === hubTabId || !active.url || !/^https?:/.test(active.url)) return; // never the hub itself
   try {
+    // personal-data fields on the page: the hub blurs them before the frame is stored or sent to vision
+    const pii = ((await ext.tabs.sendMessage(active.id, { type: "piiRects" }).catch(() => [])) ?? []) as Array<{ x: number; y: number; w: number; h: number }>;
     const dataUrl = await ext.tabs.captureVisibleTab(active.windowId, { format: "jpeg", quality: 60 });
-    const msg = { kind: "frame", dataUrl, at: Date.now(), url: active.url, id: crypto.randomUUID() } as BridgeMsg;
+    const msg = { kind: "frame", dataUrl, at: Date.now(), url: active.url, pii, id: crypto.randomUUID() } as BridgeMsg;
     ext.tabs.sendMessage(hubTabId, { type: "relay", msg }).catch(() => {});
   } catch {
     /* tab not capturable (chrome:// pages, devtools) */

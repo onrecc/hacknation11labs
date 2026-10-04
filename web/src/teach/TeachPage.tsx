@@ -111,7 +111,7 @@ export default function TeachPage() {
           {s.expertSpeaking && <span className="pill ok">{learner} speaking</span>}
         </div>
         <div className="btns">
-          <button disabled={s.listening} onClick={() => void hub.startListening().catch((e) => setErr((e as Error).message))}>1 · Start Ada (voice)</button>
+          <button disabled={s.listening} onClick={() => void hub.startListening(`Hi ${learner}, I'm Ada. Work as usual; I'll step in if something needs ${wm?.expert.displayName.split(" ")[0] ?? "the expert"}'s eye.`).catch((e) => setErr((e as Error).message))}>1 · Start Ada (voice)</button>
           <button onClick={() => window.open("/erp?mode=teach", "minierp")}>2 · Open MiniERP</button>
           <button onClick={finish}>Finish → mastery report</button>
         </div>
@@ -120,7 +120,12 @@ export default function TeachPage() {
           <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
         {!s.extension && <p className="error">Ada coaches through the browser extension (Chrome or Firefox). Install it from <code>extension/dist</code>, then reload your work tab: without it there is no overlay and no save check.</p>}
-        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Works the same on any website: the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.</p>
+        <p className="muted small">
+          <b>Try a case the expert never showed: INV-4494</b> (Brno Precision, our Czech subsidiary, €1,450 IT services recharge). It's small and not equipment,
+          so the capex rule doesn't apply; press Approve without a 2nd approver and Ada stops you with the intercompany rule. Set M. Weber as 2nd approver
+          and send it for approval: it goes through. (INV-4490, €7,200 equipment coded as opex, shows the capex rule.) Works the same on any website:
+          the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.
+        </p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (
           <div className="card">

@@ -12,7 +12,8 @@ import { APPROVERS, COST_CENTERS, HISTORY, KNOWN_SUPPLIERS, SEED, type Invoice }
 const LS = "minierp.v1";
 const load = (): Invoice[] => {
   try {
-    return JSON.parse(localStorage.getItem(LS) ?? "") as Invoice[];
+    const saved = JSON.parse(localStorage.getItem(LS) ?? "") as Invoice[];
+    return [...saved, ...SEED.filter((x) => !saved.some((r) => r.key === x.key))]; // new seed invoices appear without a reset
   } catch {
     return SEED;
   }

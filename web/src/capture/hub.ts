@@ -3,15 +3,16 @@
  * pause detector, question picker, answer linking, correction detection and off-record into the EventLog.
  * React only renders hub.state; all logic lives here so it can be tested and reused by Teach/debrief.
  */
-import type { Event, Id, Phase, QuestionCategory, Session, Utterance } from "@shared/schema";
+import type { BBox, Event, Id, Phase, QuestionCategory, Session, Utterance } from "@shared/schema";
 import { EventLog, type EventInput } from "@shared/eventlog";
 import { SessionClock } from "@shared/clock";
 import { newId } from "@shared/ids";
 import { webStore } from "../lib/webStore";
 import { updateSession } from "../lib/sessions";
-import { llm } from "../lib/api";
+import { llm, servedBy } from "../lib/api";
 import { listen, send, type BridgeMsg } from "../lib/bridge";
 import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
+import { maskPii, maskWords } from "./pii";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
 
@@ -208,12 +209,14 @@ export class CaptureHub {
    * Start Ada: voice (ElevenAgents → ElevenLabs TTS → browser) and the always-on transcript (Scribe → Web Speech).
    * Each part degrades on its own: no mic still gives a speaking agent (TTS) and typed answers.
    */
-  async startListening() {
+  /** `greeting`: one line Ada says once voice is up (only when work is starting: a fresh day or teach session). */
+  async startListening(greeting?: string) {
     let micOk = true;
     try {
       this.set({ voiceStatus: "mic…" });
       this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
-      this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt));
+      // slices wait 8 s before upload: a spoken "off the record" (transcribed ~1-3 s later) can still drop its audio
+      this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt), 10_000, 8_000);
       this.micRec.start();
       this.transcriber = await createTranscriber(() => this.now(), {
         onSpeechStart: (t) => {
@@ -240,6 +243,7 @@ export class CaptureHub {
     });
     this.set({ listening: true, stt: this.transcriber?.name ?? "typed only", voice: this.voice.name });
     if (this.session.kind === "teach") this.agentListen(true);
+    if (greeting) void this.agentSay(greeting, "other");
   }
 
   async shareScreen() {
@@ -294,7 +298,7 @@ export class CaptureHub {
     this.log.blob(uri, f.blob, "image/webp");
     const fe = this.emit({
       t, type: "frame.captured", source: "screen",
-      payload: { frameId, uri, width: f.width, height: f.height, phash: f.phash, diffFromPrev: f.diff, sentToVision: send, ...(send ? {} : { skipReason: f.diff <= 0.015 ? "no_change" : "rate_limited" }) },
+      payload: { frameId, uri, width: f.width, height: f.height, phash: f.phash, diffFromPrev: f.diff, sentToVision: send, ...(f.piiBlurred ? { piiBlurred: f.piiBlurred } : {}), ...(send ? {} : { skipReason: f.diff <= 0.015 ? "no_change" : "rate_limited" }) },
     });
     this.lastFrameId = frameId;
     this.set({ frames: this.state.frames + 1 });
@@ -308,9 +312,9 @@ export class CaptureHub {
     try {
       const recent = this.events.filter((e) => e.type === "screen.action").slice(-5).map((e) => (e.type === "screen.action" ? e.payload.description : ""));
       const out = await llm("vision", { frameBase64: b64, mediaType: "image/webp", prevSummary: this.lastObserved?.summary, recentActions: recent });
-      const mc = this.modelCall("vision", [frameEventId], Math.round(performance.now() - t0));
+      const mc = this.modelCall("vision", [frameEventId], Math.round(performance.now() - t0), undefined, out);
       this.sampler && (this.sampler.piiRegions = out.piiRegions.map((p) => p.bbox));
-      this.emit({
+      const oe = this.emit({
         t: this.now(), type: "screen.observed", source: "vision", causedBy: [frameEventId],
         payload: {
           frameId, prevFrameId: this.lastObserved?.frameId, modelCallId: mc, app: out.app, summary: out.summary, visibleEntities: out.visibleEntities,
@@ -323,6 +327,7 @@ export class CaptureHub {
         },
       });
       this.lastObserved = { summary: out.summary, frameId };
+      if (oe.type === "screen.observed") this.actionsFromVision(oe, t);
     } catch (err) {
       this.modelCall("vision", [frameEventId], Math.round(performance.now() - t0), (err as Error).message);
     } finally {
@@ -330,9 +335,45 @@ export class CaptureHub {
     }
   }
 
-  private modelCall(purpose: "vision" | "question_pick" | "answer_link" | "correction_detect" | "extract" | "gap_find" | "teachback" | "tutor_eval" | "other", inputRefs: Id[], latencyMs: number, error?: string) {
+  /**
+   * What vision saw change becomes screen.action (source vision): on apps without structured events (canvas,
+   * desktop apps, screen share) this is the only signal, so the question picker and the agent get it too.
+   * A change the app/extension already reported (same field or value, last 10 s) is skipped: no double counting.
+   */
+  private actionsFromVision(oe: Extract<Event, { type: "screen.observed" }>, frameT: number) {
+    if (this.state.offRecord) return;
+    const norm = (x: unknown) => String(x ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const fromApp = this.events.filter((e): e is Extract<Event, { type: "screen.action" }> => e.type === "screen.action" && e.source === "app" && e.t >= frameT - 10_000);
+    const VERB: Record<string, Extract<Event, { type: "screen.action" }>["payload"]["verb"]> = { opened: "open", field_changed: "edit", navigated: "navigate", selected: "other", closed: "other", other: "other" };
+    for (const c of oe.payload.changes) {
+      if (c.confidence < 0.6 || c.kind === "scrolled") continue;
+      const dup = fromApp.some((a) => (c.field && norm(a.payload.field) === norm(c.field)) || (c.to != null && c.to !== "" && norm(a.payload.to) === norm(c.to)));
+      if (dup) continue;
+      const to = norm(c.to);
+      const verb = c.kind === "status_changed" ? (/approv/.test(to) ? "approve" : /hold/.test(to) ? "hold" : /reject/.test(to) ? "reject" : "save") : VERB[c.kind] ?? "other";
+      const what = c.entity ? `${c.entity.kind}${c.entity.key ? ` ${c.entity.key}` : ""}` : oe.payload.app.view || oe.payload.app.name;
+      const description = c.field
+        ? `Changed "${c.field}"${c.from ? ` from "${c.from}"` : ""} to "${c.to ?? ""}" on ${what} (seen on screen, ${oe.payload.app.name})`
+        : `${c.kind.replace(/_/g, " ")}: ${what} (seen on screen, ${oe.payload.app.name})`;
+      const sa = this.emit({
+        t: frameT, type: "screen.action", source: "vision", causedBy: [oe.id],
+        payload: {
+          verb, entity: c.entity ?? { kind: "screen" }, ...(c.field ? { field: c.field, from: c.from ?? null, to: c.to ?? null } : {}), description,
+          evidence: { frameIds: [oe.payload.frameId], observedIds: [oe.id], appEventIds: [] }, sourceAgreement: "vision_only", confidence: c.confidence,
+        },
+      });
+      this.unasked.push(sa.id);
+      const text = `[screen t=${Math.round(frameT / 1000)}s] ${description}`;
+      this.voice?.context(text);
+      this.emit({ t: this.now(), type: "agent.context_pushed", source: "agent", causedBy: [sa.id], payload: { text, eventIds: [sa.id] } });
+    }
+  }
+
+  /** Logs an LLM call with the model that actually answered (`out` = the llm() result; "mock" = canned answers). */
+  private modelCall(purpose: "vision" | "question_pick" | "answer_link" | "correction_detect" | "extract" | "gap_find" | "teachback" | "tutor_eval" | "other", inputRefs: Id[], latencyMs: number, error?: string, out?: unknown) {
     const modelCallId = newId("mc");
-    this.emit({ t: this.now(), type: "model.call", source: "system", payload: { modelCallId, purpose, model: "see api /health", promptVersion: "v1", inputRefs, latencyMs, ...(error ? { error } : {}) } });
+    const model = error ? "none (call failed)" : servedBy(out);
+    this.emit({ t: this.now(), type: "model.call", source: "system", payload: { modelCallId, purpose, model, promptVersion: "v1", inputRefs, latencyMs, ...(error ? { error } : {}) } });
     return modelCallId;
   }
 
@@ -344,7 +385,7 @@ export class CaptureHub {
       this.broadcastStatus();
       if (m.from === "ext") this.set({ extension: true });
     }
-    if (m.kind === "frame") return void this.onExtensionFrame(m.dataUrl);
+    if (m.kind === "frame") return void this.onExtensionFrame(m.dataUrl, m.pii);
     if (m.kind === "marker") return this.onMarker(m.marker, "button");
     if (this.state.offRecord) return;
     const t = this.now();
@@ -401,7 +442,7 @@ export class CaptureHub {
   }
 
   /** Screenshot of the work tab from the extension: used as the frame source when nobody shares a screen. */
-  private async onExtensionFrame(dataUrl: string) {
+  private async onExtensionFrame(dataUrl: string, pii: BBox[] = []) {
     if (this.display || this.state.offRecord || this.extFrameBusy || this.state.phase !== (this.session.kind === "teach" ? "teach" : "capture")) return;
     const t = this.now();
     if (t - this.lastExtFrameAt < 900) return;
@@ -409,7 +450,7 @@ export class CaptureHub {
     this.lastExtFrameAt = t;
     try {
       this.sampler ??= new FrameSampler(null);
-      const f = await this.sampler.grabImage(dataUrl);
+      const f = await this.sampler.grabImage(dataUrl, pii);
       if (f) await this.storeFrame(f);
       if (this.state.frameSource !== "extension") this.set({ frameSource: "extension" });
     } finally {
@@ -468,7 +509,12 @@ export class CaptureHub {
     this.set({ expertSpeaking: false });
     if (u.sttModel !== "typed" && this.isEcho(u)) return;
     const lower = u.text.toLowerCase();
-    if (/\boff the record\b/.test(lower)) return this.onMarker("off_record_start", "voice"); // the command itself is not persisted
+    if (/\boff the record\b/.test(lower)) {
+      // the command is never persisted: not in the transcript, and its mic audio is dropped before upload
+      const cmd = u.words.find((w, i) => /^off\b/i.test(w.w) && /^the\b/i.test(u.words[i + 1]?.w ?? "") && /^record/i.test(u.words[i + 2]?.w ?? ""));
+      this.micRec?.dropSince(this.clock.perfAtT0 + (cmd?.t ?? u.t));
+      return this.onMarker("off_record_start", "voice");
+    }
     if (/\b(back on (the )?record|on the record again)\b/.test(lower)) return this.onMarker("off_record_end", "voice");
     if (this.state.offRecord) return;
 
@@ -477,9 +523,10 @@ export class CaptureHub {
     const lateReply = !this.replyWaiter && this.windowClosedAt > 0 && u.t <= this.windowClosedAt + 500 && this.now() - this.windowClosedAt < 20_000;
     const addressedTo = this.replyWaiter || replyTo || lateReply ? "agent" : "self";
     this.emit({ t: u.tEnd, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "end" } });
+    // IBANs, emails, phone numbers never reach the log, the LLM or the Work Map
     const ev = this.emit({
       t: u.t, tEnd: u.tEnd, type: "utterance", source: "stt",
-      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: u.text, words: u.words, language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
+      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: maskPii(u.text), words: maskWords(u.words), language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
     }) as Utterance;
 
     if (this.replyWaiter) {
@@ -529,7 +576,7 @@ export class CaptureHub {
     const t0 = performance.now();
     try {
       const out = await llm("link_answer", { question: q.payload.text, utterances: replies.map((r) => ({ id: r.payload.utteranceId, text: r.payload.text })) });
-      this.modelCall("answer_link", replies.map((r) => r.id), Math.round(performance.now() - t0));
+      this.modelCall("answer_link", replies.map((r) => r.id), Math.round(performance.now() - t0), undefined, out);
       const hit = replies.find((r) => r.payload.text.includes(out.quote));
       const quote = hit ? out.quote : replies[0].payload.text; // code verifies: never store a non-verbatim quote
       this.emit({
@@ -551,7 +598,7 @@ export class CaptureHub {
         recentUtterances: recentU.map((r) => ({ id: r.payload.utteranceId, text: r.payload.text, speaker: r.payload.speaker })),
         recentActions: recentA.map((a) => ({ id: a.id, description: a.type === "screen.action" ? a.payload.description : "" })),
       });
-      this.modelCall("correction_detect", [u.id], Math.round(performance.now() - t0));
+      this.modelCall("correction_detect", [u.id], Math.round(performance.now() - t0), undefined, out);
       if (!out.isCorrection || out.confidence < 0.6) return;
       const quote = u.payload.text.includes(out.quote) ? out.quote : u.payload.text;
       this.emit({
@@ -606,8 +653,9 @@ export class CaptureHub {
         recentUtterances: this.events.filter((e): e is Utterance => e.type === "utterance").slice(-6).map((u) => ({ id: u.payload.utteranceId, t: u.t, speaker: u.payload.speaker, text: u.payload.text })),
         askedQuestions: asked.map((q) => (q.type === "agent.question" ? q.payload.text : "")),
         liveBudgetLeft: Math.max(0, PAUSE.budgetPer10Min - inWindow),
+        ...(this.lastObserved ? { screenSummary: this.lastObserved.summary } : {}),
       });
-      this.modelCall("question_pick", [pauseId, ...actions.map((a) => a.id)], Math.round(performance.now() - t0));
+      this.modelCall("question_pick", [pauseId, ...actions.map((a) => a.id)], Math.round(performance.now() - t0), undefined, out);
       const about = out.aboutActionIds.filter((id) => actions.some((a) => a.id === id));
       if (out.ask && out.question && about.length && out.scores.screenAlreadyAnswers < 0.5 && this.now() - this.lastKeyAt >= PAUSE.keyMs && !this.state.expertSpeaking) {
         this.unasked = [];
@@ -652,6 +700,15 @@ export class CaptureHub {
    * Ask something and collect the human's reply (debrief, teach-back, tutor prompts).
    * Resolves after `PAUSE.replySilenceMs` of silence following the first reply, or after `timeoutMs`.
    */
+  /** End the open ask now (a newer intervention takes the floor): it resolves with whatever was said so far. */
+  cancelAsk() {
+    const w = this.replyWaiter;
+    if (!w) return;
+    clearTimeout(w.timer);
+    this.replyWaiter = null;
+    w.resolve(w.replies);
+  }
+
   async ask(text: string, opts: { category?: QuestionCategory; gapId?: Id; actionIds?: Id[]; intent?: "question" | "follow_up" | "teachback" | "intervention"; timeoutMs?: number; control?: string } = {}): Promise<{ questionId: Id; replies: Utterance[] }> {
     const questionId = newId("q");
     if (opts.category) {

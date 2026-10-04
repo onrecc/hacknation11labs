@@ -9,6 +9,7 @@ import { ext } from "./api";
 import { Dedupe, newMsgId, type BridgeBody, type BridgeMsg } from "../../shared/bridge";
 import type { Transport } from "./overlay";
 import { startSite } from "./site";
+import { piiRects } from "./capture-dom";
 
 /** Hub pages carry <meta name="apprentice-app">; MiniERP sets it to "feed" (a work app with structured events). */
 const meta = document.querySelector<HTMLMetaElement>('meta[name="apprentice-app"]');
@@ -23,7 +24,11 @@ function deliverLocal(m: BridgeMsg) {
 }
 
 // background → this tab
-ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }) => {
+ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, _sender, reply) => {
+  if (x?.type === "piiRects") {
+    reply(piiRects()); // right before a screenshot: where personal data is, so the hub can blur it
+    return true;
+  }
   if (x?.type !== "relay" || !x.msg) return;
   if (role === "site") deliverLocal(x.msg);
   else window.postMessage({ __apprentice: x.msg, fromExt: true }, "*"); // into the web app's bridge

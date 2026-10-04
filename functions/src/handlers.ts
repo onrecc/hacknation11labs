@@ -104,7 +104,8 @@ Report only what is visible. Use "" for unknown strings. bbox values are normali
   pick_question: `You are an apprentice learning an expert's job by watching them. The expert just paused. Decide whether ONE short question (max 20 words) is worth asking now.
 Ask about the most recent judgment call visible in the actions: why they did it, the limit behind it, the exception, or when they would stop and ask someone. Prefer questions that reveal a guardrail.
 Speak naturally and concretely ("You moved that one to capex. What made you do that?"). Never ask what the screen already shows (score screenAlreadyAnswers high for those and reject them). Never ask about routine navigation (opening an item, going back). Never repeat an asked question.
-If the live budget is 0 or the question can wait, set ask=false and deferInstead=true. List the candidates you rejected with reasons.`,
+If the live budget is 0 or the question can wait, set ask=false and deferInstead=true. List the candidates you rejected with reasons.
+screenSummary (when given) is what is on screen right now: use it to name the concrete case, but never ask what it already shows. Actions "seen on screen" come from vision and may be imprecise: ask about them only when they look like a decision.`,
   detect_correction: `Decide whether the expert's latest utterance corrects something they said or did earlier ("no wait", "actually", "that's wrong", "about what I said earlier"...).
 quote must be copied verbatim from the utterance. Target the earlier utterances/actions it corrects by id. before/after describe the knowledge, not the words. If it is not a correction, set isCorrection=false, kind="statement_revised", appliesTo="always", confidence=0 and leave the other strings and lists empty.`,
   link_answer: `Link the expert's answer to the question. quote must be a verbatim substring of one utterance: the shortest span that carries the reason or rule.`,
@@ -124,7 +125,7 @@ Hard rules:
 - Every quote is copied CHARACTER FOR CHARACTER from one EXPERT utterance (with its utt id). Prefer the sentence that states the rule; it may include the self-correction ("…three thousand… No, wait, sorry, five thousand."). Never quote the agent. If the expert never said it aloud, do not invent a quote: leave that guardrail out.
 - Later CORRECTION lines override earlier statements; use the corrected values everywhere (thresholds, names, scope).
 - Actions the expert called a mistake are NOT steps. Habits are NOT guardrails.
-- Conditions use only the given fact paths. Condition JSON shape: {"op":"and"|"or","all":[...]} | {"op":"not","c":{...}} | {"op":"eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"contains"|"missing","field":"invoice.amount","value":5000}. "missing" is true for null/empty. Use "" when not expressible.
+- Conditions use only the given fact paths. Condition JSON shape: {"op":"and"|"or","all":[...]} | {"op":"not","c":{...}} | {"op":"eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"contains"|"missing","field":"invoice.amount","value":5000}. "missing" is true for null/empty/false. Boolean facts (invoice.duplicateDeliveryNote, supplier.isNew): use {"op":"eq","value":true}. Use "" when not expressible.
 - Reference only ids that appear in the log.`,
   plan_debrief: `Plan a short spoken debrief with the expert, right after they finished the task. Find what a new hire STILL could not decide from what was seen and said:
 unknown_scope (rule seen on one supplier/case: does it apply to others?), who_decides (who releases/approves/escalates), unseen_case (a guardrail's other branch never seen, e.g. no asset number), conflict (two rules that could both apply to one case), habit_vs_rule (something done once without a stated reason), missing_threshold (a limit without a number).
@@ -166,9 +167,14 @@ function jsonSchema(task: LlmTask) {
 }
 
 export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
+  return (await runLlmServed(task, input)).output;
+}
+
+/** Same as runLlm, plus which model actually answered ("mock" for canned answers) for the model.call log. */
+export async function runLlmServed<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<{ output: LlmOutput<T>; model: string }> {
   if (!(task in schemas)) throw new HttpError(400, `unknown task ${task}`);
   if (llmDown && Date.now() > llmDownUntil) llmDown = null; // re-probe: keys get fixed, credits topped up
-  if (process.env.LLM_MOCK === "1" || !apiKey() || llmDown) return mockOutput(task, input);
+  if (process.env.LLM_MOCK === "1" || !apiKey() || llmDown) return { output: mockOutput(task, input), model: "mock" };
   await takeBudget(task);
   try {
     return await runClaude(task, input); // the SDK retries 429/5xx/overloaded with backoff itself
@@ -179,7 +185,7 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
       llmDown = `Claude unavailable (key or credits, ${e.status ?? "?"}) at ${new Date().toISOString()}: mock answers, retrying in 5 min`;
       llmDownUntil = Date.now() + 5 * 60_000;
       console.error(llmDown);
-      return mockOutput(task, input);
+      return { output: mockOutput(task, input), model: "mock" };
     }
     throw err;
   }
@@ -207,7 +213,7 @@ async function takeBudget(task: LlmTask) {
   }
 }
 
-async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
+async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<{ output: LlmOutput<T>; model: string }> {
   client ??= new Anthropic({ apiKey: apiKey(), maxRetries: 3 });
 
   const content: Anthropic.Beta.BetaContentBlockParam[] = [];
@@ -230,6 +236,7 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
     fallbacks: "default" as const,
   };
   let out: Record<string, unknown>;
+  let served = base.model; // the response says which model answered (a server-side fallback may differ)
   if (LOOSE.has(task)) {
     // the Work Map schema compiles to a grammar too large for strict structured outputs:
     // ask for JSON against the schema and validate with zod instead (one retry with the error)
@@ -237,6 +244,7 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
     const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content }];
     for (let attempt = 0; ; attempt++) {
       const res = await client.beta.messages.create({ ...base, system, messages, output_config: { effort: "medium" } });
+      served = res.model;
       if (res.stop_reason === "refusal") throw new HttpError(422, `${task}: model declined`);
       const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
       const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
@@ -261,6 +269,7 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
       messages: [{ role: "user", content }],
       output_config: { effort: deep ? "medium" : "low", format: betaZodOutputFormat(schemas[task]) },
     });
+    served = res.model;
     if (res.stop_reason === "refusal") throw new HttpError(422, `${task}: model declined`);
     if (!res.parsed_output) throw new HttpError(502, `${task}: no structured output (stop: ${res.stop_reason})`);
     out = res.parsed_output as Record<string, unknown>;
@@ -273,7 +282,7 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
     // fields come back as [{name,value}] (schema-friendly); the contract uses a record
     out.visibleEntities = (out.visibleEntities as Array<{ fields: Array<{ name: string; value: string }> }>).map((e) => ({ ...e, fields: Object.fromEntries(e.fields.map((f) => [f.name, f.value])) }));
   }
-  return out as LlmOutput<T>;
+  return { output: out as LlmOutput<T>, model: served };
 }
 
 // ───────────── ElevenLabs (keys never reach the browser) ─────────────
@@ -321,7 +330,11 @@ export class HttpError extends Error {
  */
 export async function handle(path: string, body: unknown): Promise<unknown> {
   const b = (body ?? {}) as Record<string, unknown>;
-  if (path.endsWith("/llm")) return runLlm(b.task as LlmTask, b.input as never);
+  if (path.endsWith("/llm")) {
+    // `_model` rides along in the JSON (every output is an object); the web client strips it into model.call events
+    const { output, model } = await runLlmServed(b.task as LlmTask, b.input as never);
+    return { ...(output as object), _model: model };
+  }
   if (path.endsWith("/voice-token")) return voiceToken(b.kind as "agent" | "scribe", b.agentId as string | undefined);
   if (path.endsWith("/tts")) return tts(String(b.text ?? ""), b.voiceId as string | undefined);
   if (path.endsWith("/health")) return { ok: true, provider: "claude", model: MODEL, mapModel: MODEL_MAP, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !apiKey() || !!llmDown, warning: llmDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };

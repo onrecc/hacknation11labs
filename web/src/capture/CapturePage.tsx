@@ -104,7 +104,7 @@ export default function CapturePage() {
         </div>
         {s.phase === "capture" && (
           <div className="btns">
-            <button disabled={s.listening} onClick={run(() => hub.startListening())}>1 · Start listening</button>
+            <button disabled={s.listening} onClick={run(() => hub.startListening(`Hi, I'm Ada. Work as usual; I'll only ask when you pause.`))}>1 · Start listening</button>
             <button disabled={s.sharing} onClick={run(() => hub.shareScreen())} title="Not needed when the extension is installed: it captures the work tab itself">2 · Share screen{s.extension ? " (optional)" : ""}</button>
             <button onClick={() => window.open("/erp?mode=capture", "minierp")}>3 · Open MiniERP</button>
             <button onClick={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")}>{s.offRecord ? "Back on the record" : "Off the record"}</button>

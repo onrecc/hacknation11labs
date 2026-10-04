@@ -66,7 +66,8 @@ export default function DayPage() {
       const r = new WorkdayRecorder(user, { vision });
       await r.start(existing);
       setRec(r);
-      await r.hub.startListening(); // Ada's voice + Scribe; degrades to TTS + typing without a mic
+      // Ada's voice + Scribe (degrades to TTS + typing without a mic); one greeting line only for a fresh day
+      await r.hub.startListening(existing ? undefined : `Hi ${user.short}, I'm Ada. Work as usual; I'll only ask when you pause.`);
     } catch (e) {
       setErr((e as Error).message);
     }

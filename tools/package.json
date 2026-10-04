@@ -19,7 +19,8 @@
     "e2e:workday": "tsx --env-file=../.env.local src/workday-e2e.ts",
     "golden": "tsx --env-file=../.env.local src/golden-path.ts",
     "e2e:compare": "tsx --env-file=../.env.local src/compare-e2e.ts",
-    "brag:shots": "tsx --env-file=../.env.local src/brag-shots.ts"
+    "brag:shots": "tsx --env-file=../.env.local src/brag-shots.ts",
+    "e2e:vision": "tsx --env-file=../.env.local src/vision-e2e.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",

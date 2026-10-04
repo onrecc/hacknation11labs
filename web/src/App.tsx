@@ -45,11 +45,16 @@ function Nav() {
   const user = useUser();
   const nav = useNavigate();
   const [health, setHealth] = useState<string>("");
+  // polled: the api can drop to canned answers mid-session (key or credits), and that must be visible
   useEffect(() => {
-    apiHealth()
-      .then((x) => setHealth(x.mock ? "AI: mock answers" : `AI: ${x.model}${x.voice ? " · ElevenLabs" : ""}`))
+    const check = () => void apiHealth()
+      .then((x) => setHealth(x.mock ? `AI: MOCK answers, not a real model${x.warning ? ` (${x.warning})` : ""}` : `AI: ${x.model}${x.voice ? " · ElevenLabs" : ""}`))
       .catch(() => setHealth("api offline: npm run api"));
+    check();
+    const t = setInterval(check, 30_000);
+    return () => clearInterval(t);
   }, []);
+  const mock = health.startsWith("AI: MOCK");
   return (
     <nav className="nav">
       <Link to="/" className="brand">Protégé</Link>
@@ -60,7 +65,13 @@ function Nav() {
       {user && <NavLink to="/compare">Compare</NavLink>}
       <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
       <span className="userchip">
-        <span className={`health ${health.startsWith("api offline") ? "off" : ""}`} title={health}><i />{health.startsWith("api offline") ? "Offline" : health.startsWith("AI: mock") ? "Mock AI" : "Live"}</span>
+        {mock ? (
+          <span className="health" title={health} style={{ color: "var(--danger)", border: "1px solid var(--danger)", borderRadius: 6, padding: "0 6px", fontWeight: 700, letterSpacing: ".04em" }}>
+            <i style={{ background: "var(--danger)" }} />MOCK
+          </span>
+        ) : (
+          <span className={`health ${health.startsWith("api offline") ? "off" : ""}`} title={health}><i />{health.startsWith("api offline") ? "Offline" : "Live"}</span>
+        )}
         {user ? (
           <>
             <span className="avatar sm" style={{ background: user.color }}>{user.short[0]}</span>

@@ -5,7 +5,7 @@
  *   a practicer logs in → Training preselects THAT map → new €7,200 equipment invoice on opex → blocked before save.
  *
  *   EXPERT=sabine npm run golden -w tools      (default)  ·  EXPERT=ilse npm run golden -w tools
- *   SKIP_TEACH=1 to stop after the Work Map. Needs `npm run dev` + `npm run api` (real Claude + ElevenLabs).
+ *   SKIP_TEACH=1 to stop after the Work Map; TEACH_ONLY=1 to run only Lena's training on the preselected map. Needs `npm run dev` + `npm run api` (real Claude + ElevenLabs).
  * Answers are typed (the hub's typed-utterance path); Ada's voice and Scribe run on a synthetic silent mic.
  * Prints the ids it creates, so cleanup can target exactly those.
  */
@@ -111,117 +111,123 @@ const silentMic = (p: Page) => p.evaluateOnNewDocument(() => {
 });
 
 const result: Record<string, unknown> = { expert: EXPERT };
+// TEACH_ONLY=1: skip recording; Lena trains on whatever map Training preselects (fast check of the Teach part)
+const TEACH_ONLY = !!process.env.TEACH_ONLY;
+let wm: { workMapId: string; sid?: string } = { workMapId: "" };
 try {
-  // ── 1. expert's day ──
-  const hub = await browser.newPage();
-  await silentMic(hub);
-  hub.on("console", (m) => m.type() === "error" && !/404|favicon/.test(m.text()) && log("   [console]", m.text().slice(0, 160)));
-  await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
-  await hub.evaluate((u) => { localStorage.setItem("apprentice.user", u); localStorage.removeItem("apprentice.idleMs"); }, PEOPLE.userId);
-  await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
-  await hub.evaluate(() => (window.open = () => null, [...document.querySelectorAll("input[type=checkbox]")].forEach((c) => (c as HTMLInputElement).checked && (c as HTMLInputElement).click()))); // vision off: keeps the run fast and cheap
-  await click(hub, "Start a new day");
-  await click(hub, "Start my day");
-  for (let i = 0; i < 20 && !(await hub.evaluate(() => (window as any).__hub?.state.voice !== "-" && !!(window as any).__hub)).valueOf(); i++) await sleep(1000);
-  const voice = await hub.evaluate(() => `${(window as any).__hub?.state.voice} / ${(window as any).__hub?.state.stt}`);
-  check("day started with Ada listening", /elevenagents|elevenlabs/.test(voice), voice);
-  result.workdayId = await hub.evaluate(() => (window as any).__rec.workday.id);
+  if (!TEACH_ONLY) {
+    // ── 1. expert's day ──
+    const hub = await browser.newPage();
+    await silentMic(hub);
+    hub.on("console", (m) => m.type() === "error" && !/404|favicon/.test(m.text()) && log("   [console]", m.text().slice(0, 160)));
+    await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
+    await hub.evaluate((u) => { localStorage.setItem("apprentice.user", u); localStorage.removeItem("apprentice.idleMs"); }, PEOPLE.userId);
+    await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
+    await hub.evaluate(() => (window.open = () => null, [...document.querySelectorAll("input[type=checkbox]")].forEach((c) => (c as HTMLInputElement).checked && (c as HTMLInputElement).click()))); // vision off: keeps the run fast and cheap
+    await click(hub, "Start a new day");
+    await click(hub, "Start my day");
+    for (let i = 0; i < 20 && !(await hub.evaluate(() => (window as any).__hub?.state.voice !== "-" && !!(window as any).__hub)).valueOf(); i++) await sleep(1000);
+    const voice = await hub.evaluate(() => `${(window as any).__hub?.state.voice} / ${(window as any).__hub?.state.stt}`);
+    check("day started with Ada listening", /elevenagents|elevenlabs/.test(voice), voice);
+    result.workdayId = await hub.evaluate(() => (window as any).__rec.workday.id);
 
-  let stop = false;
-  const answering = autoAnswer(hub, () => stop);
+    let stop = false;
+    const answering = autoAnswer(hub, () => stop);
 
-  const work = await browser.newPage();
-  await work.goto(`${HUB}/erp?mode=capture`, { waitUntil: "networkidle2" });
-  await work.evaluate(() => localStorage.removeItem("minierp.v1"));
-  await work.reload({ waitUntil: "networkidle2" });
-  await work.bringToFront(); // the extension captures the active tab
-  await sleep(1500);
-  const openInv = async (key: string) => {
-    await work.evaluate((k) => [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes(`INV-${k}`))?.dispatchEvent(new MouseEvent("click", { bubbles: true })), key);
+    const work = await browser.newPage();
+    await work.goto(`${HUB}/erp?mode=capture`, { waitUntil: "networkidle2" });
+    await work.evaluate(() => localStorage.removeItem("minierp.v1"));
+    await work.reload({ waitUntil: "networkidle2" });
+    await work.bringToFront(); // the extension captures the active tab
+    await sleep(1500);
+    const openInv = async (key: string) => {
+      await work.evaluate((k) => [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes(`INV-${k}`))?.dispatchEvent(new MouseEvent("click", { bubbles: true })), key);
+      await sleep(2500);
+    };
+    const backToList = async () => {
+      await work.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Open items"))?.click());
+      await sleep(1000);
+    };
+    /** wait until Ada has asked about this case and it's been answered (or 75 s) */
+    const waitForAnswer = async (label: string) => {
+      const start = Date.now();
+      const before = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "answer.linked").length);
+      while (Date.now() - start < 75_000) {
+        await sleep(2000);
+        const n = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "answer.linked").length);
+        if (n > before) return log(`   ✓ ${label}: answer linked`);
+      }
+      log(`   (no live question for ${label} within 75 s)`);
+    };
+
+    // case 1: Krauss, €7,850 equipment → capex + asset
+    await openInv("4471");
+    await work.select("#costCenter", "0400");
+    await sleep(800);
+    await work.type("#assetNo", "AN-2026-118\n");
+    await btn(work, "Save");
+    await backToList();
+    await waitForAnswer("Krauss");
+    // case 2: Hofmann December duplicate
+    await openInv("4472");
+    await work.click(".actions input");
+    await work.type(".actions input", "Hofmann");
+    await btn(work, "Search history");
     await sleep(2500);
-  };
-  const backToList = async () => {
-    await work.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Open items"))?.click());
-    await sleep(1000);
-  };
-  /** wait until Ada has asked about this case and it's been answered (or 75 s) */
-  const waitForAnswer = async (label: string) => {
-    const start = Date.now();
-    const before = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "answer.linked").length);
-    while (Date.now() - start < 75_000) {
-      await sleep(2000);
-      const n = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "answer.linked").length);
-      if (n > before) return log(`   ✓ ${label}: answer linked`);
+    await work.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Back"))?.click());
+    await sleep(1500);
+    await PEOPLE.hofmann(work);
+    await backToList();
+    await waitForAnswer("Hofmann");
+    // case 3: Brno intercompany
+    await openInv("4473");
+    await PEOPLE.brno(work);
+    await backToList();
+    await waitForAnswer("Brno");
+
+    const live = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "capture").map((e: any) => `[${e.payload.category}] ${e.payload.text}`));
+    check("≥3 live questions at pauses", live.length >= 3, `${live.length}: ${live.join(" | ").slice(0, 300)}`);
+    check("≥1 live guardrail question", live.some((q: string) => /guardrail_limit|exception|stop_and_ask|never_do|who_decides/.test(q)));
+
+    const frames = await hub.evaluate(() => `${(window as any).__hub.state.frames} frames from ${(window as any).__hub.state.frameSource}`);
+    check("screen frames captured by the extension", /^[1-9]\d* frames from extension/.test(frames), frames);
+
+    // ── 2. end of day → debrief task 1 ──
+    await click(hub, "End my day");
+    await sleep(4000);
+    const tasks = await hub.evaluate(() => (window as any).__rec.workday.tasks.filter((t: any) => t.status !== "interruption").map((t: any) => ({ id: t.sessionId, title: t.title, actions: t.actions })));
+    log("   tasks:", JSON.stringify(tasks));
+    const task = tasks.sort((a: any, b: any) => b.actions - a.actions)[0];
+    result.taskSessionId = task.id;
+    check("the invoice work is one named task", !!task && task.actions >= 8 && !/Detecting/.test(task.title), `${task?.title} (${task?.actions} actions)`);
+
+    await hub.evaluate((id) => [...document.querySelectorAll(".tasks li")].find((li) => li.querySelector("a")?.getAttribute("href")?.endsWith(id))?.querySelector("button")?.click(), task.id);
+    log("   debrief started");
+    let stage = "";
+    const dStart = Date.now();
+    while (Date.now() - dStart < 15 * 60_000) {
+      await sleep(5000);
+      const s = await hub.$eval(".debrief-panel .kicker", (e) => e.textContent ?? "").catch(() => "");
+      if (s !== stage) log(`   debrief: ${(stage = s)}`);
+      if (/confirmed|went wrong/i.test(s)) break;
     }
-    log(`   (no live question for ${label} within 75 s)`);
-  };
-
-  // case 1: Krauss, €7,850 equipment → capex + asset
-  await openInv("4471");
-  await work.select("#costCenter", "0400");
-  await sleep(800);
-  await work.type("#assetNo", "AN-2026-118\n");
-  await btn(work, "Save");
-  await backToList();
-  await waitForAnswer("Krauss");
-  // case 2: Hofmann December duplicate
-  await openInv("4472");
-  await work.click(".actions input");
-  await work.type(".actions input", "Hofmann");
-  await btn(work, "Search history");
-  await sleep(2500);
-  await work.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Back"))?.click());
-  await sleep(1500);
-  await PEOPLE.hofmann(work);
-  await backToList();
-  await waitForAnswer("Hofmann");
-  // case 3: Brno intercompany
-  await openInv("4473");
-  await PEOPLE.brno(work);
-  await backToList();
-  await waitForAnswer("Brno");
-
-  const live = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "capture").map((e: any) => `[${e.payload.category}] ${e.payload.text}`));
-  check("≥3 live questions at pauses", live.length >= 3, `${live.length}: ${live.join(" | ").slice(0, 300)}`);
-  check("≥1 live guardrail question", live.some((q: string) => /guardrail_limit|exception|stop_and_ask|never_do/.test(q)));
-
-  const frames = await hub.evaluate(() => `${(window as any).__hub.state.frames} frames from ${(window as any).__hub.state.frameSource}`);
-  check("screen frames captured by the extension", /^[1-9]\d* frames from extension/.test(frames), frames);
-
-  // ── 2. end of day → debrief task 1 ──
-  await click(hub, "End my day");
-  await sleep(4000);
-  const tasks = await hub.evaluate(() => (window as any).__rec.workday.tasks.filter((t: any) => t.status !== "interruption").map((t: any) => ({ id: t.sessionId, title: t.title, actions: t.actions })));
-  log("   tasks:", JSON.stringify(tasks));
-  const task = tasks.sort((a: any, b: any) => b.actions - a.actions)[0];
-  result.taskSessionId = task.id;
-  check("the invoice work is one named task", !!task && task.actions >= 8 && !/Detecting/.test(task.title), `${task?.title} (${task?.actions} actions)`);
-
-  await hub.evaluate((id) => [...document.querySelectorAll(".tasks li")].find((li) => li.querySelector("a")?.getAttribute("href")?.endsWith(id))?.querySelector("button")?.click(), task.id);
-  log("   debrief started");
-  let stage = "";
-  const dStart = Date.now();
-  while (Date.now() - dStart < 15 * 60_000) {
-    await sleep(5000);
-    const s = await hub.$eval(".debrief-panel .kicker", (e) => e.textContent ?? "").catch(() => "");
-    if (s !== stage) log(`   debrief: ${(stage = s)}`);
-    if (/confirmed|went wrong/i.test(s)) break;
+    stop = true;
+    await answering;
+    wm = await hub.evaluate(async (sid) => {
+      const h = (window as any).__hub;
+      return { workMapId: h.session.workMapId, sid };
+    }, task.id);
+    result.workMapId = wm.workMapId;
+    check("debrief ended with a confirmed Work Map", /confirmed/i.test(stage), stage);
+    const head = (await db.doc(`workmaps/${wm.workMapId}`).get()).data();
+    const map = head && JSON.parse((await db.doc(`workmaps/${wm.workMapId}/versions/${String(head.latestVersion).padStart(4, "0")}`).get()).get("json"));
+    check(`the Work Map has steps and guardrails in ${EXPERT}'s words`, map?.steps.length >= 3 && map?.guardrails.length >= 2,
+      `${map?.steps.length} steps, ${map?.guardrails.length} guardrails: ${map?.guardrails.map((g: any) => g.statement).join(" / ").slice(0, 300)}`);
+    const debriefQs = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "debrief").length);
+    check("≥3 debrief questions", debriefQs >= 3, String(debriefQs));
+    await hub.screenshot({ path: `../docs/brag/golden-${EXPERT}-debrief.png` }).catch(() => {});
   }
-  stop = true;
-  await answering;
-  const wm = await hub.evaluate(async (sid) => {
-    const h = (window as any).__hub;
-    return { workMapId: h.session.workMapId, sid };
-  }, task.id);
-  result.workMapId = wm.workMapId;
-  check("debrief ended with a confirmed Work Map", /confirmed/i.test(stage), stage);
-  const head = (await db.doc(`workmaps/${wm.workMapId}`).get()).data();
-  const map = head && JSON.parse((await db.doc(`workmaps/${wm.workMapId}/versions/${String(head.latestVersion).padStart(4, "0")}`).get()).get("json"));
-  check(`the Work Map has steps and guardrails in ${EXPERT}'s words`, map?.steps.length >= 3 && map?.guardrails.length >= 2,
-    `${map?.steps.length} steps, ${map?.guardrails.length} guardrails: ${map?.guardrails.map((g: any) => g.statement).join(" / ").slice(0, 300)}`);
-  const debriefQs = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "debrief").length);
-  check("≥3 debrief questions", debriefQs >= 3, String(debriefQs));
-  await hub.screenshot({ path: `../docs/brag/golden-${EXPERT}-debrief.png` }).catch(() => {});
+
 
   // ── 3. practicer trains on THIS map ──
   if (!process.env.SKIP_TEACH && EXPERT === "sabine") {
@@ -232,7 +238,8 @@ try {
     await lena.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
     await lena.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 30_000 });
     const picked = await lena.$eval("select", (s) => (s as HTMLSelectElement).value);
-    check("Training preselects the new Work Map", picked === wm.workMapId, `${picked} vs ${wm.workMapId}`);
+    if (TEACH_ONLY) log(`   training on preselected map ${picked}`);
+    else check("Training preselects the new Work Map", picked === wm.workMapId, `${picked} vs ${wm.workMapId}`);
     await lena.evaluate(() => (window.open = () => null));
     await click(lena, "Start teach session");
     await sleep(3000);
@@ -252,6 +259,26 @@ try {
     const cards = await lena.$$eval(".intervention h3, .intervention p", (els) => els.map((e) => e.textContent ?? "").slice(0, 4));
     log("   tutor:", cards.join(" | ").slice(0, 300));
     await erp.screenshot({ path: "../docs/brag/golden-teach-blocked.png" }).catch(() => {});
+
+    // the truly NEW case: never shown in the recording, a different rule (Czech subsidiary → controller as 2nd approver)
+    const card = () => erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? "");
+    const statusNow = () => erp.evaluate(() => (document.querySelectorAll(".form input")[document.querySelectorAll(".form input").length - 1] as HTMLInputElement)?.value);
+    await btn(erp, "← Open items");
+    await sleep(1500);
+    await erp.evaluate(() => [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes("INV-4494"))?.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    await sleep(3000);
+    await btn(erp, "Approve");
+    await sleep(6000);
+    const held = await card(), s1 = await statusNow();
+    check("new case INV-4494 (Brno services, never shown): Approve without a 2nd approver is held by the intercompany rule",
+      /held|hold on/i.test(held) && /intercompany|weber|second|2nd|brno/i.test(held) && s1 !== "approved", `${held} · status ${s1}`);
+    await erp.screenshot({ path: "../docs/brag/golden-teach-new-case.png" }).catch(() => {});
+    await erp.select("#approver", "M. Weber (Controlling)");
+    await sleep(2000);
+    await btn(erp, "Send for approval");
+    await sleep(5000);
+    const s2 = await statusNow();
+    check("…with M. Weber as 2nd approver, Send for approval goes through", s2 === "awaiting_approval", `status ${s2}`);
     await click(lena, "Finish");
     await sleep(4000);
   }

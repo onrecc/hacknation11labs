@@ -24,7 +24,8 @@ export function evaluate(c: Condition, facts: CaseFacts | Record<string, unknown
   }
   const v = getPath(facts, c.field);
   const want = c.value;
-  if (c.op === "missing") return v === undefined || v === null || v === "";
+  // a boolean flag that isn't set (false) is "missing" too: models write "not missing duplicateDeliveryNote" for "is a duplicate"
+  if (c.op === "missing") return v === undefined || v === null || v === "" || v === false;
   if (v === undefined || v === null) return false;
   switch (c.op) {
     case "eq":

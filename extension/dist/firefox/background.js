@@ -44,8 +44,9 @@
     const [active] = await ext.tabs.query({ active: true, lastFocusedWindow: true });
     if (!active?.id || active.id === hubTabId || !active.url || !/^https?:/.test(active.url)) return;
     try {
+      const pii = await ext.tabs.sendMessage(active.id, { type: "piiRects" }).catch(() => []) ?? [];
       const dataUrl = await ext.tabs.captureVisibleTab(active.windowId, { format: "jpeg", quality: 60 });
-      const msg = { kind: "frame", dataUrl, at: Date.now(), url: active.url, id: crypto.randomUUID() };
+      const msg = { kind: "frame", dataUrl, at: Date.now(), url: active.url, pii, id: crypto.randomUUID() };
       ext.tabs.sendMessage(hubTabId, { type: "relay", msg }).catch(() => {
       });
     } catch {

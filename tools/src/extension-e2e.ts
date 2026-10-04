@@ -56,6 +56,7 @@ try {
   await hub.evaluate(() => (window.open = () => null));
   await clickButton(hub, "Start teach session");
   await sleep(2500);
+  console.log(`teach session: ${await hub.evaluate(() => (window as any).__hub?.session.id)}`);
 
   const work = await browser.newPage();
   await work.goto(WORK, { waitUntil: "networkidle2" });
@@ -79,6 +80,23 @@ try {
   await sleep(17000);
   check("fixed submit goes through", (await work.$eval("#toast", (e) => e.textContent ?? "")).includes("Submitted"));
 
+  // Enter in a field = implicit form submission (here through an "OK" button the click hold doesn't match):
+  // it must be held and checked like a click on Save/Submit
+  await work.evaluate(() => {
+    const f = document.createElement("form");
+    f.id = "quick";
+    f.innerHTML = '<input id="po" name="po_number" value="PO-7781"><input id="note" name="note" value="rush order"><button id="ok">OK</button>';
+    f.addEventListener("submit", (e) => (e.preventDefault(), (document.getElementById("toast")!.textContent = "Quick form sent")));
+    document.querySelector("main")!.append(f);
+  });
+  await work.focus("#note");
+  await work.keyboard.press("Enter");
+  await sleep(150);
+  const checking = await work.$eval("#ok", (b) => b.getAttribute("title") ?? "");
+  check("Enter-key submit is held for the check", /checking this against/i.test(checking), checking || "(no hold)");
+  await sleep(16000);
+  check("held Enter-key submit goes through once checked", (await work.$eval("#toast", (e) => e.textContent ?? "")) === "Quick form sent", await work.$eval("#toast", (e) => e.textContent ?? ""));
+
   // ── Capture on a foreign-origin app (DOM events + tab screenshots) ──
   await hub.bringToFront();
   await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_sabine")); // fake login (expert)
@@ -100,12 +118,37 @@ try {
   const pills = await hub.$$eval(".pill", (ps) => ps.map((p) => p.textContent ?? "").join(" | "));
   check("frames captured from extension screenshots", /frames from: extension/.test(pills) && !/frames: 0\b/.test(pills), pills);
   check("pause detector reacted", rows.some((r) => r.includes("pause.detected")));
+  const blurred = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "frame.captured").map((e: any) => e.payload.piiBlurred ?? 0));
+  check("IBAN field blurred in frames before upload/vision", blurred.length > 0 && blurred.every((n: number) => n >= 1), `piiBlurred per frame: ${blurred.join(",")}`);
   await clickButton(hub, "End task");
   await sleep(1500);
   await clickButton(hub, "Close session");
   await sleep(3000);
   const sid = await hub.$eval("h1 .mono", (e) => e.textContent ?? "");
   console.log(`capture session: ${sid}`);
+
+  // ── no answer from the hub (tab gone): the save stays held, never waved through ──
+  await hub.close();
+  const hub2 = await browser.newPage();
+  await hub2.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
+  await hub2.evaluate(() => localStorage.setItem("apprentice.user", "u_lena"));
+  await hub2.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
+  await hub2.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 30_000 });
+  await hub2.evaluate(() => (window.open = () => null));
+  await clickButton(hub2, "Start teach session");
+  await sleep(2500);
+  console.log(`teach session (timeout test): ${await hub2.evaluate(() => (window as any).__hub?.session.id)}`);
+  await work.bringToFront();
+  await work.goto(WORK, { waitUntil: "networkidle2" });
+  await sleep(4000);
+  await hub2.close();
+  await sleep(500);
+  await work.click("#submit");
+  await sleep(17000);
+  const toast2 = await work.$eval("#toast", (e) => e.textContent ?? "");
+  o = await overlay(work);
+  check("no answer in time = held, not submitted", toast2 === "", `toast="${toast2}"`);
+  check("'couldn't verify' card shown", /couldn.t verify/i.test(o.card), o.card || "(no card)");
 } finally {
   await browser.close();
 }
