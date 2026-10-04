@@ -27,7 +27,7 @@ export type BridgeBody =
   | { kind: "beforeSave"; reqId: string; facts: CaseFacts }
   | { kind: "beforeSaveResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string }
   /** Generic websites: an action (Save/Submit/Approve…) is about to happen; the hub may hold it. */
-  | { kind: "beforeAction"; reqId: string; action: string; page: PageSnapshot }
+  | { kind: "beforeAction"; reqId: string; action: string; page: PageSnapshot; feed?: boolean }
   | { kind: "beforeActionResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string }
   /** Extension-captured screenshot of the work tab (JPEG data URL) — capture without the share dialog. */
   | { kind: "frame"; dataUrl: string; at: number; url: string }

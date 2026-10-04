@@ -1,16 +1,19 @@
 /**
- * Content script (every tab). Three roles depending on the page:
- *  - AI Apprentice web app pages (hub /capture /teach, MiniERP): relay only — page ⇄ background ⇄ other tabs.
- *    (MiniERP instruments itself and embeds the overlay.)
- *  - any other site: generic DOM capture + overlay, active while a hub session runs.
+ * Content script (every tab). Roles depending on the page:
+ *  - AI Apprentice hub pages (My day, Training, …): relay only — page ⇄ background ⇄ other tabs.
+ *  - any work app, MiniERP included: overlay (status, Ada's captions, coaching cards) + holding Save/Approve-like
+ *    clicks in teach mode + generic DOM capture. Apps that publish their own structured events (a "feed",
+ *    like MiniERP) skip the generic capture events so nothing is logged twice.
  */
 import { ext } from "./api";
 import { Dedupe, newMsgId, type BridgeBody, type BridgeMsg } from "../../shared/bridge";
 import type { Transport } from "./overlay";
 import { startSite } from "./site";
 
-/** Pages of the AI Apprentice web app carry <meta name="apprentice-app"> (hub + MiniERP): relay only. */
-const role: "app" | "site" = document.querySelector('meta[name="apprentice-app"]') ? "app" : "site";
+/** Hub pages carry <meta name="apprentice-app">; MiniERP sets it to "feed" (a work app with structured events). */
+const meta = document.querySelector<HTMLMetaElement>('meta[name="apprentice-app"]');
+const feed = meta?.content === "feed";
+const role: "app" | "site" = meta && !feed ? "app" : "site";
 const dedupe = new Dedupe();
 const listeners = new Set<(m: BridgeMsg) => void>();
 
@@ -32,8 +35,9 @@ window.addEventListener("message", (e: MessageEvent<{ __apprentice?: BridgeMsg; 
   void ext.runtime.sendMessage({ type: "relay", msg: e.data.__apprentice }).catch(() => {});
 });
 
+document.documentElement.dataset.apprenticeExt = "1"; // hub: "extension connected"; sites: the embed script steps aside
+
 if (role === "site") {
-  document.documentElement.dataset.apprenticeExt = "1"; // the embed script steps aside when the extension runs
   const transport: Transport = {
     send(body: BridgeBody) {
       const msg = { ...body, id: newMsgId() } as BridgeMsg;
@@ -47,5 +51,5 @@ if (role === "site") {
   };
   // we may have loaded mid-session: ask the background for the current hub status
   startSite(transport, () =>
-    void ext.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {}));
+    void ext.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {}), { feed });
 }

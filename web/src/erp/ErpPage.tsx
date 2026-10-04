@@ -1,12 +1,12 @@
 /**
- * MiniERP: the sandbox where the expert (capture) or new hire (teach) works. Instrumented:
- * every change → bridge "app" message, typing/clicks → "activity", Save/Approve → beforeSave(facts) first.
- * It never talks to Firestore; the hub tab owns the session.
+ * MiniERP: the sandbox where the expert (capture) or new hire (teach) works. To Ada it is just another work app:
+ * the browser extension brings the overlay, Ada's captions, coaching cards and the save hold, like on any site.
+ * MiniERP only publishes a structured event feed (like an app integration): every change → bridge "app" message
+ * with case facts, typing/clicks → "activity". It never talks to Firestore; the hub tab owns the session.
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseFacts } from "@shared/schema";
-import { beforeSave, listen, send, type ErpMode } from "../lib/bridge";
-import { startOverlay } from "../../../extension/src/overlay";
+import { send, type ErpMode } from "../lib/bridge";
 import { APPROVERS, COST_CENTERS, HISTORY, KNOWN_SUPPLIERS, SEED, type Invoice } from "./data";
 
 const LS = "minierp.v1";
@@ -36,26 +36,15 @@ export default function ErpPage() {
   const [view, setView] = useState<"list" | "invoice" | "history">("list");
   const [query, setQuery] = useState("");
   const [banner, setBanner] = useState<{ tone: "block" | "info"; text: string } | null>(null);
-  const [hub, setHub] = useState(false);
-  const [offRecord, setOffRecord] = useState(false);
   const counts = useRef({ keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 });
-  const dock = useRef<HTMLDivElement>(null);
   const inv = rows.find((r) => r.key === open) ?? null;
   const visible = useMemo(() => rows.filter((r) => (mode === "teach" ? r.set !== "demo" : r.set !== "teach")), [rows, mode]);
 
   useEffect(() => localStorage.setItem(LS, JSON.stringify(rows)), [rows]);
   useEffect(() => {
-    const off = listen((m) => {
-      if (m.kind === "hello" && m.from === "hub") setHub(true);
-    });
     send({ kind: "hello", from: "erp", mode });
-    const stopOverlay = mode === "free" ? () => {} : startOverlay({ send, listen }, { controls: false, mount: dock.current ?? undefined }); // tutor cards + Ada's captions
     // activity counts (no content) every 2 s
-    const onKey = (e: KeyboardEvent) => {
-      counts.current.keystrokes++;
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "o") toggleOffRecord();
-      if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === "b") send({ kind: "marker", marker: "bookmark", at: Date.now() });
-    };
+    const onKey = () => counts.current.keystrokes++;
     const onClick = () => counts.current.clicks++;
     const onScroll = () => counts.current.scrolls++;
     let last: [number, number] | null = null;
@@ -73,8 +62,6 @@ export default function ErpPage() {
       counts.current = { keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 };
     }, 2000);
     return () => {
-      off();
-      stopOverlay();
       clearInterval(timer);
       removeEventListener("keydown", onKey);
       removeEventListener("click", onClick);
@@ -82,13 +69,6 @@ export default function ErpPage() {
       removeEventListener("mousemove", onMove);
     };
   }, []);
-
-  function toggleOffRecord() {
-    setOffRecord((o) => {
-      send({ kind: "marker", marker: o ? "off_record_end" : "off_record_start", at: Date.now() });
-      return !o;
-    });
-  }
 
   const caseRef = (i: Invoice) => ({ id: `case_${i.key}`, kind: "invoice", key: i.key, label: i.supplier });
   const entity = (i: Invoice) => ({ kind: "invoice", key: i.key });
@@ -124,12 +104,6 @@ export default function ErpPage() {
   async function save(status?: Invoice["status"]) {
     if (!inv) return;
     const next: Invoice = { ...inv, ...(status ? { status } : inv.status === "open" ? { status: "coded" as const } : {}) };
-    const verdict = await beforeSave(facts(next));
-    if (!verdict.allow) {
-      setBanner({ tone: "block", text: verdict.message ?? "Held by the tutor. Check the guardrail first." });
-      send({ kind: "app", payload: { action: "validation_error", entity: entity(inv), snapshot: { ...next, iban: undefined } }, at: Date.now() });
-      return;
-    }
     setRows((rs) => rs.map((r) => (r.key === inv.key ? next : r)));
     setBanner({ tone: "info", text: `Saved INV-${inv.key} (${next.status})` });
     const verb = status === "approved" ? "approve" : status === "on_hold" ? "hold" : status === "awaiting_approval" ? "route" : status === "rejected" ? "reject" : "save";
@@ -145,25 +119,11 @@ export default function ErpPage() {
     <div className="erp">
       <header className="erp-bar">
         <b>MiniERP · Accounts Payable</b>
-        <span className={`pill ${hub ? "ok" : ""}`}>{hub ? `connected to ${mode} hub` : mode === "free" ? "standalone" : "waiting for hub tab…"}</span>
         <span style={{ flex: 1 }} />
-        {mode !== "free" && (
-          <>
-            {offRecord && <span className="pill" style={{ color: "#f5a524" }}>Off the record</span>}
-            <button className={offRecord ? "danger" : ""} style={ICON_BTN} onClick={toggleOffRecord} aria-label={offRecord ? "Back on the record" : "Go off the record"}
-              title={offRecord ? "Back on the record (Ctrl+Shift+O)" : "Go off the record: Ada stops watching and listening (Ctrl+Shift+O)"}>
-              <Icon d={offRecord ? EYE_OFF : EYE} />
-            </button>
-            <button style={ICON_BTN} onClick={() => send({ kind: "marker", marker: "bookmark", at: Date.now() })} aria-label="Bookmark this moment" title="Bookmark this moment (Ctrl+Shift+B)">
-              <Icon d={BOOKMARK} />
-            </button>
-          </>
-        )}
         <button onClick={() => { if (confirm("Reset all invoices to seed data?")) setRows(SEED); }}>Reset data</button>
       </header>
 
       {banner && <div className={`banner ${banner.tone}`}>{banner.text}</div>}
-      <div ref={dock} className="apprentice-dock" />
 
       {view === "list" && (
         <main>
@@ -245,19 +205,5 @@ function Field(p: { label: string; value: string; id?: string; readOnly?: boolea
     <label className={p.wide ? "wide" : ""}>{p.label}
       <input id={p.id} value={v} readOnly={p.readOnly} onChange={(e) => setV(e.target.value)} onBlur={() => p.onCommit?.(v)} onKeyDown={(e) => e.key === "Enter" && p.onCommit?.(v)} />
     </label>
-  );
-}
-
-// icon buttons (Lucide paths, same as the overlay): the tooltip says what they do
-const ICON_BTN = { width: 32, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" } as const;
-const EYE = ["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6"];
-const EYE_OFF = ["M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49", "M14.084 14.158a3 3 0 0 1-4.242-4.242",
-  "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143", "m2 2 20 20"];
-const BOOKMARK = ["m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"];
-function Icon({ d }: { d: string[] }) {
-  return (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      {d.map((x) => <path key={x} d={x} />)}
-    </svg>
   );
 }

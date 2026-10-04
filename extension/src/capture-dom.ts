@@ -3,6 +3,7 @@
  *  - field changes (label + old → new; sensitive values masked), clicks on buttons/links, form submits, navigation
  *  - activity counts every 2 s (no content) for the pause detector
  *  - teach mode: Save/Submit/Approve-like clicks are held until the hub answers `beforeAction`
+ * With `events: false` (apps that publish their own structured events) only the teach-mode hold runs.
  * Never captures passwords, card numbers, IBANs or anything matching SENSITIVE.
  */
 import { SENSITIVE, newMsgId, type BridgeBody, type BridgeMsg, type PageSnapshot } from "../../shared/bridge";
@@ -11,13 +12,13 @@ import type { Transport } from "./overlay";
 const ACTION_RE = /\b(save|submit|approve|confirm|book|post|send|pay|release|finish|complete|create|update)\b/i;
 const MAX_FIELDS = 60;
 
-export function startDomCapture(t: Transport, isActive: () => { capture: boolean; teach: boolean }): () => void {
+export function startDomCapture(t: Transport, isActive: () => { capture: boolean; teach: boolean }, opts: { events: boolean } = { events: true }): () => void {
   const counts = { keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 };
   const focusValues = new WeakMap<Element, string>();
   let bypass: Element | null = null;
   let last: [number, number] | null = null;
   const on = () => isActive().capture || isActive().teach;
-  const emit = (b: BridgeBody) => on() && t.send(b);
+  const emit = (b: BridgeBody) => opts.events && on() && t.send(b);
 
   const onFocus = (e: Event) => {
     const el = e.target as HTMLInputElement;
@@ -73,7 +74,7 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
           resolve(m);
         }
       });
-      t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot() });
+      t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot(), feed: !opts.events });
     });
     if (label === null) el.removeAttribute("title");
     else el.setAttribute("title", label);

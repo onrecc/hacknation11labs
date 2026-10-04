@@ -119,7 +119,8 @@ export default function TeachPage() {
           <input placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
           <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
-        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Any other website works too with the extension (Claude checks the visible form against the guardrails).</p>
+        {!s.extension && <p className="error">Ada coaches through the browser extension (Chrome or Firefox). Install it from <code>extension/dist</code>, then reload your work tab: without it there is no overlay and no save check.</p>}
+        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Works the same on any website: the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (
           <div className="card">

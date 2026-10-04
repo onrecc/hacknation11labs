@@ -3,7 +3,7 @@ import type { BridgeMsg } from "../../shared/bridge";
 import { startOverlay, type Transport } from "./overlay";
 import { startDomCapture } from "./capture-dom";
 
-export function startSite(transport: Transport, onStatusRequest?: () => void): () => void {
+export function startSite(transport: Transport, onStatusRequest?: () => void, opts: { feed?: boolean } = {}): () => void {
   let mode: "capture" | "teach" | "off" = "off";
   let offRecord = false;
   const offStatus = transport.listen((m: BridgeMsg) => {
@@ -13,7 +13,7 @@ export function startSite(transport: Transport, onStatusRequest?: () => void): (
     }
   });
   const stopOverlay = startOverlay(transport, { controls: true });
-  const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }));
+  const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }), { events: !opts.feed });
   transport.send({ kind: "hello", from: "ext", app: location.hostname });
   onStatusRequest?.();
   return () => {

@@ -4,6 +4,8 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="apprentice-app" content="ai-apprentice" />
+    <!-- MiniERP is just a work app to Ada: the extension coaches there like on any site; it only publishes structured events (a "feed") -->
+    <script>if (location.pathname.startsWith("/erp")) document.querySelector('meta[name="apprentice-app"]').content = "feed";</script>
     <title>Protégé</title>
   </head>
   <body>

@@ -33,7 +33,7 @@
 | Always-on STT | `web/src/capture/transcriber.ts`: Scribe v2 Realtime (word timestamps verified with `npm run scribe-test -w tools`) → Web Speech; typed fallback | ✅ |
 | Frames | screen share (`screen.ts`) **or** extension tab screenshots (`frame` bridge messages) → Claude vision (was Gemini until 2026-10-04) | ✅ both |
 | Any web app | `extension/` (MV3) + `web/public/apprentice-embed.js`; demo app `/demo/procurex.html` | ✅ embed in browser + **real extension e2e** (`npm run e2e:extension -w tools`: relay, DOM capture, tab screenshots) |
-| MiniERP + bridge + `beforeSave` | `web/src/erp/`, `shared/bridge.ts`, `web/src/lib/bridge.ts` | ✅ |
+| MiniERP structured feed (case facts) + bridge | `web/src/erp/`, `shared/bridge.ts`, `web/src/lib/bridge.ts`; overlay, controls and save hold come from the extension | ✅ |
 | ElevenAgents config | `tools/src/setup-elevenlabs.ts` (prompts, voices, tools) | ✅ |
 | Redaction | IBAN masked in MiniERP UI, sensitive fields masked by the extension, vision `piiRegions` blurred on later frames | ⚠️ no Presidio pass on transcripts yet |
 
@@ -90,7 +90,7 @@
   - supplier history, including Hofmann's paid INV-4431 with DN-88213
 - **Fields:** at least those in `CaseFacts` (`category`, `costCenter`, `assetNo`, `status`, `approver`, `comment`, supplier `group`, …).
 - **Events:** on every change emit `app.event` (`field`, `oldValue`, `newValue`). On save emit `app.event` (`action: "save"`) with a full `snapshot`. Typing, clicks and idle feed `input.activity` (counts only, 2 s windows).
-- **Save hook:** the Save and Approve buttons `await window.apprentice.beforeSave(facts)`. Capture mode resolves `{allow: true}` instantly.
+- **Save hold:** done by the extension on any site (MiniERP included): Save/Approve-like clicks wait for the hub's `beforeActionResult` in teach mode. MiniERP pages are marked as a "feed" app, so the extension skips its generic DOM capture there (MiniERP already reports structured events).
 
 ## Milestones
 

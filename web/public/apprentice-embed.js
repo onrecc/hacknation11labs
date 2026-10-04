@@ -162,13 +162,13 @@
   // src/capture-dom.ts
   var ACTION_RE = /\b(save|submit|approve|confirm|book|post|send|pay|release|finish|complete|create|update)\b/i;
   var MAX_FIELDS = 60;
-  function startDomCapture(t, isActive) {
+  function startDomCapture(t, isActive, opts = { events: true }) {
     const counts = { keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 };
     const focusValues = /* @__PURE__ */ new WeakMap();
     let bypass = null;
     let last = null;
     const on = () => isActive().capture || isActive().teach;
-    const emit = (b) => on() && t.send(b);
+    const emit = (b) => opts.events && on() && t.send(b);
     const onFocus = (e) => {
       const el = e.target;
       if (isField(el)) focusValues.set(el, valueOf(el));
@@ -227,7 +227,7 @@
             resolve(m);
           }
         });
-        t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot() });
+        t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot(), feed: !opts.events });
       });
       if (label === null) el.removeAttribute("title");
       else el.setAttribute("title", label);
@@ -318,7 +318,7 @@
   }
 
   // src/site.ts
-  function startSite(transport, onStatusRequest) {
+  function startSite(transport, onStatusRequest, opts = {}) {
     let mode = "off";
     let offRecord = false;
     const offStatus = transport.listen((m) => {
@@ -328,7 +328,7 @@
       }
     });
     const stopOverlay = startOverlay(transport, { controls: true });
-    const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }));
+    const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }), { events: !opts.feed });
     transport.send({ kind: "hello", from: "ext", app: location.hostname });
     onStatusRequest?.();
     return () => {

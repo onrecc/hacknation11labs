@@ -16,6 +16,14 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · Coaching only through the extension (MiniERP is just a work app); Chrome + Firefox always
+- **Rene's call:** Ada's coaching must not be built into the platform. MiniERP now has **no Ada UI**: no embedded overlay, no `beforeSave` hold, no "held" banner, no off-record/bookmark/hub pill in its bar. The extension provides all of it on every site, MiniERP included.
+- MiniERP keeps publishing its structured feed (`case`/`app` messages with `CaseFacts`), so guardrail conditions on fact paths still work. `index.html` marks `/erp` pages `apprentice-app=feed`; the content script then runs the overlay + teach hold there but skips generic DOM capture (no double events).
+- **Shared contract (additive):** `beforeAction` has an optional `feed?: boolean`. For feed apps the tutor checks the latest case facts deterministically, with the status the held button would set (Approve → approved, Send for approval → awaiting_approval, Hold → on_hold). `beforeSave` was removed from `web/src/lib/bridge.ts` (no callers); the tutor still answers it if anyone sends it.
+- Teach needs the extension: Training shows a clear warning when it's not detected (the content script now marks the hub page too, so "extension: connected" shows right away).
+- **Both browsers always:** root `npm run build` builds the extension; `npm run check` runs `npm run verify -w extension` (build both targets + `web-ext lint` of the Firefox build: 0/0/0).
+- Verified: `e2e:teach-voice` (MiniERP teach via the extension: held save, Socratic question, Scribe answer, explanation) and `e2e:extension` 10/10.
+
 ### 2026-10-04 · Rene's agent · "My map is empty" UX fix (Capture side) + a request for Map
 - **What Rene hit:** recorded a real task on Scalefusion via the extension (110 actions, 97 frames), ended the day, opened the task's Work Map → an empty **Draft v0** ("0 cases", "Rules 0", "Save allowed"). Nothing was broken: a Work Map is only built by **Debrief now** (or **Rebuild**), and the live draft only fires on finished *cases*, which generic sites don't have. Once you leave My day there was no way back to Debrief.
 - **Capture side (done):** "Earlier days" now has a **Debrief → Work Map** button per task (`WorkdayRecorder.reopenForDebrief`: reopens the day without recording, then runs your `runDebrief`). After "End my day" the Debrief buttons are primary, with a clear "Next: press Debrief now on each task" line. Empty "Detecting the task… · 0 actions" stubs are hidden from Earlier days.

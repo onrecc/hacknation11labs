@@ -8,7 +8,12 @@ import puppeteer, { type Page } from "puppeteer";
 const HUB = "http://localhost:5173";
 const OUT = new URL("../../docs/brag/", import.meta.url).pathname;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const browser = await puppeteer.launch({ headless: true, defaultViewport: { width: 1440, height: 900, deviceScaleFactor: 2 } });
+// coaching runs in the browser extension (overlay + save hold), like on any site
+const EXT = new URL("../../extension/dist/chrome", import.meta.url).pathname;
+const browser = await puppeteer.launch({
+  headless: true, defaultViewport: { width: 1440, height: 900, deviceScaleFactor: 2 },
+  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`], ignoreDefaultArgs: ["--disable-extensions"],
+});
 const shot = async (p: Page, name: string, full = false) => {
   await p.screenshot({ path: `${OUT}${name}.png`, fullPage: full });
   console.log("✔", name);

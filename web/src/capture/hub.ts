@@ -94,6 +94,10 @@ export class CaptureHub {
     send({ kind: "hello", from: "hub", mode: session.kind === "teach" ? "teach" : "capture" });
     this.timers.push(setInterval(() => this.tickPause(), 300));
     this.timers.push(setInterval(() => this.broadcastStatus(), 3000));
+    // the extension's content script marks every page it runs on, the hub included (before any work tab says hello)
+    const extMark = () => !this.state.extension && document.documentElement.dataset.apprenticeExt && this.set({ extension: true });
+    extMark();
+    this.timers.push(setInterval(extMark, 1500));
     if (import.meta.env.DEV) (window as unknown as { __hub?: CaptureHub }).__hub = this; // tests + debugging
   }
 

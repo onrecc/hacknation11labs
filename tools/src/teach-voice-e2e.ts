@@ -27,9 +27,12 @@ execFileSync("ffmpeg", ["-loglevel", "error", "-f", "lavfi", "-t", "25", "-i", "
   "-filter_complex", "[1:a]aresample=48000,aformat=channel_layouts=mono[a];[0:a][a][2:a]concat=n=3:v=0:a=1", "-ar", "16000", "-ac", "1", wav]);
 const wavB64 = readFileSync(wav).toString("base64");
 
+// coaching runs in the browser extension (overlay + save hold), like on any site
+const EXT = new URL("../../extension/dist/chrome", import.meta.url).pathname;
 const browser = await puppeteer.launch({
   headless: true,
-  args: ["--autoplay-policy=no-user-gesture-required"],
+  args: ["--autoplay-policy=no-user-gesture-required", `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
+  ignoreDefaultArgs: ["--disable-extensions"],
   defaultViewport: { width: 1280, height: 860 },
 });
 /**
@@ -91,8 +94,8 @@ try {
   await sleep(1500);
   await erp.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent === "Approve")?.click());
   await sleep(3000);
-  const banner = await erp.$eval(".banner", (e) => e.textContent ?? "").catch(() => "");
-  check("save held before it happened", /hold on/i.test(banner), banner);
+  const banner = await erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? "");
+  check("save held before it happened (extension overlay)", /hold on|held/i.test(banner), banner);
 
   let rows: string[] = [];
   if (process.env.TRACE) for (let i = 0; i < 16; i++) {

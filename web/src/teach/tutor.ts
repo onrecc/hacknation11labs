@@ -1,7 +1,9 @@
 /**
  * Tutor engine (docs/teach.md). Runs on a CaptureHub in teach mode.
- *  - MiniERP (CaseFacts): deterministic guardrail checks — nudge on change, BLOCK on save (beforeSave).
- *  - Any other website (extension): Claude `check_guardrails` on the visible form before Save/Submit/Approve.
+ *  - Coaching UI and the save hold always run in the browser extension (overlay + held Save/Approve clicks), on any site.
+ *  - Apps that publish structured facts (MiniERP's feed): deterministic guardrail checks on those facts,
+ *    nudge on change, BLOCK on the held click with the status that click would set.
+ *  - Any other website: Claude `check_guardrails` on the visible form before Save/Submit/Approve.
  *  - Interventions: overlay card with the expert's quote + screen moment, and the ElevenAgents tutor
  *    asks Socratically first ([INTERVENE]), then explains in the expert's words.
  *  - Predictions: when a case opens that hits a guardrail, the tutor asks the new hire to predict ([PREDICT]).
@@ -96,6 +98,12 @@ export class Tutor {
       send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined });
       if (block[0]) void this.intervene(block[0], true, m.facts.invoice.key);
       else { this.markRespected(m.facts); this.saved.set(m.facts.invoice.key, m.facts); }
+    } else if (m.kind === "beforeAction" && m.feed && this.facts) {
+      const f = afterAction(this.facts, m.action);
+      const block = violations(this.wm, f).filter((g) => g.severity === "block");
+      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined });
+      if (block[0]) void this.intervene(block[0], true, f.invoice.key);
+      else { this.markRespected(f); this.saved.set(f.invoice.key, f); }
     } else if (m.kind === "beforeAction") {
       this.page = m.page;
       const out = await this.checkGeneric(m.page, m.action);
@@ -287,4 +295,14 @@ function emptyFacts(label: string): CaseFacts {
     invoice: { key: label, amount: 0, currency: "EUR", date: "", month: 0, category: "", costCenter: "", assetNo: null, status: "", approver: null, comment: "", duplicateDeliveryNote: false },
     supplier: { name: "", group: "", isNew: false },
   };
+}
+
+/** The case facts as they would be after the held click (the button decides the status, e.g. Approve → approved). */
+function afterAction(f: CaseFacts, action: string): CaseFacts {
+  const status = /approv/i.test(action) && !/send|request/i.test(action) ? "approved"
+    : /send for approval|request approval|route/i.test(action) ? "awaiting_approval"
+    : /\bhold\b/i.test(action) ? "on_hold"
+    : /reject/i.test(action) ? "rejected"
+    : f.invoice.status === "open" ? "coded" : f.invoice.status;
+  return { ...f, invoice: { ...f.invoice, status } };
 }

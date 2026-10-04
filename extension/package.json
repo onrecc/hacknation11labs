@@ -5,11 +5,14 @@
   "scripts": {
     "build": "node build.mjs",
     "watch": "node build.mjs --watch",
-    "package": "node build.mjs --package"
+    "package": "node build.mjs --package",
+    "lint": "web-ext lint -s dist/firefox",
+    "verify": "node build.mjs && web-ext lint -s dist/firefox"
   },
   "devDependencies": {
     "@types/chrome": "^0.3.4",
     "esbuild": "^0.28.2",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "web-ext": "^10.7.0"
   }
 }

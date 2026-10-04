@@ -10,7 +10,7 @@
 |---|---|
 | `/teach` route | MiniERP in teach mode + tutor side panel. Runs the Capture pipeline with `Session.kind = "teach"` |
 | **Guardrail engine** | Port of `evaluate()` from `scripts/eval_guardrails.py` to TS, applied to `CaseFacts`. Deterministic, no LLM |
-| `beforeSave` interception | Implements `ApprenticeBridge.beforeSave` in teach mode |
+| Save hold | The extension holds Save/Approve-like clicks on any site (`beforeAction`); MiniERP no longer holds its own saves |
 | Tutor agent (ElevenAgents) | Confirmed WorkMap in its knowledge base. Client tools: `lookup_guardrail`, `replay_moment`, `get_case_facts` |
 | Moment replay | Shows the expert's frame/clip at `screenMoment` in the panel |
 | Mastery report | `MasteryReport` at `sessions/{id}/report/mastery` + an end screen |
@@ -35,7 +35,7 @@
 | Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser with real Gemini; `validate_bundle --part teach` → 0 errors |
 | Generic web apps | Claude `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
 | Tutor voice | ElevenAgents Tutor with the Work Map as `{{work_map}}`, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` | ✅ protocol verified (`npm run agent-test -w tools`) |
-| Overlay | `extension/src/overlay.ts`: docked in MiniERP, floating on other sites | ✅ |
+| Overlay | `extension/src/overlay.ts`, always from the extension (Chrome + Firefox), on every site incl. MiniERP | ✅ e2e (extension + teach-voice) |
 | Predictions | `[PREDICT]` + `grade_prediction` → `tutor.prediction` | ✅ |
 
 ## Hard constraints
