@@ -134,6 +134,7 @@ export class WorkdayRecorder {
       writer: "capture", vision: false, workday: true,
       voice: { agentId: agents.interviewerAgentId, dynamicVariables: { expert_name: this.user.short, task_title: session.task.title } },
     });
+    this.hub.setStandby(true); // only going over: no recording, no overlay on the work tabs
     if (import.meta.env.DEV) (window as unknown as { __rec?: WorkdayRecorder }).__rec = this;
     await saveWorkday(this.workday);
     this.changed();
@@ -342,6 +343,7 @@ export class WorkdayRecorder {
     const t = this.current;
     if (!t) return null;
     this.paused = true;
+    this.hub.setStandby(true); // the work tabs' overlay goes away: this task is over
     this.pendingBoundary = null;
     this.finishTask(t);
     if (t.actions > 0) t.status = "done"; // ended on purpose: never hidden as a detour
@@ -356,11 +358,13 @@ export class WorkdayRecorder {
   resume() {
     if (this.workday.status !== "active") return;
     this.paused = false;
+    this.hub.setStandby(false);
     this.lastActivityAt = Date.now();
     this.boundary("manual", this.ctx, this.ctxApp);
   }
 
   async endDay() {
+    this.hub.setStandby(true); // first: nothing after "End my day" is recorded, the overlay goes away
     const t = this.current;
     if (t) {
       this.finishTask(t);

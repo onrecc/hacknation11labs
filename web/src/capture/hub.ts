@@ -15,12 +15,13 @@ import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
 import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
+import { micConstraint, preferredMicId } from "../voice/mic";
 import { redactUtterance, type RedactedUtterance } from "./redaction";
 import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
 import { questionTarget } from "./questionTarget";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
-export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500, speechGraceMs: 12_000, stallMs: 30_000 };
+export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 1800, speechGraceMs: 12_000, stallMs: 30_000 };
 
 /** "Hold on", "one second", "let me think": the answer is still coming, not the answer itself. */
 const STALL = /^(ok(ay)?,?\s+)?(hold on|wait|one (sec|second|moment)|just a (sec|second|moment)|give me a (sec|second|moment|minute)|let me (think|check|see|look)|hm+|uh+|um+)( a (sec|second|moment|minute))?( please)?[\s.!?…,]*$/i;
@@ -119,6 +120,8 @@ export class CaptureHub {
     const extMark = () => !this.state.extension && document.documentElement.dataset.apprenticeExt && this.set({ extension: true });
     extMark();
     this.timers.push(setInterval(extMark, 1500));
+    // this page is going away: work tabs hide the overlay and stop capturing
+    addEventListener("pagehide", this.gone);
     if (import.meta.env.DEV) (window as unknown as { __hub?: CaptureHub }).__hub = this; // tests + debugging
   }
 
@@ -203,11 +206,30 @@ export class CaptureHub {
 
   /** Called with every bridge message BEFORE the hub files it (workday recorder: rotate first, then log). */
   beforeBridge: ((m: BridgeMsg) => void) | null = null;
+  /** "End task" / "End day" pressed on a work tab's overlay (My day handles both; without it, end_task ends this session). */
+  onEnd: ((which: "task" | "day") => void) | null = null;
 
-  /** Tell overlays (MiniERP, extension) what's going on. */
-  broadcastStatus() {
-    send({ kind: "status", mode: this.session.kind === "teach" ? "teach" : "capture", sessionId: this.session.id, offRecord: this.state.offRecord, recording: this.state.phase === "capture" && !this.state.offRecord, expert: this.session.participant.displayName });
+  /** Between tasks or after the day (workday): nothing is recorded and work tabs hide the overlay. */
+  private standby = false;
+  setStandby(on: boolean) {
+    this.standby = on;
+    this.broadcastStatus();
   }
+  /** Work is being watched: the session's working phase, not on standby. (Off the record still shows the overlay.) */
+  private get live() {
+    return !this.standby && this.state.phase === (this.session.kind === "teach" ? "teach" : "capture");
+  }
+  /** Work is being recorded right now. */
+  get recording() {
+    return this.live && !this.state.offRecord;
+  }
+
+  /** Tell overlays (MiniERP, extension) what's going on: mode "off" = no overlay, no capture. */
+  broadcastStatus() {
+    const mode = this.live ? (this.session.kind === "teach" ? "teach" : "capture") : "off";
+    send({ kind: "status", mode, sessionId: this.session.id, offRecord: this.state.offRecord, recording: this.recording, expert: this.session.participant.displayName });
+  }
+  private gone = () => send({ kind: "status", mode: "off", sessionId: this.session.id, offRecord: false, recording: false });
 
   // ───────────── observable state ─────────────
   subscribe(fn: Listener) {
@@ -238,7 +260,8 @@ export class CaptureHub {
     let micOk = true;
     try {
       this.set({ voiceStatus: "mic…" });
-      this.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } });
+      // never a Bluetooth headset's mic when the laptop has one: it would drop all sound to phone quality (voice/mic.ts)
+      this.mic = await navigator.mediaDevices.getUserMedia({ audio: { ...micConstraint(await preferredMicId()), echoCancellation: true, noiseSuppression: true } });
       // slices wait 8 s before upload: a spoken "off the record" (transcribed ~1-3 s later) can still drop its audio
       this.micRec = new ChunkRecorder(this.mic, "audio/webm;codecs=opus", (blob, i, dur, startedAt) => this.onMediaChunk("mic", blob, i, dur, startedAt), 10_000, 8_000);
       this.micRec.start();
@@ -307,7 +330,7 @@ export class CaptureHub {
   }
 
   private async sampleFrame() {
-    if (!this.sampler || !this.display || this.state.offRecord) return;
+    if (!this.sampler || !this.display || !this.recording) return;
     const f = await this.sampler.grab();
     if (f) await this.storeFrame(f);
   }
@@ -431,7 +454,7 @@ export class CaptureHub {
     }
     if (m.kind === "frame") return void this.onExtensionFrame(m.dataUrl, m.pii);
     if (m.kind === "marker") return this.onMarker(m.marker, "button");
-    if (this.state.offRecord) return;
+    if (!this.recording) return; // off the record, going over a task, between tasks, day over
     const t = this.now();
     if (m.kind === "activity") {
       if (m.keystrokes > 0 || m.clicks > 0) this.lastKeyAt = t; // any hands-on activity ends a pause
@@ -462,7 +485,7 @@ export class CaptureHub {
     }
   }
 
-  onMarker(marker: "off_record_start" | "off_record_end" | "bookmark" | "end_task", trigger: "button" | "voice" | "hotkey") {
+  onMarker(marker: "off_record_start" | "off_record_end" | "bookmark" | "end_task" | "end_day", trigger: "button" | "voice" | "hotkey") {
     const t = this.now();
     if (marker === "off_record_start" && !this.state.offRecord) {
       this.emit({ t, type: "marker.off_record", source: "user", payload: { state: "start", trigger } });
@@ -483,14 +506,15 @@ export class CaptureHub {
       void this.voice?.say("Back on the record.");
     } else if (marker === "bookmark") {
       this.emit({ t, type: "marker.bookmark", source: "user", payload: { trigger: trigger === "button" ? "hotkey" : trigger } });
-    } else if (marker === "end_task") {
-      void this.endTask();
+    } else if (marker === "end_task" || marker === "end_day") {
+      if (this.onEnd) this.onEnd(marker === "end_day" ? "day" : "task");
+      else if (marker === "end_task") void this.endTask();
     }
   }
 
   /** Screenshot of the work tab from the extension: used as the frame source when nobody shares a screen. */
   private async onExtensionFrame(dataUrl: string, pii: BBox[] = []) {
-    if (this.display || this.state.offRecord || this.extFrameBusy || this.state.phase !== (this.session.kind === "teach" ? "teach" : "capture")) return;
+    if (this.display || !this.recording || this.extFrameBusy) return;
     const t = this.now();
     if (t - this.lastExtFrameAt < 900) return;
     this.extFrameBusy = true;
@@ -697,7 +721,7 @@ export class CaptureHub {
 
   // ───────────── pause detector + question picker ─────────────
   private tickPause() {
-    if (this.state.phase !== "capture" || this.state.offRecord || this.asking || this.replyWaiter) return;
+    if (this.state.phase !== "capture" || !this.recording || this.asking || this.replyWaiter) return;
     const t = this.now();
     const sinceKey = t - this.lastKeyAt, sinceSpeech = t - this.lastSpeechAt, staticFor = t - this.staticSince;
     const busy = this.state.agentSpeaking || this.state.expertSpeaking || !!this.pending;
@@ -845,6 +869,7 @@ export class CaptureHub {
     if (from === to) return;
     this.emit({ t: this.now(), type: "phase.changed", source: "system", phase: to, payload: { from, to } });
     this.set({ phase: to });
+    this.broadcastStatus(); // e.g. going over a task: the work tabs' overlay goes away now, not in 3 s
   }
 
   async endTask() {
@@ -854,6 +879,8 @@ export class CaptureHub {
   }
 
   async close(reason: "expert_done" | "timeout" | "error" = "expert_done") {
+    this.gone();
+    removeEventListener("pagehide", this.gone);
     this.emit({ t: this.now(), type: "session.ended", source: "system", payload: { reason } });
     this.stopScreen();
     this.micRec?.stop();

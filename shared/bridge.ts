@@ -23,7 +23,7 @@ export type BridgeBody =
   | { kind: "app"; payload: AppEvent["payload"]; description?: string; verb?: string; facts?: CaseFacts; page?: PageSnapshot; at: number }
   | { kind: "activity"; keystrokes: number; clicks: number; scrolls: number; mouseMovePx: number; windowMs: number; at: number }
   | { kind: "case"; state: "start" | "end"; case: { id: Id; kind: string; key: string; label?: string }; outcome?: string; facts?: CaseFacts; at: number }
-  | { kind: "marker"; marker: "off_record_start" | "off_record_end" | "bookmark" | "end_task"; at: number }
+  | { kind: "marker"; marker: "off_record_start" | "off_record_end" | "bookmark" | "end_task" | "end_day"; at: number }
   | { kind: "beforeSave"; reqId: string; facts: CaseFacts }
   | { kind: "beforeSaveResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string; /** fact paths to fix, e.g. "invoice.assetNo" */ fields?: string[] }
   /** Generic websites: an action (Save/Submit/Approve…) is about to happen; the hub may hold it. */

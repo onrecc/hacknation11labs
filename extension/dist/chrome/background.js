@@ -21,8 +21,17 @@
       lastStatus = msg;
       updateScreenshots();
     }
+    if (msg.kind === "marker" && (msg.marker === "end_task" || msg.marker === "end_day")) void focusHub();
     void broadcast(msg, from);
   });
+  async function focusHub() {
+    if (hubTabId == null) return;
+    try {
+      const tab = await ext.tabs.update(hubTabId, { active: true });
+      if (tab?.windowId != null) await ext.windows.update(tab.windowId, { focused: true });
+    } catch {
+    }
+  }
   async function broadcast(msg, exceptTabId) {
     const tabs = await ext.tabs.query({});
     for (const t of tabs) {
@@ -57,6 +66,7 @@
       hubTabId = null;
       lastStatus = null;
       updateScreenshots();
+      void broadcast({ kind: "status", mode: "off", offRecord: false, recording: false, id: crypto.randomUUID() });
     }
   });
 })();

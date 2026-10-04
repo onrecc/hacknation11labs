@@ -1,6 +1,6 @@
 /**
  * The on-page overlay, docked to the edge of the window: a vertical tab (recording / off the record / tutoring,
- * off-record + bookmark controls) and, sliding out beside it, Ada's live caption and guidance cards (tutor
+ * off-record + bookmark controls, End task / End day while recording) and, sliding out beside it, Ada's live caption and guidance cards (tutor
  * interventions with the expert's quote and screen moment). Hovering the tab reveals a grip to drag it along the
  * edge or over to the other side; the spot is remembered per site.
  * Shadow DOM, so host-page CSS can't break it. Used by the extension content script and the embed script on any site.
@@ -53,6 +53,12 @@ const CSS = `
 @keyframes wave { 0%, 100% { transform: scaleX(.3); } 50% { transform: scaleX(1); } }
 .pill.speaking .dot { display: none; } .pill.speaking .wave { display: flex; }
 .sep { width: 18px; height: 1px; background: #2a2a2a; flex: none; }
+/* End task / End day: labelled, sideways like the status text, so nobody has to hunt for how to stop */
+.end { all: unset; box-sizing: border-box; width: 30px; padding: 10px 0; border-radius: 8px; border: 1px solid #3a3a3a; color: #f0f0f0; font-size: 12px; font-weight: 600;
+  cursor: pointer; display: flex; justify-content: center; flex: none; }
+.end span { writing-mode: vertical-rl; transform: rotate(180deg); }
+.end:hover { background: #222; } .end:focus-visible { outline: 2px solid #ededed; outline-offset: 1px; }
+.end.primary { background: #ededed; color: #0a0a0a; border-color: #ededed; } .end.primary:hover { background: #fff; }
 /* icon buttons + tooltips */
 .icon { all: unset; box-sizing: border-box; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
   color: #9a9a9a; cursor: pointer; flex: none; }
@@ -196,8 +202,22 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
         t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
       eye.classList.toggle("on", offRecord);
       const bm = iconBtn(BOOKMARK, "Bookmark this moment", () => t.send({ kind: "marker", marker: "bookmark", at: Date.now() }));
-      pill.append(h("span", { class: "sep" }), eye, bm);
+      pill.append(h("span", { class: "sep" }), eye, bm, h("span", { class: "sep" }), endBtn("task"), endBtn("day"));
     }
+  };
+
+  /** Ends the task (Ada goes over it right away) or the whole day; the extension brings the Protégé tab forward. */
+  const endBtn = (which: "task" | "day") => {
+    const b = h("button", {
+      class: `end ${which === "task" ? "primary" : ""}`, type: "button",
+      "aria-label": which === "task" ? "End this task: Ada goes over it with you now" : "End your work day: Ada goes over today's tasks with you",
+    }, h("span", {}, which === "task" ? "End task" : "End day"));
+    b.addEventListener("click", () => {
+      if (which === "day" && !confirm("End your work day? Ada stops watching and goes over today's tasks with you.")) return;
+      t.send({ kind: "marker", marker: which === "task" ? "end_task" : "end_day", at: Date.now() });
+      try { window.opener?.focus(); } catch { /* no Protégé tab that opened this one */ }
+    });
+    return b;
   };
 
   const showCard = (c: Extract<BridgeBody, { kind: "tutorCard" }>) => {

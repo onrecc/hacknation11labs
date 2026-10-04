@@ -24,8 +24,20 @@ ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, sender
     lastStatus = msg as BridgeMsg & { kind: "status" };
     updateScreenshots();
   }
+  // End task / End day on a work tab's overlay: Ada goes over the work in the Protégé tab, so bring it forward
+  if (msg.kind === "marker" && (msg.marker === "end_task" || msg.marker === "end_day")) void focusHub();
   void broadcast(msg, from);
 });
+
+async function focusHub() {
+  if (hubTabId == null) return;
+  try {
+    const tab = await ext.tabs.update(hubTabId, { active: true });
+    if (tab?.windowId != null) await ext.windows.update(tab.windowId, { focused: true });
+  } catch {
+    /* the hub tab is gone */
+  }
+}
 
 async function broadcast(msg: BridgeMsg, exceptTabId?: number) {
   const tabs = await ext.tabs.query({});
@@ -64,5 +76,7 @@ ext.tabs.onRemoved.addListener((id) => {
     hubTabId = null;
     lastStatus = null;
     updateScreenshots();
+    // no hub, no session: every work tab hides its overlay and stops capturing
+    void broadcast({ kind: "status", mode: "off", offRecord: false, recording: false, id: crypto.randomUUID() } as BridgeMsg);
   }
 });

@@ -52,6 +52,12 @@
 @keyframes wave { 0%, 100% { transform: scaleX(.3); } 50% { transform: scaleX(1); } }
 .pill.speaking .dot { display: none; } .pill.speaking .wave { display: flex; }
 .sep { width: 18px; height: 1px; background: #2a2a2a; flex: none; }
+/* End task / End day: labelled, sideways like the status text, so nobody has to hunt for how to stop */
+.end { all: unset; box-sizing: border-box; width: 30px; padding: 10px 0; border-radius: 8px; border: 1px solid #3a3a3a; color: #f0f0f0; font-size: 12px; font-weight: 600;
+  cursor: pointer; display: flex; justify-content: center; flex: none; }
+.end span { writing-mode: vertical-rl; transform: rotate(180deg); }
+.end:hover { background: #222; } .end:focus-visible { outline: 2px solid #ededed; outline-offset: 1px; }
+.end.primary { background: #ededed; color: #0a0a0a; border-color: #ededed; } .end.primary:hover { background: #fff; }
 /* icon buttons + tooltips */
 .icon { all: unset; box-sizing: border-box; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px;
   color: #9a9a9a; cursor: pointer; flex: none; }
@@ -185,8 +191,24 @@
         const eye = iconBtn(offRecord ? EYE_OFF : EYE, offRecord ? "Back on the record" : "Go off the record: Ada stops watching and listening", () => t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
         eye.classList.toggle("on", offRecord);
         const bm = iconBtn(BOOKMARK, "Bookmark this moment", () => t.send({ kind: "marker", marker: "bookmark", at: Date.now() }));
-        pill.append(h("span", { class: "sep" }), eye, bm);
+        pill.append(h("span", { class: "sep" }), eye, bm, h("span", { class: "sep" }), endBtn("task"), endBtn("day"));
       }
+    };
+    const endBtn = (which) => {
+      const b = h("button", {
+        class: `end ${which === "task" ? "primary" : ""}`,
+        type: "button",
+        "aria-label": which === "task" ? "End this task: Ada goes over it with you now" : "End your work day: Ada goes over today's tasks with you"
+      }, h("span", {}, which === "task" ? "End task" : "End day"));
+      b.addEventListener("click", () => {
+        if (which === "day" && !confirm("End your work day? Ada stops watching and goes over today's tasks with you.")) return;
+        t.send({ kind: "marker", marker: which === "task" ? "end_task" : "end_day", at: Date.now() });
+        try {
+          window.opener?.focus();
+        } catch {
+        }
+      });
+      return b;
     };
     const showCard = (c) => {
       const el = h("div", { class: `card ${c.tone}` });
