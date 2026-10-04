@@ -9,6 +9,7 @@ import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { EventFeed, useStore } from "../components/ui";
 import agents from "../lib/elevenlabs.json";
 import { DebriefPanel } from "../map/DebriefPanel";
+import { AdaPanel } from "./AdaPanel";
 import { personOf, useUser } from "../lib/users";
 import { REDACTION_CONFIG } from "./redaction";
 
@@ -88,7 +89,7 @@ export default function CapturePage() {
 
   const s = state;
   return (
-    <div className="page split">
+    <div className="page narrow">
       <section>
         <h1>Capture <span className="muted small mono">{hub.session.id}</span></h1>
         <div className="status-row">
@@ -103,12 +104,12 @@ export default function CapturePage() {
           {s.agentSpeaking && <span className="pill ok">agent speaking</span>}
           {s.expertSpeaking && <span className="pill ok">expert speaking</span>}
         </div>
+        <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />
         {s.phase === "capture" && (
           <div className="btns">
             <button disabled={s.listening} onClick={run(() => hub.startListening())}>1 · Start listening</button>
             <button disabled={s.sharing} onClick={run(() => hub.shareScreen())} title="Not needed when the extension is installed: it captures the work tab itself">2 · Share screen{s.extension ? " (optional)" : ""}</button>
             <button onClick={() => window.open("/erp?mode=capture", "minierp")}>3 · Open MiniERP</button>
-            <button onClick={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")}>{s.offRecord ? "Back on the record" : "Off the record"}</button>
             <button onClick={() => hub.onMarker("bookmark", "button")}>Bookmark</button>
             <button className="primary" onClick={run(() => hub.endTask())}>End task → debrief</button>
           </div>
@@ -131,14 +132,13 @@ export default function CapturePage() {
               <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
             </div>
           </label>
-          <p className="muted small">Last pause decision: {s.lastPause || "-"}</p>
           <p className="muted small">Written: {hub.log.stats.written}/{hub.log.stats.emitted} events · {hub.log.stats.blobs} blobs · {hub.log.pendingUploads} uploading</p>
         </div>
         {(err || s.error) && <p className="error">{err ?? s.error}</p>}
-      </section>
-      <section>
-        <h3>Live session log</h3>
-        <EventFeed events={events} />
+        <details className="devlog">
+          <summary>Developer log</summary>
+          <EventFeed events={events} />
+        </details>
       </section>
     </div>
   );

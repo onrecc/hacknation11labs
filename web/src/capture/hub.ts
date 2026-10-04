@@ -16,6 +16,7 @@ import { createTranscriber, interpolateWords, type Transcriber, type Transcribed
 import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
 import { redactUtterance, type RedactedUtterance } from "./redaction";
+import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
@@ -38,6 +39,14 @@ export interface HubState {
   /** PII items replaced in transcripts so far (shared/redact via ./redaction). */
   redactedCount: number;
   error: string | null;
+  /** Ada panel: the question Ada asked last and why (null until she asks). */
+  currentQuestion: CurrentQuestion | null;
+  /** Ada panel: the pause detector's / picker's latest decision, in words. */
+  lastPauseInfo: PauseInfo | null;
+  /** live questions still allowed in the rolling 10-minute window */
+  questionBudgetLeft: number;
+  /** questions held back for the debrief in this task */
+  deferredQuestions: number;
 }
 
 type Listener = () => void;
@@ -77,6 +86,9 @@ export class CaptureHub {
   private lastVisionAt = -1e9;
   private visionBusy = false;
   private lastObserved: { summary: string; frameId: Id } | null = null;
+  /** Ada panel: the app field touched last, and the plain-language reason of the pause that led to an ask */
+  private lastField: string | undefined;
+  private lastAskWhy = "";
   private pending: { questionId: Id; endedAt: number; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
   private replyWaiter: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
 
@@ -92,6 +104,7 @@ export class CaptureHub {
     this.state = {
       phase: session.kind === "teach" ? "teach" : "capture", offRecord: false, sharing: false, listening: false, agentSpeaking: false,
       expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, redactedCount: 0, error: null,
+      currentQuestion: null, lastPauseInfo: null, questionBudgetLeft: PAUSE.budgetPer10Min, deferredQuestions: 0,
     };
     this.log = this.makeLog(session);
     this.unlisten = listen((m) => this.onBridge(m));
@@ -167,10 +180,14 @@ export class CaptureHub {
     this.unasked = [];
     this.lastObserved = null;
     this.lastFrameId = null;
+    this.lastField = undefined;
+    this.lastAskWhy = "";
     this.set({
       phase: o.phase ?? (next.kind === "teach" ? "teach" : "capture"),
       liveQuestions: this.events.filter((e) => e.type === "agent.question" && e.phase === "capture").length,
       frames: this.events.filter((e) => e.type === "frame.captured").length,
+      currentQuestion: null, lastPauseInfo: null, questionBudgetLeft: this.budgetNow(),
+      deferredQuestions: this.events.filter((e) => e.type === "question.deferred").length,
     });
     this.broadcastStatus();
     // ── async cleanup of the previous session ──
@@ -360,6 +377,7 @@ export class CaptureHub {
       this.emit({ t, type: "marker.case_boundary", source: "app", caseId: m.case.id, payload: { state: m.state, case: m.case, ...(m.outcome ? { outcome: m.outcome } : {}), detectedBy: "app" } });
     } else if (m.kind === "app") {
       if (m.payload.action === "save") this.lastSaveAt = t;
+      if (m.payload.field) this.lastField = m.payload.field;
       this.staticSince = t; // the app UI changed, even without a screen share
       this.lastKeyAt = t;
       const ae = this.emit({ t, type: "app.event", source: "app", payload: m.payload });
@@ -551,6 +569,8 @@ export class CaptureHub {
       this.modelCall("answer_link", replies.map((r) => r.id), Math.round(performance.now() - t0));
       const hit = replies.find((r) => r.payload.text.includes(out.quote));
       const quote = hit ? out.quote : replies[0].payload.text; // code verifies: never store a non-verbatim quote
+      const cq = this.state.currentQuestion;
+      if (cq?.questionId === questionId) this.set({ currentQuestion: { ...cq, answered: true } });
       this.emit({
         t: this.now(), type: "answer.linked", source: "agent", causedBy: [q.id, ...replies.map((r) => r.id)],
         payload: { questionId, utteranceIds: replies.map((r) => r.payload.utteranceId), quote, quoteSpan: { t: replies[0].t, tEnd: replies.at(-1)!.tEnd ?? replies.at(-1)!.t }, summary: out.summary, completeness: out.completeness, needsFollowUp: out.needsFollowUp },
@@ -608,8 +628,16 @@ export class CaptureHub {
       : decision === "hold" ? "mid-case pause; waiting for a save, case boundary or a longer pause"
       : `${kind}: ${Math.round(sinceKey / 100) / 10}s no typing, ${Math.round(sinceSpeech / 100) / 10}s no speech`;
     const pe = this.emit({ t, type: "pause.detected", source: "pause_detector", payload: { kind, durationMs: Math.min(sinceKey, sinceSpeech), signals: { msSinceKeystroke: sinceKey, msSinceSpeech: sinceSpeech, screenDiff: 0, expertSpeaking: false }, decision, reason } });
-    this.set({ lastPause: `${decision}: ${reason}` });
+    const info = describePause({ decision, kind, sinceKeyMs: sinceKey, sinceSpeechMs: sinceSpeech, staticMs: staticFor, longStaticMs: PAUSE.longStaticMs, field: this.lastField });
+    if (decision === "ask") this.lastAskWhy = info.reason;
+    this.set({ lastPause: `${decision}: ${reason}`, lastPauseInfo: info, questionBudgetLeft: this.budgetNow() });
     if (decision === "ask") void this.pickQuestion(pe.id);
+  }
+
+  /** Live questions left in the rolling 10-minute window. */
+  private budgetNow() {
+    const askedAt = this.events.filter((e) => e.type === "agent.question" && e.phase === "capture" && !e.payload.gapId).map((e) => e.t);
+    return budgetLeft(askedAt, this.now(), PAUSE.budgetPer10Min);
   }
 
   private async pickQuestion(pauseId: Id) {
@@ -632,8 +660,12 @@ export class CaptureHub {
         this.unasked = [];
         await this.askLive(out.question, out.category, about, pauseId, out.scores, out.rejected);
       } else if (out.deferInstead && out.question) {
-        this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason: inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority" } });
+        const reason = inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
+        this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason } });
         this.unasked = [];
+        this.set({ lastPauseInfo: describeDeferral(reason), deferredQuestions: this.state.deferredQuestions + 1 });
+      } else {
+        this.set({ lastPauseInfo: QUIET_INFO });
       }
     } catch (err) {
       this.modelCall("question_pick", [pauseId], Math.round(performance.now() - t0), (err as Error).message);
@@ -644,8 +676,13 @@ export class CaptureHub {
 
   private async askLive(text: string, category: QuestionCategory, actionIds: Id[], pauseId: Id, scores: { infoGain: number; screenAlreadyAnswers: number; guardrailValue: number }, rejected: Array<{ text: string; category: QuestionCategory; reason: string }>) {
     const questionId = newId("q");
-    this.emit({ t: this.now(), type: "agent.question", source: "question_picker", causedBy: [pauseId], payload: { questionId, text, category, about: { actionIds, ...(this.lastFrameId ? { frameId: this.lastFrameId } : {}) }, triggerPauseId: pauseId, scores, rejectedCandidates: rejected } });
-    this.set({ liveQuestions: this.state.liveQuestions + 1 });
+    const qe = this.emit({ t: this.now(), type: "agent.question", source: "question_picker", causedBy: [pauseId], payload: { questionId, text, category, about: { actionIds, ...(this.lastFrameId ? { frameId: this.lastFrameId } : {}) }, triggerPauseId: pauseId, scores, rejectedCandidates: rejected } });
+    const aboutAction = this.events.find((e) => e.id === actionIds[0]);
+    const aboutScreen = aboutAction?.type === "screen.action" ? aboutAction.payload.description : undefined;
+    this.set({
+      liveQuestions: this.state.liveQuestions + 1, questionBudgetLeft: this.budgetNow(),
+      currentQuestion: { questionId, text, category, t: qe.t, ...(aboutScreen ? { aboutScreen } : {}), why: this.lastAskWhy || "You paused.", answered: false },
+    });
     this.pending = { questionId, endedAt: this.now(), replies: [] }; // answers may start before the agent has finished
     this.agentListen(true);
     await this.agentSay(text, "question", questionId);
@@ -674,7 +711,8 @@ export class CaptureHub {
   async ask(text: string, opts: { category?: QuestionCategory; gapId?: Id; actionIds?: Id[]; intent?: "question" | "follow_up" | "teachback" | "intervention"; timeoutMs?: number; control?: string } = {}): Promise<{ questionId: Id; replies: Utterance[] }> {
     const questionId = newId("q");
     if (opts.category) {
-      this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
+      const qe = this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
+      this.set({ currentQuestion: { questionId, text, category: opts.category, t: qe.t, why: scriptedWhy(this.state.phase, !!opts.gapId), answered: false } });
     }
     // open the reply window BEFORE the agent speaks: answers can start while it's still finishing its turn
     const prev = this.replyWaiter; // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)
