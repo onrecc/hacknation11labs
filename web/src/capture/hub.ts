@@ -13,6 +13,7 @@ import { llm } from "../lib/api";
 import { listen, send, type BridgeMsg } from "../lib/bridge";
 import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
+import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
@@ -224,7 +225,7 @@ export class CaptureHub {
         },
         onUtterance: (u) => this.onExpertUtterance(u),
         onError: (e) => console.warn("stt", e),
-      });
+      }, sttLanguage(this.session.participant.language));
       this.set({ voiceStatus: "stt…" });
       await this.transcriber.start();
     } catch (e) {
