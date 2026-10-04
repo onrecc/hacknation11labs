@@ -539,10 +539,27 @@
     };
   }
 
+  // src/origins.ts
+  var APP_ORIGINS = [
+    "https://hacknation11labs.web.app",
+    "https://hacknation11labs.firebaseapp.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ];
+  function isAppOrigin(url) {
+    if (!url) return false;
+    try {
+      return APP_ORIGINS.includes(new URL(url).origin);
+    } catch {
+      return false;
+    }
+  }
+
   // src/content.ts
   var meta = document.querySelector('meta[name="apprentice-app"]');
   var feed = meta?.content === "feed";
-  var role = meta && !feed ? "app" : "site";
+  var appPage = isAppOrigin(location.origin);
+  var role = meta && !feed && appPage ? "app" : "site";
   var dedupe = new Dedupe();
   var listeners = /* @__PURE__ */ new Set();
   function deliverLocal(m) {
@@ -556,10 +573,10 @@
     }
     if (x?.type !== "relay" || !x.msg) return;
     if (role === "site") deliverLocal(x.msg);
-    else window.postMessage({ __apprentice: x.msg, fromExt: true }, "*");
+    else window.postMessage({ __apprentice: x.msg, fromExt: true }, location.origin);
   });
   window.addEventListener("message", (e) => {
-    if (e.source !== window || !e.data?.__apprentice || e.data.fromExt) return;
+    if (e.source !== window || e.origin !== location.origin || !e.data?.__apprentice || e.data.fromExt) return;
     void ext.runtime.sendMessage({ type: "relay", msg: e.data.__apprentice }).catch(() => {
     });
   });

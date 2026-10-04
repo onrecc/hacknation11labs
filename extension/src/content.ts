@@ -10,11 +10,14 @@ import { Dedupe, newMsgId, type BridgeBody, type BridgeMsg } from "../../shared/
 import type { Transport } from "./overlay";
 import { startSite } from "./site";
 import { piiRects } from "./capture-dom";
+import { isAppOrigin } from "./origins";
 
 /** Hub pages carry <meta name="apprentice-app">; MiniERP sets it to "feed" (a work app with structured events). */
 const meta = document.querySelector<HTMLMetaElement>('meta[name="apprentice-app"]');
 const feed = meta?.content === "feed";
-const role: "app" | "site" = meta && !feed ? "app" : "site";
+const appPage = isAppOrigin(location.origin);
+// "app" (relay into the page) only on the Protégé app itself — an untrusted page with the meta tag stays a "site"
+const role: "app" | "site" = meta && !feed && appPage ? "app" : "site";
 const dedupe = new Dedupe();
 const listeners = new Set<(m: BridgeMsg) => void>();
 
@@ -31,12 +34,12 @@ ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, _sende
   }
   if (x?.type !== "relay" || !x.msg) return;
   if (role === "site") deliverLocal(x.msg);
-  else window.postMessage({ __apprentice: x.msg, fromExt: true }, "*"); // into the web app's bridge
+  else window.postMessage({ __apprentice: x.msg, fromExt: true }, location.origin); // into the web app's bridge
 });
 
 // web app page → background (hub / MiniERP pages speak through window.postMessage)
 window.addEventListener("message", (e: MessageEvent<{ __apprentice?: BridgeMsg; fromExt?: boolean }>) => {
-  if (e.source !== window || !e.data?.__apprentice || e.data.fromExt) return;
+  if (e.source !== window || e.origin !== location.origin || !e.data?.__apprentice || e.data.fromExt) return;
   void ext.runtime.sendMessage({ type: "relay", msg: e.data.__apprentice }).catch(() => {});
 });
 

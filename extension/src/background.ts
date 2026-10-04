@@ -5,6 +5,7 @@
  */
 import { ext } from "./api";
 import type { BridgeMsg } from "../../shared/bridge";
+import { isAppOrigin } from "./origins";
 
 let hubTabId: number | null = null;
 let lastStatus: (BridgeMsg & { kind: "status" }) | null = null;
@@ -12,13 +13,16 @@ let shotTimer: ReturnType<typeof setInterval> | null = null;
 
 ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, sender, reply) => {
   const from = sender.tab?.id;
-  if (x?.type === "hub" && from != null) hubTabId = from;
+  // only the Protégé app may become the hub: any other page could otherwise start tab screenshots sent to itself
+  const trusted = isAppOrigin(sender.tab?.url ?? sender.url);
+  if (x?.type === "hub" && from != null && trusted) hubTabId = from;
   if (x?.type === "getStatus") {
     reply(lastStatus);
     return true;
   }
   if (x?.type !== "relay" || !x.msg) return;
   const msg = x.msg;
+  if (msg.kind === "status" && !trusted) return; // hub-only message from an untrusted page: drop it
   if (msg.kind === "status" && from != null) {
     hubTabId = from;
     lastStatus = msg as BridgeMsg & { kind: "status" };
