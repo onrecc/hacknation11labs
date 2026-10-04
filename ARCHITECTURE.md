@@ -27,7 +27,7 @@ Capture does not make a summary. It writes an **append-only, timestamped log of 
 
 Why we do it this way:
 - **Decoupled work.** Person B can build the whole of Map from a hand-written fixture bundle on day 1, before Capture works.
-- **Reprocessable.** Every raw frame, audio file and model response is kept. If Map needs something Capture didn't extract, B can re-run vision or STT offline with a better prompt. Nothing is lost.
+- **Reprocessable.** Every raw frame and audio file is kept (raw model responses: planned, not saved yet). If Map needs something Capture didn't extract, B can re-run vision or STT offline with a better prompt. Nothing is lost.
 - **Evidence by construction.** The brief requires every step and guardrail to link to a screen moment and the expert's own words. Every event has an `id` and a `t`, so every derived claim cites event IDs.
 - **Teach reuses Capture.** The new hire's session is just another session of `kind: "teach"`, with the same events and the same pipeline.
 
@@ -36,32 +36,32 @@ Why we do it this way:
 1. **Append-only.** Never mutate an event. Corrections are new events that reference the old one (`supersedes`).
 2. **One clock.** `t` = ms since session start, from `performance.now()`. Wall-clock time is stored too. Every stream (video, frames, audio, transcript, agent) is aligned to `t`, which is what makes "screen moment ↔ quote" links possible.
 3. **Keep raw and derived side by side.** Raw (frame PNG/WebP, audio, video, raw model JSON) → observation (vision output, utterance) → interpretation (action, question, answer link). Each layer points down via `causedBy` / refs.
-4. **Log every model call** with prompt version, inputs (refs), raw output, latency and tokens. That makes it debuggable and reprocessable.
+4. **Log every model call** with prompt version, inputs (refs), raw output, latency and tokens. That makes it debuggable and reprocessable. *Today:* `model.call` events carry purpose, input refs, latency and errors; raw output and token counts are not stored yet.
 5. **Record what didn't happen too.** Skipped turns, rejected candidate questions, why the agent stayed silent, low-confidence observations. Map uses these to find gaps, and the demo needs them to answer "when to ask / what to ask".
 6. **Distinguish judgment vs habit vs mistake.** `knowledge.correction` events (from speech, hotkey, debrief or teach-back) plus answer classification. The brief calls out that this is what recordings miss.
-7. **Privacy at the boundary.** Redaction runs before anything leaves the capture machine. Off-record spans are **not recorded at all**; only a marker remains.
+7. **Privacy at the boundary.** Redaction runs before anything leaves the capture machine. Off-record spans are **not recorded at all**; only a marker remains. *Today:* field masking and frame blurring only; transcripts and mic audio are not redacted yet (see Redaction in §3).
 
 ## 3. Capture pipeline (person A)
 
 | Stream | How | Event types | Rate |
 |---|---|---|---|
-| Continuous screen video | `getDisplayMedia` + `MediaRecorder` (WebM, chunked 10 s) | `media.chunk` | continuous. Needed for **replay of screen moments** in Map/Teach |
+| Continuous screen video | `getDisplayMedia` + `MediaRecorder` (WebM, chunked 10 s) | `media.chunk` | continuous, single-task `/capture` sessions only (a whole workday relies on the 1 fps frames). Video replay of screen moments in Map/Teach is **planned, not yet implemented**; today they show the still frame |
 | Frames | canvas grab from the same stream | `frame.captured` | 1 fps **always stored**, plus a perceptual-hash diff score |
-| Vision | changed frames (diff > threshold, or every 5 s heartbeat) → Gemini vision with previous summary + recent action context. Frames come from screen share **or** the extension's tab screenshots | `screen.observed`, `model.call` | ~0.5–1 Hz |
+| Vision | changed frames (diff > threshold, or every 5 s heartbeat) → Claude vision (`claude-sonnet-5-5`) with previous summary + recent action context. Frames come from screen share **or** the extension's tab screenshots | `screen.observed`, `model.call` | ≤0.5 Hz (≥2 s apart, 5 s heartbeat; workday: ≥5 s, 30 s heartbeat) |
 | Semantic actions | normalize observations to `{verb, entity, field, from, to}` | `screen.action` | on change |
 | **App instrumentation** | MiniERP emits exact field changes and `CaseFacts`. **Any other web app:** the extension (or `apprentice-embed.js`) emits labeled field changes, clicks, submits and navigation with sensitive values masked | `app.event`, `input.activity` | per interaction |
 | Mic audio | `MediaRecorder` raw, separate from the agent | `media.chunk` | continuous |
 | Live transcript | Scribe v2 Realtime: partial + final, word timestamps, VAD | `speech.vad`, `utterance` | real time |
-| Agent | ElevenAgents Interviewer (`@elevenlabs/client`, LLM gemini-3.5-flash, expressive v3 voice). Screen events go in via `sendContextualUpdate`. Our pause detector decides *when*, and sends `[ASK] …`. The agent's mic is muted while the expert works. Client tool `get_recent_screen_events`; `skip_turn` for thinking-aloud | `agent.context_pushed`, `agent.turn`, `agent.tool_call`, `agent.skipped_turn` | per turn |
+| Agent | ElevenAgents Interviewer (`@elevenlabs/client`, LLM `claude-sonnet-5-5` via `ELEVENLABS_AGENT_LLM`, expressive v3 voice). Screen events go in via `sendContextualUpdate`. Our pause detector decides *when*, and sends `[ASK] …`. The agent's mic is muted while the expert works. Client tool `get_recent_screen_events`; `skip_turn` for thinking-aloud | `agent.context_pushed`, `agent.turn` (`agent.tool_call` / `agent.skipped_turn` are in the schema but **not emitted yet**) | per turn |
 | Pause detector | fuses typing activity, VAD, screen diff and case boundaries | `pause.detected` with decision `ask`/`hold`/`skip` and reason | on signal |
 | Question picker | candidates scored by "would the screen already answer this?" and guardrail value. Budget: 3–5 per 10 min, the rest queued for the debrief | `agent.question` (with rejected candidates), `question.deferred` | on pause |
 | Expert controls | hotkey/voice: "off the record", "bookmark", "next invoice" | `marker.*` | user-driven |
 | Correction detector | every final utterance + last ~60 s of speech + recent actions → "is this a self-correction, and of what?" | `knowledge.correction` | per utterance |
-| Redaction | Presidio on text; PII bboxes from vision get blurred in stored frames | `redaction.applied` | inline |
+| Redaction | Implemented: PII bboxes from vision get blurred in later stored frames; the extension masks passwords, IBANs and card numbers; MiniERP masks IBAN. **Planned, not yet implemented:** Presidio on text and `redaction.applied` events | (`redaction.applied`, planned) | inline |
 
 Why instrument the sandbox app: vision is noisy. If the ERP is our own web app, we get **ground-truth** "cost_center 4711 → 0400 on invoice 4471" plus real typing/idle signals for pause detection. Vision then becomes the generic layer that also works on arbitrary apps. Keep both, and store both.
 
-Post-session (still Capture's job, cheap and valuable): run **batch STT** on the full mic recording for a clean, word-timed transcript (`utterance` events with `transcriptVersion: 2`, same `utteranceId`s where possible), and emit `session.ended`.
+Post-session: Capture emits `session.ended`. **Planned, not yet implemented:** run **batch STT** on the full mic recording for a clean, word-timed transcript (`utterance` events with `transcriptVersion: 2`, same `utteranceId`s where possible). Today every utterance is `transcriptVersion: 1` from Scribe Realtime.
 
 ### 3a. The expert is always listened to, and can correct themselves
 
@@ -84,12 +84,12 @@ Post-session (still Capture's job, cheap and valuable): run **batch STT** on the
 5. **Find gaps**: unexplained deviations, unknown scope ("every supplier or just this one?"), unseen cases, thresholds without a number, conflicts, and `question.deferred` items from Capture. Rank them.
 6. **Debrief** (voice; the same ElevenAgents stack, a different agent/prompt): ask the top gaps (≥3), write the answers back into the **same session log** with `phase: "debrief"`, re-extract, and stop when no high-priority gaps remain or the expert says done.
 7. **Teach-back**: generate a <60 s explanation from the Work Map, split into segments that map to steps. The expert confirms or corrects each one (`teachback.verdict`). Corrections patch the map with `provenance: "teachback_correction"`. Status becomes `confirmed`.
-8. **Work Map UI**: a timeline. Clicking a step shows the video clip at `screenMoment.t`, the decision, the quote (with play-audio) and the guardrails.
+8. **Work Map UI**: a timeline. Clicking a step shows the frame at `screenMoment` (a video clip there is planned, not yet implemented), the decision, the quote (with play-audio from the mic chunk) and the guardrails.
 9. **Export**: the Work Map JSON goes to Teach. Stretch goal: agent-ready instructions (markdown/MCP).
 
 ## 5. Teach (later)
 
-A `kind: "teach"` session uses the same Capture pipeline on the new hire's screen. The tutor agent loads the WorkMap (knowledge base + a client tool `lookup_guardrail(condition)`). Guardrail conditions are **structured**, so the tutor can evaluate them against live `app.event`s **before save** (`tutor.intervention`). It replays `screenMoment` from the expert's video. At the end, `mastery` is computed per step and guardrail.
+A `kind: "teach"` session uses the same Capture pipeline on the new hire's screen. The tutor agent gets the WorkMap as the `{{work_map}}` prompt variable, plus client tools `lookup_guardrail(query)`, `replay_moment`, `get_case_facts` and `grade_prediction`. Guardrail conditions are **structured**, so the tutor can evaluate them against live `app.event`s **before save** (`tutor.intervention`). It shows the expert's frame at `screenMoment` (video replay planned, not yet implemented). At the end, `mastery` is computed per step and guardrail.
 
 ## 6. Backend: Firebase
 
@@ -104,12 +104,13 @@ Firestore
   sessions/{sessionId}/report/mastery          MasteryReport (teach sessions)
   workmaps/{workMapId}                         { latestVersion, status, sourceSessionIds, updatedAt }
   workmaps/{workMapId}/versions/{v}            full WorkMap JSON (immutable)
-Cloud Storage  (bucket in us-central1 → Always Free tier)
-  sessions/{sessionId}/{uri}                   uri exactly as in events: frames/frm_0012.webp, media/screen-003.webm, model_calls/mc_0042.json
+Cloud Storage  (bucket in us-east1 → Always Free tier)
+  sessions/{sessionId}/{uri}                   uri exactly as in events: frames/frm_0012.webp, media/screen-003.webm (model_calls/*.json planned, not written yet)
 Cloud Functions (2nd gen; secrets in Secret Manager)
-  api (europe-west1)  POST /llm {task,input} (vision | pick_question | detect_correction | link_answer | extract_workmap | plan_debrief | teachback | tutor_explain)
-                      POST /voice-token (ElevenLabs signed agent URL / Scribe token) · GET /health
-  redact (TODO)       Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
+  api (europe-west1)  POST /llm {task,input} (tasks in shared/llm.ts: vision | pick_question | detect_correction | link_answer | label_task | extract_workmap | plan_debrief | teachback | teachback_verdict | compare_workmaps | resolve_difference | check_guardrails | grade_prediction | tutor_explain)
+                      Claude: claude-sonnet-5-5 (LLM_MODEL), extract_workmap on claude-opus-5-5 (LLM_MODEL_MAP)
+                      POST /voice-token (ElevenLabs signed agent URL / Scribe token) · POST /tts · GET /health
+  redact (TODO: planned, not implemented)   Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
 Hosting            the web app (/capture, /map/:id, /teach) + the MiniERP sandbox + /apprentice-embed.js
 Auth               Google sign-in for the team, anonymous auth for judges; rules: request.auth != null
 ```
@@ -138,7 +139,7 @@ Auth               Google sign-in for the team, anonymous auth for judges; rules
 3. **One clock.** `t` = ms since session start from `performance.now()`. `Date.now()` goes only into `wall`.
 4. **Every writer uses `shared/eventlog.ts`** (chunking, seq reservation, retries). Nobody writes Firestore event docs by hand.
 5. **Evidence or it didn't happen.** Every derived claim cites event IDs, frames and verbatim quotes. Code (not the LLM) verifies quotes and frames exist.
-6. **Privacy at the boundary.** Raw unredacted frames, audio and text never leave the browser. Off-record means nothing is persisted.
+6. **Privacy at the boundary.** Raw unredacted frames, audio and text never leave the browser (goal; text redaction is not implemented yet, see §3). Off-record means nothing is persisted.
 7. **No API keys in the browser.** All model calls go through Functions.
 8. **Done = validator green** for your part on the fixture **and** on a real recorded session.
 
