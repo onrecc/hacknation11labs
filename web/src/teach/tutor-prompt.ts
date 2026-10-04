@@ -1,10 +1,15 @@
 /** Pure helpers for the tutor agent prompt (no browser deps: also used by tools/src/agent-test.ts). */
 import type { WorkMap } from "../../../shared/schema";
+import { languageName, needsTranslation } from "../../../shared/i18n";
 
 /** Compact Work Map text for the tutor agent's prompt ({{work_map}}). */
 export function workMapForPrompt(wm: WorkMap): string {
   const name = wm.expert.displayName;
   const lines: string[] = [`Task: ${wm.task.title}. Expert: ${name}.`];
+  if (needsTranslation(wm.expert.language)) {
+    const lang = languageName(wm.expert.language);
+    lines.push(`${name} spoke ${lang}: the quotes below are verbatim in ${lang}. Speak English; when you quote ${name}, say the words, name the language, then give the English meaning.`);
+  }
   for (const s of wm.steps) {
     lines.push(`STEP ${s.order}. ${s.title}: ${s.instructions}`);
     for (const d of wm.decisions.filter((x) => s.decisionIds.includes(x.id))) {

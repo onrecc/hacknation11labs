@@ -10,6 +10,8 @@ import { LogIndex, mediaClip } from "@shared/logindex";
 import { violations } from "@shared/conditions";
 import { PROV, agentInstructions, claimsByEvent, conditionText, flowModel, fmtClock, machineGuardrails, quoteParts, type FlowNode } from "./present";
 import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_BEFORE, useMediaUrl, type MediaSource } from "./Replay";
+import { languageName } from "@shared/i18n";
+import { useQuoteTranslation } from "../lib/translate";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
@@ -191,7 +193,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
             <h2>{s.title}</h2>
             {showDesc && <p className="lead">{s.instructions}</p>}
           </div>
-          {why && <Quote q={why} corrected={whyCorrected} who={firstName(wm)} />}
+          {why && <Quote q={why} corrected={whyCorrected} who={firstName(wm)} lang={wm.expert.language} />}
           <Frame m={s.screenMoment} caption={caseLabel(wm, ix, s.screenMoment)} />
           {decisions.map((d) => <DecisionBlock key={d.id} d={d} onOpen={() => onSelect({ kind: "decision", id: d.id })} />)}
           {extraRules.length > 0 && (
@@ -215,7 +217,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
           <Field label="Options">
             <ul className="opts">{d.options.map((o) => <li key={o.option}><span>{o.option}</span><span className="dim">{o.whenText ?? (o.when ? conditionText(o.when) : "otherwise")}</span></li>)}</ul>
           </Field>
-          <Quote q={d.reason} corrected={d.history.length > 0} who={firstName(wm)} />
+          <Quote q={d.reason} corrected={d.history.length > 0} who={firstName(wm)} lang={wm.expert.language} />
           <Confirmed c={d} wm={wm} history />
         </>
       );
@@ -230,7 +232,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
         <h2>{g.statement}</h2>
         {g.evidence.moments[0] && <Frame m={g.evidence.moments[0]} caption={caseLabel(wm, ix, g.evidence.moments[0])} />}
         <RuleFacts g={g} />
-        {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} who={firstName(wm)} />}
+        {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} who={firstName(wm)} lang={wm.expert.language} />}
         <Confirmed c={g} wm={wm} history />
       </>
     );
@@ -242,7 +244,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
         <h2>{m.description}</h2>
         <Frame m={m.moment} caption={caseLabel(wm, ix, m.moment)} />
         <Field label="Do instead">{m.correctBehavior}</Field>
-        <Quote q={m.quote} corrected={false} who={firstName(wm)} />
+        <Quote q={m.quote} corrected={false} who={firstName(wm)} lang={wm.expert.language} />
       </>
     );
   }
@@ -377,15 +379,17 @@ function frameStyle(m: ScreenMoment, z: number, crop: number): React.CSSProperti
   };
 }
 
-export function Quote({ q, corrected, who }: { q: QuoteT; corrected: boolean; who?: string }) {
+export function Quote({ q, corrected, who, lang }: { q: QuoteT; corrected: boolean; who?: string; lang?: string }) {
   const parts = quoteParts(q, corrected);
   const { media, events } = useContext(Sources);
   const words = useMemo(() => (media ? mediaClip(events, "mic", q.t, q.t - WORDS_BEFORE, q.tEnd + WORDS_AFTER, q.sessionId) : null), [media, events, q.t, q.tEnd, q.sessionId]);
   const wordsUrl = useMediaUrl(media, q.sessionId, words?.uri);
+  const meaning = useQuoteTranslation(q.text, lang);
   const when = q.phase === "capture" ? (q.questionId ? "answering a question" : "thinking aloud") : q.phase === "debrief" ? "debrief" : q.phase === "teachback" ? "teach-back" : q.phase;
   return (
     <blockquote className="quote">
       <p>“{parts.map((p, i) => <span key={i} className={p.style ? `q-${p.style}` : undefined}>{p.text}</span>)}”</p>
+      {meaning && <p className="q-meaning" lang="en">{languageName(lang)}, in English: “{meaning}”</p>}
       <footer>{who ? `${who}, ` : ""}{when} · {fmtClock(q.t)}<PlayWords url={wordsUrl} clip={words} who={who} /></footer>
     </blockquote>
   );
@@ -460,7 +464,7 @@ function RulesTab({ wm, onSelect }: { wm: WorkMap; onSelect: (s: Sel) => void })
                 {open === g.id && (
                   <div className="list-body">
                     <RuleFacts g={g} />
-                    {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} />}
+                    {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} lang={wm.expert.language} />}
                     <button className="link" onClick={() => onSelect({ kind: "guardrail", id: g.id })}>Show in Work Map →</button>
                   </div>
                 )}

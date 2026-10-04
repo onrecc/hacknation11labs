@@ -3,6 +3,7 @@
  * Deliberately simple and deterministic. Replace with real calls as soon as keys exist.
  */
 import type { LlmTask, LlmInput, LlmOutput } from "../../shared/llm";
+import { mockTranslate, spokenQuote } from "../../shared/i18n";
 
 export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmOutput<T> {
   const out: { [K in LlmTask]: (i: LlmInput<K>) => LlmOutput<K> } = {
@@ -63,8 +64,9 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
     tutor_explain: (i) => ({
       spoken: i.socratic
         ? `${i.expertName} would stop here. Why do you think?`
-        : `${i.expertName} said: "${i.quote}". ${i.guardrail.requiredAction}.`,
+        : `${spokenQuote(i.expertName, i.quote, i.quoteTranslation, i.quoteLanguage)}. ${i.guardrail.requiredAction}.`,
     }),
+    translate: (i) => ({ text: mockTranslate(i.text, i.to) }),
   };
   return (out[task] as (i: LlmInput<T>) => LlmOutput<T>)(input);
 }

@@ -138,8 +138,17 @@ export interface LlmTasks {
   };
   /** Teach: phrase an intervention in the expert's words. */
   tutor_explain: {
-    input: { expertName: string; guardrail: Pick<Guardrail, "statement" | "requiredAction">; quote: string; facts: CaseFacts; socratic: boolean };
+    input: {
+      expertName: string; guardrail: Pick<Guardrail, "statement" | "requiredAction">; quote: string; facts: CaseFacts; socratic: boolean;
+      /** Set when the expert spoke another language: the English meaning of `quote`, and the quote's BCP-47 language. */
+      quoteTranslation?: string; quoteLanguage?: string;
+    };
     output: { spoken: string };
+  };
+  /** Map/Teach: English meaning of the expert's words (shown and spoken next to the verbatim quote, never instead of it). */
+  translate: {
+    input: { text: string; from: string; to: string };
+    output: { text: string };
   };
 }
 
