@@ -12,6 +12,7 @@ import { FACT_PATHS } from "@shared/llm";
 import { col } from "@shared/paths";
 import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, setWorkMapFeatured, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
 import { useUser } from "../lib/users";
+import { whenLabel } from "../lib/dates";
 import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
@@ -37,10 +38,7 @@ function MapIndex() {
     });
   }, []);
   const STATUS: Record<string, string> = { draft: "Draft", debrief: "In debrief", teachback_pending: "Awaiting teach-back", confirmed: "Confirmed" };
-  const when = (iso: string) => {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  };
+  const when = (iso: string) => whenLabel(iso);
   const sessionTitle = (s: Session) => s.task.title || "Untitled task";
   return (
     <div className="page mapindex">
