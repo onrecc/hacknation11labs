@@ -97,6 +97,7 @@ try {
 
   // ── end of day ──
   await click(hub, "End my day");
+  const wdIds = await hub.evaluate(() => { const r = (window as any).__rec; return `${r.workday.id} · tasks: ${r.workday.tasks.map((t: any) => t.sessionId).join(", ")}`; });
   await sleep(4000);
   list = await tasks(hub);
   const hidden = await hub.$eval(".card h3", (e) => e.textContent ?? "").catch(() => "");
@@ -124,10 +125,9 @@ try {
   check("their department's module is preselected", /by Sabine/.test(mod), mod);
   await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
   check("practicer can't open My day", hub.url().endsWith("/learn"), hub.url());
-} finally {
   // ids for cleanup by id (this test records a real day for Sabine)
-  await hub.evaluate(() => { const r = (window as any).__rec; return r ? `workday: ${r.workday.id} · tasks: ${r.workday.tasks.map((t: any) => t.sessionId).join(", ")}` : ""; })
-    .then((x) => x && console.log(x)).catch(() => {});
+  console.log(`workday: ${wdIds}`);
+} finally {
   await browser.close();
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");
