@@ -18,6 +18,18 @@
   };
   var SENSITIVE = /pass|iban|card|cvv|cvc|ssn|social|tax.?id|account.?(no|number)|token|secret|pin\b/i;
 
+  // ../shared/hubstatus.ts
+  var STATUS_TTL_MS = 1e4;
+  var keyOf = (s) => s.sessionId ?? "";
+  function noteStatus(book, status, at) {
+    return [...book.filter((x) => keyOf(x.status) !== keyOf(status)), { status, at }];
+  }
+  function activeStatus(book, now) {
+    const newest = [...book].sort((a, b) => b.at - a.at);
+    const liveTeach = newest.find((x) => x.status.mode === "teach" && now - x.at <= STATUS_TTL_MS);
+    return (liveTeach ?? newest[0])?.status ?? null;
+  }
+
   // src/overlay.ts
   var CSS2 = `
 :host { all: initial; }
@@ -102,6 +114,7 @@
     root.append(h("style", {}, CSS2), pill, panel);
     document.documentElement.appendChild(host);
     let status = null;
+    let statuses = [];
     let captionTimer;
     let spot = loadSpot();
     let drag = null;
@@ -223,7 +236,8 @@
     document.addEventListener("pointerdown", onPress, true);
     const off = t.listen((m) => {
       if (m.kind === "status") {
-        status = m;
+        statuses = noteStatus(statuses, m, Date.now());
+        status = activeStatus(statuses, Date.now());
         renderPill();
       } else if (m.kind === "tutorCard") showCard(m);
       else if (m.kind === "tutorSay") showCard({ kind: "tutorCard", tone: "info", title: "Ada", text: m.text });
@@ -495,14 +509,15 @@
 
   // src/site.ts
   function startSite(transport, onStatusRequest, opts = {}) {
-    let mode = "off";
-    let offRecord = false;
+    let book = [];
     const offStatus = transport.listen((m) => {
-      if (m.kind === "status") {
-        mode = m.mode === "capture" || m.mode === "teach" ? m.mode : "off";
-        offRecord = m.offRecord;
-      }
+      if (m.kind === "status") book = noteStatus(book, m, Date.now());
     });
+    const active = () => {
+      const s = activeStatus(book, Date.now());
+      const mode = s?.mode === "capture" || s?.mode === "teach" ? s.mode : "off";
+      return { capture: mode === "capture" && !s?.offRecord, teach: mode === "teach" };
+    };
     const local = /* @__PURE__ */ new Set();
     const overlayTransport = {
       send: (b) => transport.send(b),
@@ -514,7 +529,7 @@
     };
     const notify = (b) => local.forEach((fn) => fn({ ...b, id: newMsgId() }));
     const stopOverlay = startOverlay(overlayTransport, { controls: true });
-    const stopCapture = startDomCapture(transport, () => ({ capture: mode === "capture" && !offRecord, teach: mode === "teach" }), { events: !opts.feed, notify });
+    const stopCapture = startDomCapture(transport, active, { events: !opts.feed, notify });
     transport.send({ kind: "hello", from: "ext", app: location.hostname });
     onStatusRequest?.();
     return () => {

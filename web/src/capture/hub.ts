@@ -11,6 +11,7 @@ import { webStore } from "../lib/webStore";
 import { updateSession } from "../lib/sessions";
 import { llm, servedBy } from "../lib/api";
 import { listen, send, type BridgeMsg } from "../lib/bridge";
+import { noteStatus, teachLive, type HubStatusBook } from "@shared/hubstatus";
 import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
 import { sttLanguage } from "@shared/i18n";
@@ -20,6 +21,8 @@ import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, t
 import { questionTarget } from "./questionTarget";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
+/** Bridge messages that describe work in the work tab (filed into the session that owns that tab). */
+const WORK_KINDS: ReadonlySet<BridgeMsg["kind"]> = new Set(["app", "activity", "case"]);
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500, speechGraceMs: 12_000, stallMs: 30_000 };
 
 /** "Hold on", "one second", "let me think": the answer is still coming, not the answer itself. */
@@ -76,6 +79,8 @@ export class CaptureHub {
   private transcriber: Transcriber | null = null;
   voice: Voice | null = null;
   private timers: ReturnType<typeof setInterval>[] = [];
+  /** Statuses of OTHER hub tabs in this browser (shared/hubstatus). */
+  private peers: HubStatusBook = [];
 
   // pause-detector signals (session ms)
   private lastKeyAt = 0;
@@ -423,6 +428,9 @@ export class CaptureHub {
 
   // ───────────── MiniERP bridge ─────────────
   private onBridge(m: BridgeMsg) {
+    if (m.kind === "status") return void (this.peers = noteStatus(this.peers, m, Date.now()));
+    // a new hire practising in this browser: that work belongs to their teach session, never to this recording
+    if (this.session.kind !== "teach" && WORK_KINDS.has(m.kind) && teachLive(this.peers, Date.now(), this.session.id)) return;
     this.beforeBridge?.(m);
     if (m.kind === "hello" && (m.from === "erp" || m.from === "ext")) {
       send({ kind: "hello", from: "hub", mode: this.session.kind === "teach" ? "teach" : "capture" });

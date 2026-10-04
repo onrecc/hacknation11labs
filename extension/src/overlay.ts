@@ -6,6 +6,7 @@
  * Shadow DOM, so host-page CSS can't break it. Used by the extension content script and the embed script on any site.
  */
 import type { BridgeBody, BridgeMsg } from "../../shared/bridge";
+import { activeStatus, noteStatus, type HubStatusBook } from "../../shared/hubstatus";
 
 export interface Transport {
   send(body: BridgeBody): void;
@@ -106,6 +107,7 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
   root.append(h("style", {}, CSS), pill, panel);
   document.documentElement.appendChild(host);
   let status: Status | null = null;
+  let statuses: HubStatusBook = []; // several hubs may broadcast; a live teach session wins (shared/hubstatus)
   let captionTimer: ReturnType<typeof setTimeout> | undefined;
 
   // where the tab sits: a window edge + the vertical center as a fraction of the window height
@@ -238,7 +240,8 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
 
   const off = t.listen((m) => {
     if (m.kind === "status") {
-      status = m;
+      statuses = noteStatus(statuses, m, Date.now());
+      status = activeStatus(statuses, Date.now());
       renderPill();
     } else if (m.kind === "tutorCard") showCard(m);
     else if (m.kind === "tutorSay") showCard({ kind: "tutorCard", tone: "info", title: "Ada", text: m.text });
