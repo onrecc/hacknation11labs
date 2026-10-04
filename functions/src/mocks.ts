@@ -42,6 +42,10 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
       ],
     }),
     teachback: (i) => ({ segments: i.workmap.steps.map((s) => ({ text: `${s.title}. ${s.instructions}`, stepIds: [s.id] })) }),
+    label_task: (i) => ({
+      title: i.currentTitle || `Work in ${i.app}`, domain: i.department, summary: `(mock) ${i.actions.length} actions in ${i.app}`,
+      isNewTask: false, newTaskStartsAtActionId: "", sameAsKnownTask: "", confidence: 0.3,
+    }),
     check_guardrails: () => ({ violations: [] }),
     grade_prediction: (i) => ({ correct: i.answer.toLowerCase().includes(i.expected.toLowerCase().split(" ")[0] ?? ""), feedback: `${i.reason}` }),
     teachback_verdict: (i) => {

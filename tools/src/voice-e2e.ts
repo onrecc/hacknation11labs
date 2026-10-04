@@ -64,6 +64,8 @@ const click = (p: Page, text: string) => p.evaluate((t) => [...document.querySel
 
 try {
   const hub = await browser.newPage();
+  await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
+  await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_sabine")); // fake login
   await withSyntheticMic(hub);
   hub.on("console", (m) => ["error", "warn"].includes(m.type()) && console.log(`  [hub ${m.type()}]`, m.text().slice(0, 300)));
   hub.on("response", async (r) => r.status() >= 400 && console.log("  [http]", r.status(), r.url().slice(0, 120), (await r.text().catch(() => "")).slice(0, 200)));

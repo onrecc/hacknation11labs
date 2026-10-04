@@ -1,49 +1,73 @@
-import { useEffect, useState } from "react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import { useEffect, useState, type ReactNode } from "react";
+import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CapturePage from "./capture/CapturePage";
+import DayPage from "./capture/DayPage";
 import MapPage from "./map/MapPage";
 import TeachPage from "./teach/TeachPage";
 import ErpPage from "./erp/ErpPage";
+import LoginPage from "./auth/LoginPage";
 import { apiHealth } from "./lib/api";
+import { homeFor, logout, useUser, type Role } from "./lib/users";
 
 export default function App() {
   const { pathname } = useLocation();
+  const user = useUser();
   if (pathname.startsWith("/erp")) return <ErpPage />;
   return (
     <>
-      <nav className="nav">
-        <Link to="/" className="brand">AI Apprentice</Link>
-        <NavLink to="/capture">1 · Capture</NavLink>
-        <NavLink to="/map">2 · Map</NavLink>
-        <NavLink to="/teach">3 · Teach</NavLink>
-        <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
-      </nav>
+      <Nav />
       <Routes>
-        <Route path="/" element={<Home />} />
-        <Route path="/capture" element={<CapturePage />} />
-        <Route path="/map" element={<MapPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={user ? <Navigate to={homeFor(user)} replace /> : <Navigate to="/login" replace />} />
+        <Route path="/day" element={<Guard role="expert"><DayPage /></Guard>} />
+        <Route path="/capture" element={<Guard role="expert"><CapturePage /></Guard>} />
+        <Route path="/learn" element={<Guard role="practicer"><TeachPage /></Guard>} />
+        <Route path="/teach" element={<Navigate to="/learn" replace />} />
+        <Route path="/map" element={<Guard><MapPage /></Guard>} />
         <Route path="/map/:sessionId" element={<MapPage />} />
-        <Route path="/teach" element={<TeachPage />} />
       </Routes>
     </>
   );
 }
 
-function Home() {
-  const [h, setH] = useState<string>("checking…");
+/** Needs a logged-in user (and the right role, if given). */
+function Guard({ role, children }: { role?: Role; children: ReactNode }) {
+  const user = useUser();
+  const { pathname } = useLocation();
+  if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
+  if (role && user.role !== role) return <Navigate to={homeFor(user)} replace />;
+  return <>{children}</>;
+}
+
+function Nav() {
+  const user = useUser();
+  const nav = useNavigate();
+  const [health, setHealth] = useState<string>("");
   useEffect(() => {
-    apiHealth().then((x) => setH(`api ok · ${x.mock ? "MOCK LLM (no GEMINI_API_KEY)" : x.model} · voice ${x.voice ? "ElevenLabs" : "browser fallback"}`)).catch(() => setH("api not reachable: run `npm run api`"));
+    apiHealth()
+      .then((x) => setHealth(x.mock ? "AI: mock answers" : `AI: ${x.model}${x.voice ? " · ElevenLabs" : ""}`))
+      .catch(() => setHealth("api offline: npm run api"));
   }, []);
   return (
-    <div className="page narrow">
-      <h1>AI Apprentice</h1>
-      <p>An apprentice, not a recorder: it watches an expert work, asks why at natural pauses, maps the work with its guardrails, and tutors the next new hire.</p>
-      <p className="muted small mono">{h}</p>
-      <div className="cards3">
-        <Link className="card big" to="/capture"><b>1 · Capture</b><span>Expert shares the screen and works in MiniERP; the agent asks why.</span></Link>
-        <Link className="card big" to="/map/ses_demo_sabine_01"><b>2 · Map</b><span>Open the seeded demo session and its confirmed Work Map.</span></Link>
-        <Link className="card big" to="/teach"><b>3 · Teach</b><span>New hire works a case the expert never showed; the tutor catches mistakes before save.</span></Link>
-      </div>
-    </div>
+    <nav className="nav">
+      <Link to="/" className="brand">AI Apprentice</Link>
+      {user?.role === "expert" && <NavLink to="/day">My day</NavLink>}
+      {user?.role === "expert" && <NavLink to="/capture">Single task</NavLink>}
+      {user?.role === "practicer" && <NavLink to="/learn">Training</NavLink>}
+      {user && <NavLink to="/map">Work Maps</NavLink>}
+      <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
+      <span className="userchip">
+        <span className="muted" title="API status">{health}</span>
+        {user ? (
+          <>
+            <span className="avatar sm" style={{ background: user.color }}>{user.short[0]}</span>
+            <span>{user.name} <span className="muted">· {user.role}</span></span>
+            <button className="link" onClick={() => (logout(), nav("/login"))}>Switch user</button>
+          </>
+        ) : (
+          <NavLink to="/login">Log in</NavLink>
+        )}
+      </span>
+    </nav>
   );
 }

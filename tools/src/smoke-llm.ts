@@ -28,6 +28,21 @@ const cases: { [K in LlmTask]?: () => Promise<unknown> } = {
     return runLlm("detect_correction", { utterance: { id: u.payload.utteranceId, text: u.payload.text }, recentUtterances: [], recentActions: actions.slice(0, 3).map((a) => ({ id: a.id, description: a.payload.description })) });
   },
   link_answer: () => runLlm("link_answer", { question: "You put it on hold rather than rejecting it. What has to happen before it can be released?", utterances: ix.ofType("utterance").filter((u) => u.payload.text.startsWith("Hofmann double")).map((u) => ({ id: u.payload.utteranceId, text: u.payload.text })) }),
+  label_task: async () => {
+    const acts = [
+      "Opened invoice INV-4471 (Krauss Maschinenteile GmbH, 7,850.00 EUR, equipment)",
+      "Set costCenter on INV-4471: \"4711\" -> \"0400\"",
+      "Saved INV-4471: status open -> coded",
+      "Opened invoice INV-4472 (Hofmann Industriebedarf, 1,240.00 EUR, consumables)",
+      "Saved INV-4472: status open -> on_hold",
+      "Opened \"ProcureX · Purchase request\" (localhost/demo/procurex.html)",
+      "Set \"GL account\" from \"6100 · Opex maintenance\" to \"0400 · Capex machinery\" on \"ProcureX · Purchase request\"",
+      "Clicked \"Submit for approval\" on \"ProcureX · Purchase request\"",
+    ].map((d, i) => ({ id: `a${i}`, t: i * 20000, description: d }));
+    const first = await runLlm("label_task", { currentTitle: "", app: "MiniERP", department: "accounts_payable", actions: acts.slice(0, 5), utterances: ["Hofmann. December. Of course."], knownTasks: [] });
+    const switched = await runLlm("label_task", { currentTitle: first.title, app: "ProcureX", department: "accounts_payable", actions: acts, utterances: [], knownTasks: [first.title] });
+    return { first, switched };
+  },
   check_guardrails: () => runLlm("check_guardrails", {
     guardrails: wm.guardrails.map((g) => ({ id: g.id, statement: g.statement, requiredAction: g.requiredAction, scope: g.scope })),
     page: { url: "https://erp.example/invoices/4490", title: "Invoice 4490" },

@@ -42,7 +42,17 @@ First time only (creates/updates the two ElevenAgents and writes their ids to `w
 npm run setup:elevenlabs -w tools
 ```
 
-Open http://localhost:5173:
+Firebase web config (never committed): run `npm run setup -w tools` (writes `web/.env.local`), or copy `web/.env.example` to `web/.env.local` and fill it in. Install the secret check as a pre-commit hook:
+
+```bash
+ln -s ../../scripts/check-secrets.sh .git/hooks/pre-commit
+```
+
+Open http://localhost:5173 and pick a person on the demo login (no passwords):
+- **Experts** (Sabine, Ilse, Jürgen) → **My day**: "Start my day", then work as usual. Ada asks *why* at natural pauses, and the day is split into tasks automatically (app switch, "New task", a break, or Gemini noticing a different kind of work). Each task gets its own Work Map; "Debrief now" per task.
+- **Practicers** (Lena, Aylin, Tim) → **Training**: their department's confirmed Work Map is preselected.
+
+Pages:
 - **Map:** `/map/ses_demo_sabine_01` is the seeded demo session with its confirmed Work Map (live from Firestore).
 - **Teach:** `/teach` → pick the Work Map → start. MiniERP opens in teach mode. Open INV-4490 (€7,200 equipment) and press Approve on cost center 4711. The tutor holds the save and quotes Sabine.
 - **Capture:** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.

@@ -62,3 +62,17 @@ input, select { font: inherit; padding: 0.4rem 0.5rem; border: 1px solid var(--l
 .erp main { padding: 1rem; max-width: 1100px; margin: 0 auto; } .erp .form { margin: 1rem 0; } .erp .actions { display: flex; gap: 0.5rem; align-items: center; } .erp .actions input { max-width: 260px; }
 .banner { padding: 0.6rem 1rem; font-weight: 500; } .banner.block { background: var(--danger); color: #fff; } .banner.info { background: var(--soft); }
 .intervention.nudge { border-color: var(--warn); } .intervention.predict { border-color: var(--accent-2); } .intervention.info { border-color: var(--ok); }
+/* login + user chip */
+.login .people { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+.person { display: flex; gap: 0.8rem; align-items: center; text-align: left; padding: 0.8rem; border-radius: 12px; background: var(--panel); }
+.person:hover { border-color: var(--accent-2); }
+.person .who { display: flex; flex-direction: column; gap: 0.1rem; }
+.avatar { width: 40px; height: 40px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #fff; font-weight: 700; flex: none; }
+.avatar.sm { width: 26px; height: 26px; font-size: 0.8rem; }
+.userchip { margin-left: auto; display: flex; align-items: center; gap: 0.5rem; }
+.userchip .muted { font-size: 0.8rem; }
+/* workday */
+.current-task h2 { margin: 0.2rem 0; }
+.tasks { padding-left: 1.2rem; } .tasks li { display: flex; justify-content: space-between; gap: 1rem; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.tasks li.active b::after { content: " ●"; color: var(--ok); }
+.dayrow ul { margin: 0.2rem 0 0.6rem; }

@@ -16,3 +16,6 @@ data/
 *-sa.json
 functions/lib/
 secrets/
+
+# never commit config with keys
+web/src/lib/firebase-config.json

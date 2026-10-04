@@ -39,10 +39,14 @@ export interface HubState {
 type Listener = () => void;
 
 export class CaptureHub {
-  readonly clock: SessionClock;
-  readonly log: EventLog;
+  clock: SessionClock;
+  log: EventLog;
   /** Every event this hub emitted (local mirror, for debrief/teach logic without re-reading Firestore). */
-  readonly events: Event[] = [];
+  events: Event[] = [];
+  /** The session events currently go to. Changes on switchSession() (workday task rotation, per-task debrief). */
+  session: Session;
+  private eventListeners = new Set<(e: Event) => void>();
+  private lastStoredFrameAt = -1e9;
   state: HubState;
 
   private listeners = new Set<Listener>();
@@ -78,23 +82,98 @@ export class CaptureHub {
   private extFrameBusy = false;
   private lastExtFrameAt = -1e9;
 
-  constructor(readonly session: Session, readonly opts: { writer: string; vision: boolean; voice: AgentOptions }) {
+  constructor(session: Session, readonly opts: { writer: string; vision: boolean; voice: AgentOptions; workday?: boolean }) {
+    this.session = session;
     this.clock = SessionClock.fromWall(session.clock.wallAtT0);
     this.state = {
       phase: session.kind === "teach" ? "teach" : "capture", offRecord: false, sharing: false, listening: false, agentSpeaking: false,
       expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, error: null,
     };
-    this.log = new EventLog({
-      store: webStore, sessionId: session.id, clock: this.clock, writer: opts.writer, getPhase: () => this.state.phase,
-      onEvent: (e) => this.events.push(e),
-      onError: (err) => this.set({ error: String((err as Error).message ?? err) }),
-    });
+    this.log = this.makeLog(session);
     this.unlisten = listen((m) => this.onBridge(m));
     send({ kind: "hello", from: "hub", mode: session.kind === "teach" ? "teach" : "capture" });
     this.timers.push(setInterval(() => this.tickPause(), 300));
     this.timers.push(setInterval(() => this.broadcastStatus(), 3000));
     if (import.meta.env.DEV) (window as unknown as { __hub?: CaptureHub }).__hub = this; // tests + debugging
   }
+
+  private makeLog(session: Session) {
+    return new EventLog({
+      store: webStore, sessionId: session.id, clock: this.clock, writer: this.opts.writer, getPhase: () => this.state.phase,
+      onEvent: (e) => {
+        this.events.push(e);
+        this.eventListeners.forEach((fn) => fn(e));
+      },
+      onError: (err) => this.set({ error: String((err as Error).message ?? err) }),
+    });
+  }
+
+  /** Observe every event written to the current session (workday segmenter, UIs). */
+  onEvent(fn: (e: Event) => void) {
+    this.eventListeners.add(fn);
+    return () => void this.eventListeners.delete(fn);
+  }
+
+  /**
+   * Is a question/answer exchange in progress? (Don't switch sessions in the middle of one.)
+   * An unanswered live question doesn't count: if the expert moved on, it stays in the log as an open question
+   * (Map's draft turns it into a debrief gap).
+   */
+  get busy() {
+    return this.asking || this.answering || this.state.agentSpeaking;
+  }
+
+  /** The human is answering right now (an answer must not be split across two sessions). */
+  get answering() {
+    return !!this.pending?.replies.length || !!this.replyWaiter?.replies.length || this.state.expertSpeaking;
+  }
+
+  /**
+   * Continue on another session while voice, mic, Scribe and screen keep running.
+   * Workday: rotate to the next task session (endCurrent). Debrief: reopen a finished task session (preload its events).
+   */
+  switchSession(next: Session, o: { preload?: Event[]; endCurrent?: boolean; phase?: Phase } = {}): Promise<void> {
+    // ── synchronous swap: from the next line on, every event goes to `next` (nothing lost or misfiled) ──
+    const w = this.replyWaiter;
+    if (w) {
+      clearTimeout(w.timer);
+      this.replyWaiter = null;
+      w.resolve(w.replies);
+    }
+    if (this.pending) {
+      clearTimeout(this.pending.timer);
+      this.pending = null;
+    }
+    const old = this.session;
+    const oldLog = this.log;
+    if (o.endCurrent) this.emit({ t: this.now(), type: "session.ended", source: "system", payload: { reason: "expert_done" } });
+    this.session = next;
+    this.clock = SessionClock.fromWall(next.clock.wallAtT0);
+    this.events = o.preload ? [...o.preload] : [];
+    this.log = this.makeLog(next);
+    const now = this.now();
+    this.lastKeyAt = this.lastSpeechAt = this.staticSince = now;
+    this.lastSaveAt = this.lastBoundaryAt = this.lastVisionAt = this.lastExtFrameAt = this.lastStoredFrameAt = -1e9;
+    this.windowClosedAt = 0;
+    this.pauseOpen = false;
+    this.unasked = [];
+    this.lastObserved = null;
+    this.lastFrameId = null;
+    this.set({
+      phase: o.phase ?? (next.kind === "teach" ? "teach" : "capture"),
+      liveQuestions: this.events.filter((e) => e.type === "agent.question" && e.phase === "capture").length,
+      frames: this.events.filter((e) => e.type === "frame.captured").length,
+    });
+    this.broadcastStatus();
+    // ── async cleanup of the previous session ──
+    return (async () => {
+      await oldLog.close();
+      if (o.endCurrent) await updateSession(old.id, { status: "ended", endedAt: new Date().toISOString() });
+    })();
+  }
+
+  /** Called with every bridge message BEFORE the hub files it (workday recorder: rotate first, then log). */
+  beforeBridge: ((m: BridgeMsg) => void) | null = null;
 
   /** Tell overlays (MiniERP, extension) what's going on. */
   broadcastStatus() {
@@ -162,8 +241,11 @@ export class CaptureHub {
   async shareScreen() {
     this.display = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: 5 }, audio: false });
     this.sampler = new FrameSampler(this.display);
-    this.screenRec = new ChunkRecorder(this.display, "video/webm;codecs=vp9", (blob, i, dur, startedAt) => this.onMediaChunk("screen_video", blob, i, dur, startedAt));
-    this.screenRec.start();
+    if (!this.opts.workday) {
+      // continuous video only for single-task sessions; a whole day would be GBs (frames cover the moments)
+      this.screenRec = new ChunkRecorder(this.display, "video/webm;codecs=vp9", (blob, i, dur, startedAt) => this.onMediaChunk("screen_video", blob, i, dur, startedAt));
+      this.screenRec.start();
+    }
     this.display.getVideoTracks()[0].addEventListener("ended", () => this.stopScreen());
     this.timers.push(setInterval(() => void this.sampleFrame(), 1000));
     this.set({ sharing: true, frameSource: "screen" });
@@ -196,10 +278,15 @@ export class CaptureHub {
 
   private async storeFrame(f: SampledFrame) {
     const t = this.now();
+    const changed = f.diff > 0.015;
+    if (changed) this.staticSince = t;
+    // whole-day recording: keep frames that show something new, plus a heartbeat (storage stays ~MBs per hour)
+    if (this.opts.workday && !changed && t - this.lastStoredFrameAt < 30_000) return;
+    this.lastStoredFrameAt = t;
     const frameId = newId("frm");
     const uri = `frames/${frameId}.webp`;
-    if (f.diff > 0.015) this.staticSince = t;
-    const send = this.opts.vision && !this.visionBusy && ((f.diff > 0.015 && t - this.lastVisionAt >= 2000) || t - this.lastVisionAt >= 5000);
+    const [minGap, heartbeat] = this.opts.workday ? [5000, 30_000] : [2000, 5000];
+    const send = this.opts.vision && !this.visionBusy && ((changed && t - this.lastVisionAt >= minGap) || t - this.lastVisionAt >= heartbeat);
     this.log.blob(uri, f.blob, "image/webp");
     const fe = this.emit({
       t, type: "frame.captured", source: "screen",
@@ -247,6 +334,7 @@ export class CaptureHub {
 
   // ───────────── MiniERP bridge ─────────────
   private onBridge(m: BridgeMsg) {
+    this.beforeBridge?.(m);
     if (m.kind === "hello" && (m.from === "erp" || m.from === "ext")) {
       send({ kind: "hello", from: "hub", mode: this.session.kind === "teach" ? "teach" : "capture" });
       this.broadcastStatus();

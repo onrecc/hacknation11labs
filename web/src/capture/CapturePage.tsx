@@ -8,10 +8,13 @@ import { CaptureHub, PAUSE } from "./hub";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { EventFeed, useStore } from "../components/ui";
 import agents from "../lib/elevenlabs.json";
+import { DebriefPanel } from "../map/DebriefPanel";
+import { personOf, useUser } from "../lib/users";
 
 export default function CapturePage() {
+  const user = useUser()!;
   const [hub, setHub] = useState<CaptureHub | null>(null);
-  const [form, setForm] = useState({ name: "Sabine K.", role: "Accounts payable clerk", task: "Process open supplier invoices before month-end close", vision: true });
+  const [form, setForm] = useState({ name: user.name, role: user.title, task: "", vision: true });
   const [events, setEvents] = useState<Event[]>([]);
   const [debrief, setDebrief] = useState<DebriefStatus | null>(null);
   const [typed, setTyped] = useState("");
@@ -32,8 +35,8 @@ export default function CapturePage() {
       await signedIn;
       const session = await createSession({
         kind: "capture",
-        participant: { id: "per_expert", displayName: form.name, role: form.role, language: "en-US" },
-        task: { title: form.task, domain: "accounts_payable" },
+        participant: personOf(user),
+        task: { title: form.task || `${user.departmentLabel} task`, domain: user.department },
         consent: { recordingAccepted: true, acceptedAt: new Date().toISOString(), retention: "hackathon demo" },
         config: {
           frameIntervalMs: 1000, visionModel: form.vision ? "api:vision" : "off", agentId: agents.interviewerAgentId,
@@ -73,9 +76,8 @@ export default function CapturePage() {
         <h1>Capture</h1>
         <p className="muted">The expert works in MiniERP (or any web app, with the browser extension) while Ada, the ElevenLabs interviewer, listens, watches and asks why at natural pauses.</p>
         <div className="card form">
-          <label>Expert<input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></label>
-          <label>Role<input value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })} /></label>
-          <label className="wide">Task<input value={form.task} onChange={(e) => setForm({ ...form, task: e.target.value })} /></label>
+          <p className="wide">Recording a single task as <b>{user.name}</b> ({user.title}). For a whole day split into tasks automatically, use <a href="/day">My day</a>.</p>
+          <label className="wide">Task (optional)<input placeholder="e.g. Process supplier invoices" value={form.task} onChange={(e) => setForm({ ...form, task: e.target.value })} /></label>
           <label className="check"><input type="checkbox" checked={form.vision} onChange={(e) => setForm({ ...form, vision: e.target.checked })} /> Send changed frames to the vision model</label>
           <button className="primary" onClick={start}>Start session (recording consent given)</button>
         </div>
@@ -114,13 +116,7 @@ export default function CapturePage() {
           <div className="card">
             <h3>Debrief & teach-back</h3>
             {!debrief && <button className="primary" onClick={() => void runDebrief(hub, setDebrief)}>Start debrief</button>}
-            {debrief && (
-              <>
-                <p><b>{debrief.stage}</b> · {debrief.detail}</p>
-                {debrief.segment && <blockquote className="quote">{debrief.segment.text}</blockquote>}
-                {debrief.problems?.length ? <details><summary>{debrief.problems.length} evidence problems (dropped claims)</summary><ul>{debrief.problems.map((p) => <li key={p}>{p}</li>)}</ul></details> : null}
-              </>
-            )}
+            {debrief && <DebriefPanel s={debrief} sessionId={hub.session.id} />}
             <div className="btns">
               <button onClick={run(() => hub.close())}>Close session</button>
               <Link to={`/map/${hub.session.id}`}>Open Work Map →</Link>

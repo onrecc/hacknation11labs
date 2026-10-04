@@ -64,9 +64,11 @@ const click = (p: Page, text: string) => p.evaluate((t) => [...document.querySel
 
 try {
   const hub = await browser.newPage();
+  await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
+  await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_lena")); // fake login
   await withSyntheticMic(hub);
   hub.on("console", (m) => m.type() === "error" && !m.text().includes("404") && console.log("  [hub error]", m.text().slice(0, 200)));
-  await hub.goto(`${HUB}/teach`, { waitUntil: "networkidle2" });
+  await hub.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
   await hub.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 20_000 });
   await hub.evaluate(() => (window.open = () => null));
   await click(hub, "Start teach session");

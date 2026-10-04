@@ -75,6 +75,26 @@ export interface LlmTasks {
     input: { workmap: Pick<WorkMap, "steps" | "decisions" | "guardrails" | "glossary"> };
     output: { segments: Array<{ text: string; stepIds: Id[] }> };
   };
+  /** Capture (workday): name the work being done and notice when a new kind of work starts. */
+  label_task: {
+    input: {
+      currentTitle: string;
+      app: string;
+      department: string;
+      actions: Array<{ id: Id; t: number; description: string }>;
+      utterances: string[];
+      knownTasks: string[];
+    };
+    output: {
+      title: string;
+      domain: string;
+      summary: string;
+      isNewTask: boolean;
+      newTaskStartsAtActionId: Id;
+      sameAsKnownTask: string;
+      confidence: number;
+    };
+  };
   /** Teach (generic websites without CaseFacts): which guardrails would this action break? */
   check_guardrails: {
     input: {

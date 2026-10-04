@@ -75,6 +75,10 @@ const schemas = {
     gaps: z.array(z.object({ kind: z.string(), description: z.string(), proposedQuestion: z.string(), priority: z.number(), aboutActionIds: z.array(z.string()) })),
   }),
   teachback: z.object({ segments: z.array(z.object({ text: z.string(), stepIds: z.array(z.string()) })) }),
+  label_task: z.object({
+    title: z.string(), domain: z.string(), summary: z.string(), isNewTask: z.boolean(),
+    newTaskStartsAtActionId: z.string(), sameAsKnownTask: z.string(), confidence: z.number(),
+  }),
   check_guardrails: z.object({ violations: z.array(z.object({ guardrailId: z.string(), reason: z.string(), confidence: z.number() })) }),
   grade_prediction: z.object({ correct: z.boolean(), feedback: z.string() }),
   teachback_verdict: z.object({ verdict: z.enum(["confirmed", "corrected", "unclear"]), correction: z.string(), correctedText: z.string() }),
@@ -118,6 +122,11 @@ Use ONLY facts from the Work Map you are given, with the expert's thresholds, co
   teachback_verdict: `The apprentice just read one part of its explanation back to the expert and asked "is that right?". Classify the expert's reply.
 confirmed: they agree (yes, right, exactly, mm-hm) with no change. corrected: they change or add something (even after a "yes, but…"); write the corrected version of the segment in correctedText, keeping everything else the same. unclear: no answer or off-topic.
 correction: the expert's own words that carry the change, copied verbatim from the reply ("" if none).`,
+  label_task: `You watch an expert's workday and keep a list of the TASKS they do (a task = one kind of work with one goal, e.g. "Process supplier invoices", "Approve purchase requests", "Answer supplier emails"). Several cases of the same kind of work (invoice after invoice) are ONE task.
+Given the current task title (may be empty), the app, the department and the recent actions/utterances:
+- title: short verb phrase for the work in these actions (max 6 words), domain: snake_case business domain (e.g. accounts_payable, procurement), summary: one sentence.
+- isNewTask: true only if the actions clearly switched to a DIFFERENT kind of work than currentTitle; then newTaskStartsAtActionId = id of the first action of the new work.
+- sameAsKnownTask: if this is the same kind of work as one of knownTasks (resumed after a detour), that exact title, else "".`,
   check_guardrails: `A new hire is about to perform an action on a web page. Given the expert's guardrails and the visible form fields, list ONLY guardrails that this action would clearly violate. Be conservative: no violation if the fields don't show it. confidence 0..1.`,
   grade_prediction: `Grade whether the new hire's predicted decision matches the expert's decision in substance (wording may differ). Feedback: one short, encouraging sentence that uses the expert's reason.`,
   tutor_explain: `You are a patient tutor coaching a new hire on their screen. The new hire is about to break a guardrail. If socratic=true, ask them why the expert would stop here (one sentence) and wait. Otherwise explain using the expert's quote verbatim, naming the expert. Max 2 sentences.`,
@@ -137,7 +146,24 @@ function jsonSchema(task: LlmTask) {
 
 export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
   if (!(task in schemas)) throw new HttpError(400, `unknown task ${task}`);
-  if (process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY) return mockOutput(task, input);
+  if (process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || geminiDown) return mockOutput(task, input);
+  client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  try {
+    return await runGemini(task, input);
+  } catch (err) {
+    // a revoked/invalid key must not take the whole demo down: switch to canned answers and say so in /health
+    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/.test((err as Error).message)) {
+      geminiDown = `Gemini key rejected at ${new Date().toISOString()}: running on mock answers`;
+      console.error(geminiDown);
+      return mockOutput(task, input);
+    }
+    throw err;
+  }
+}
+
+let geminiDown: string | null = null;
+
+async function runGemini<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
@@ -224,7 +250,7 @@ export async function handle(path: string, body: unknown): Promise<unknown> {
   if (path.endsWith("/llm")) return runLlm(b.task as LlmTask, b.input as never);
   if (path.endsWith("/voice-token")) return voiceToken(b.kind as "agent" | "scribe", b.agentId as string | undefined);
   if (path.endsWith("/tts")) return tts(String(b.text ?? ""), b.voiceId as string | undefined);
-  if (path.endsWith("/health")) return { ok: true, provider: "gemini", model: MODEL, mock: process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY, voice: !!process.env.ELEVENLABS_API_KEY };
+  if (path.endsWith("/health")) return { ok: true, provider: "gemini", model: MODEL, mock: process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || !!geminiDown, warning: geminiDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
   throw new HttpError(404, `no route ${path}`);
 }
 

@@ -157,6 +157,8 @@ class TtsVoice implements Voice {
       await new Promise<void>((res) => {
         a.onended = a.onerror = () => res();
         void a.play().catch(() => res());
+        // never let a stuck audio element (autoplay block, no output device) freeze Ada as "speaking"
+        setTimeout(res, speechBudgetMs(text));
       });
       this.speaking = false;
       this.ev.onSpeaking(false);
@@ -184,7 +186,7 @@ export class BrowserVoice implements Voice {
       u.onstart = () => ((this.speaking = true), this.ev.onSpeaking(true), this.ev.onAgentTurn?.({ text, spontaneous: false }));
       u.onend = u.onerror = () => ((this.speaking = false), this.ev.onSpeaking(false), resolve(text));
       speechSynthesis.speak(u);
-      setTimeout(() => resolve(text), 30_000);
+      setTimeout(() => ((this.speaking = false), this.ev.onSpeaking(false), resolve(text)), speechBudgetMs(text));
     });
   }
   ask(q: string) { return this.speak(q); }
@@ -197,3 +199,6 @@ export class BrowserVoice implements Voice {
 
 /** Remove eleven_v3 audio tags ("[excited]", "[slow]") from agent text. */
 export const stripAudioTags = (t: string) => t.replace(/\[[a-z][a-z ]{1,24}\]\s*/gi, "").replace(/\s{2,}/g, " ").trim();
+
+/** Upper bound for how long speaking `text` can take (~2.5 words/s + slack). */
+export const speechBudgetMs = (text: string) => Math.max(4000, Math.round((text.split(/\s+/).length / 2.5) * 1000) + 3000);

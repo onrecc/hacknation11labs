@@ -17,6 +17,11 @@ service cloud.firestore {
       }
     }
 
+    match /workdays/{workdayId} {
+      allow read, create, update: if signedIn();
+      allow delete: if false;
+    }
+
     match /workmaps/{workMapId} {
       allow read, create, update: if signedIn();
       allow delete: if false;

@@ -36,7 +36,9 @@ const clickButton = (p: Page, text: string) =>
 try {
   // ── Teach on a foreign-origin app ──
   const hub = await browser.newPage();
-  await hub.goto(`${HUB}/teach`, { waitUntil: "networkidle2" });
+  await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
+  await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_lena")); // fake login (practicer)
+  await hub.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
   await hub.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 20_000 });
   await hub.evaluate(() => (window.open = () => null));
   await clickButton(hub, "Start teach session");
@@ -66,6 +68,7 @@ try {
 
   // ── Capture on a foreign-origin app (DOM events + tab screenshots) ──
   await hub.bringToFront();
+  await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_sabine")); // fake login (expert)
   await hub.goto(`${HUB}/capture`, { waitUntil: "networkidle2" });
   await hub.evaluate(() => (window.open = () => null));
   await clickButton(hub, "Start session");

@@ -1,6 +1,6 @@
 // One-time project setup via the service account: registers the web app (prints its public config)
 // and enables anonymous sign-in. Idempotent.
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { applicationDefault } from "firebase-admin/app";
 
 const P = process.env.FIREBASE_PROJECT_ID!;
@@ -23,10 +23,15 @@ if (!apps.length) {
   }
 }
 const cfg = await api("GET", `https://firebase.googleapis.com/v1beta1/projects/${P}/webApps/${apps[0].appId}/config`);
-// public web config (not a secret: access is enforced by security rules)
+// web config → web/.env.local (gitignored). Firebase browser keys are not secret, but they stay out of the repo.
 const { projectId, appId, storageBucket, apiKey, authDomain, messagingSenderId } = cfg.body;
-writeFileSync(new URL("../../web/src/lib/firebase-config.json", import.meta.url), JSON.stringify({ projectId, appId, storageBucket, apiKey, authDomain, messagingSenderId }, null, 2) + "\n");
-console.log("wrote web/src/lib/firebase-config.json");
+const envPath = new URL("../../web/.env.local", import.meta.url);
+let existing = "";
+try { existing = readFileSync(envPath, "utf8"); } catch { /* new file */ }
+const kept = existing.split("\n").filter((l) => l && !l.startsWith("VITE_FIREBASE_"));
+writeFileSync(envPath, [...kept, `VITE_FIREBASE_API_KEY=${apiKey}`, `VITE_FIREBASE_AUTH_DOMAIN=${authDomain}`, `VITE_FIREBASE_PROJECT_ID=${projectId}`,
+  `VITE_FIREBASE_STORAGE_BUCKET=${storageBucket}`, `VITE_FIREBASE_MESSAGING_SENDER_ID=${messagingSenderId}`, `VITE_FIREBASE_APP_ID=${appId}`].join("\n") + "\n");
+console.log("wrote web/.env.local (gitignored)");
 
 // 2. auth: enable Identity Toolkit + anonymous sign-in
 const init = await api("POST", `https://identitytoolkit.googleapis.com/v2/projects/${P}/identityPlatform:initializeAuth`);

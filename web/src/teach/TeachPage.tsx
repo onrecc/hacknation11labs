@@ -11,6 +11,7 @@ import agents from "../lib/elevenlabs.json";
 import { CaptureHub } from "../capture/hub";
 import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
+import { personOf, useUser } from "../lib/users";
 
 export default function TeachPage() {
   const [maps, setMaps] = useState<WorkMapHead[]>([]);
@@ -19,21 +20,24 @@ export default function TeachPage() {
   const [cards, setCards] = useState<TutorCard[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [report, setReport] = useState<MasteryReport | null>(null);
-  const [learner, setLearner] = useState("Lena");
+  const user = useUser()!;
+  const learner = user.short;
+  const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }>>([]);
   const [err, setErr] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
   const tutor = useRef<Tutor | null>(null);
   const state = useStore(hub, () => hub?.state ?? null);
 
+  // modules = confirmed Work Maps; the practicer's own department first, picked automatically
   useEffect(() => void signedIn.then(async () => {
     const list = await listWorkMaps();
     setMaps(list);
-    // default: the newest confirmed map that actually has guardrails to teach
-    for (const m of list.filter((x) => x.status === "confirmed").sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))) {
-      const full = await loadWorkMap(m.id);
-      if (full?.guardrails.length) return setWm(full);
-    }
-  }), []);
+    const loaded = (await Promise.all(list.filter((x) => x.status === "confirmed").map(async (m) => ({ head: m, full: await loadWorkMap(m.id) }))))
+      .filter((x): x is { head: WorkMapHead; full: WorkMap } => !!x.full && x.full.guardrails.length > 0)
+      .sort((a, b) => Number(b.full.task.domain === user.department) - Number(a.full.task.domain === user.department) || b.head.updatedAt.localeCompare(a.head.updatedAt));
+    setModules(loaded.map(({ head, full }) => ({ ...head, expert: full.expert.displayName, domain: full.task.domain, steps: full.steps.length, guardrails: full.guardrails.length })));
+    if (loaded[0]) setWm(loaded[0].full);
+  }), [user.department]);
   useEffect(() => {
     if (!hub) return;
     const t = setInterval(() => setEvents([...hub.events]), 700);
@@ -45,7 +49,7 @@ export default function TeachPage() {
     try {
       const session = await createSession({
         kind: "teach", workMapId: wm.id,
-        participant: { id: "per_newhire", displayName: learner, role: "New hire", language: "en-US" },
+        participant: personOf(user),
         task: wm.task,
         consent: { recordingAccepted: true, acceptedAt: new Date().toISOString(), retention: "hackathon demo" },
         config: { frameIntervalMs: 1000, visionModel: "off", agentId: agents.tutorAgentId, agentLlm: agents.llm, sttModel: "scribe_v2_realtime", promptVersions: { tutor: "v1" }, redaction: { enabled: true, engine: "none", entityTypes: ["IBAN"] }, questionBudgetPer10Min: 0 },
@@ -70,16 +74,16 @@ export default function TeachPage() {
   if (!hub || !state)
     return (
       <div className="page narrow">
-        <h1>Teach</h1>
-        <p className="muted">Ada, the ElevenLabs tutor, coaches a new hire on a case the expert never showed, using only the expert's confirmed Work Map.</p>
+        <h1>Hi {learner}, ready to practice?</h1>
+        <p className="muted">{user.title} · {user.departmentLabel}. Ada, your ElevenLabs tutor, watches you work a real case and coaches you with what the experts taught her: their rules, in their own words.</p>
         <div className="card form">
-          <label>New hire<input value={learner} onChange={(e) => setLearner(e.target.value)} /></label>
-          <label className="wide">Work Map
+          <label className="wide">Training module
             <select value={wm?.id ?? ""} onChange={async (e) => setWm(e.target.value ? await loadWorkMap(e.target.value) : null)}>
               <option value="">Choose…</option>
-              {maps.map((m) => <option key={m.id} value={m.id}>{m.title ?? m.id} · v{m.latestVersion} · {m.status}</option>)}
+              {modules.map((m) => <option key={m.id} value={m.id}>{m.title ?? m.id} · by {m.expert}{m.domain === user.department ? "" : ` (${m.domain.replace("_", " ")})`}</option>)}
             </select>
           </label>
+          {modules.length === 0 && maps.length > 0 && <p className="muted small wide">No confirmed Work Maps with guardrails yet. An expert needs to record and debrief a task first.</p>}
           {wm && <p className="muted small wide">{wm.steps.length} steps · {wm.guardrails.length} guardrails ({wm.guardrails.filter((g) => g.condition).length} machine-checkable) · expert {wm.expert.displayName} · {wm.status}</p>}
           {wm && wm.status !== "confirmed" && <p className="error small wide">This map isn't confirmed by the expert yet (docs/teach.md rule 1).</p>}
           <button className="primary" disabled={!wm} onClick={start}>Start teach session</button>

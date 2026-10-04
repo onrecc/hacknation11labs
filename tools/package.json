@@ -9,13 +9,14 @@
     "api": "tsx watch --env-file=../.env.local src/dev-api.ts",
     "setup": "tsx --env-file=../.env.local src/setup-project.ts",
     "deploy:rules": "tsx --env-file=../.env.local src/deploy-rules.ts",
-    "smoke": "tsx --env-file=../.env.local src/smoke-llm.ts",
+    "smoke": "LLM_STRICT=1 tsx --env-file=../.env.local src/smoke-llm.ts",
     "setup:elevenlabs": "tsx --env-file=../.env.local src/setup-elevenlabs.ts",
     "agent-test": "tsx --env-file=../.env.local src/agent-test.ts",
     "scribe-test": "tsx --env-file=../.env.local src/scribe-test.ts",
     "e2e:extension": "tsx --env-file=../.env.local src/extension-e2e.ts",
     "e2e:voice": "tsx --env-file=../.env.local src/voice-e2e.ts",
-    "e2e:teach-voice": "tsx --env-file=../.env.local src/teach-voice-e2e.ts"
+    "e2e:teach-voice": "tsx --env-file=../.env.local src/teach-voice-e2e.ts",
+    "e2e:workday": "tsx --env-file=../.env.local src/workday-e2e.ts"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

@@ -34,6 +34,8 @@ export interface Person {
   role: string; // "AP clerk", "new hire"
   language: string; // BCP-47, "de-DE"
   yearsInRole?: number;
+  /** Matches `Session.task.domain` / `WorkMap.task.domain` (e.g. "accounts_payable"). */
+  department?: string;
 }
 
 export interface Session {
@@ -51,6 +53,9 @@ export interface Session {
     onetTaskId?: string;
   };
   workMapId?: Id; // teach sessions: map being taught; capture: map produced
+  /** Workday capture: the day this task session belongs to, and its position in the day. */
+  workdayId?: Id;
+  taskIndex?: number;
   consent: { recordingAccepted: boolean; acceptedAt: ISO; retention: string };
   config: {
     frameIntervalMs: number;
@@ -63,6 +68,37 @@ export interface Session {
     questionBudgetPer10Min: number;
   };
   media: { screenVideo: Uri[]; micAudio: Uri[]; agentAudio: Uri[] };
+}
+
+/**
+ * A whole recorded workday of one expert, split into task sessions (one capture Session per detected task).
+ * Firestore: workdays/{id}. The task sessions are ordinary capture sessions (Map works on them as is).
+ */
+export interface Workday {
+  id: Id;
+  userId: Id;
+  userName: string;
+  department: string;
+  date: string; // YYYY-MM-DD
+  startedAt: ISO;
+  endedAt?: ISO;
+  status: "active" | "ended";
+  tasks: Array<{
+    sessionId: Id;
+    index: number;
+    title: string;
+    domain: string;
+    summary: string;
+    app: string;
+    startedAt: ISO;
+    endedAt?: ISO;
+    /** active → done; tiny detours become "interruption" (hidden from the task list). */
+    status: "active" | "done" | "interruption";
+    boundary: "start" | "context_switch" | "idle" | "new_kind_of_work" | "manual";
+    actions: number;
+    /** Same kind of work as an earlier task today (resumed after a detour). */
+    sameAs?: Id;
+  }>;
 }
 
 // ───────────────────────── event envelope ─────────────────────────
