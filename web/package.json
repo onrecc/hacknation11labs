@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --import tsx --test src/capture/adaState.test.ts src/capture/statusLine.test.ts",
+    "test": "node --import tsx --test src/capture/adaState.test.ts src/capture/statusLine.test.ts src/teach/provenance.test.ts src/teach/modules.test.ts src/teach/mastery.test.ts",
     "test:map": "node --import tsx --experimental-test-module-mocks --test src/map/debrief.sim.test.ts"
   },
   "devDependencies": {

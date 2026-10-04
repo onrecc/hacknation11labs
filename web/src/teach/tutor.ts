@@ -11,7 +11,7 @@
  */
 import { doc, setDoc } from "firebase/firestore";
 import type { CaseFacts, Guardrail, Id, MasteryReport, WorkMap } from "@shared/schema";
-import { evaluate, violations } from "@shared/conditions";
+import { violations } from "@shared/conditions";
 import { col } from "@shared/paths";
 import { fmtT } from "@shared/logindex";
 import { db } from "../lib/firebase";
@@ -23,6 +23,8 @@ import type { AgentOptions } from "../voice/voice";
 import { workMapForPrompt } from "./tutor-prompt";
 import { spokenQuote } from "@shared/i18n";
 import { translateQuote } from "../lib/translate";
+import { cardMeta } from "./provenance";
+import { stepStatus } from "./mastery";
 
 export { workMapForPrompt };
 
@@ -34,6 +36,10 @@ export interface TutorCard {
   quote?: { text: string; who: string; when: string; translation?: string };
   imageUrl?: string;
   bbox?: { x: number; y: number; w: number; h: number };
+  label?: string;
+  provenance?: string;
+  /** The learner's case key, when known: lets the provenance line say whether the expert ever worked it. */
+  caseKey?: string;
 }
 
 const NUDGE_COOLDOWN_MS = 30_000;
@@ -44,6 +50,7 @@ export class Tutor {
   page: PageSnapshot | null = null;
   readonly caught = new Set<Id>();
   readonly respected = new Set<Id>();
+  readonly caughtOn = new Map<Id, string>(); // guardrail → case key where the tutor caught it (practice it again there)
   readonly relevant = new Map<string, Set<Id>>(); // case key → guardrails that applied when it opened
   readonly saved = new Map<string, CaseFacts>(); // case key → facts at the last save the tutor allowed
   predictions = { asked: 0, correct: 0 };
@@ -139,7 +146,8 @@ export class Tutor {
       if (Date.now() - (this.nudged.get(g.id) ?? -1e12) < NUDGE_COOLDOWN_MS) continue;
       this.nudged.set(g.id, Date.now());
       this.caught.add(g.id); // caught early, before it reached a save
-      void this.showCard({ tone: "nudge", title: "Heads-up", text: g.statement, guardrail: g }, g.evidence.moments[0]);
+      this.caughtOn.set(g.id, f.invoice.key);
+      void this.showCard({ tone: "nudge", title: g.statement, text: `${g.requiredAction}.`, guardrail: g, caseKey: f.invoice.key }, g.evidence.moments[0]);
       this.hub.emit({
         t: this.hub.now(), type: "tutor.intervention", source: "tutor",
         payload: { guardrailId: g.id, triggerAppEventId: this.lastAppEventId(), beforeSave: false, newHireAction: describeFacts(f), expectedAction: g.requiredAction, spokenText: `Careful: ${g.statement}`, outcome: "pending" },
@@ -169,19 +177,21 @@ export class Tutor {
     const quote = g.evidence.quotes[0]?.text ?? g.statement;
     const moment = g.evidence.moments[0];
     const socratic = `${this.expert} would stop here. Why do you think?`;
+    const caseKey = this.facts?.invoice.key === caseLabel ? caseLabel : undefined; // generic pages: unknown
+    if (caseKey) this.caughtOn.set(g.id, caseKey);
     const t = this.hub.now();
     // claim the floor synchronously, before any await: an intervention supersedes an open prediction
     this.pendingPrediction = null;
     if (this.intervening) {
       this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
-      void this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
+      void this.showCard({ tone: "block", title: g.statement, caseKey, text: socratic, guardrail: g }, moment);
       return;
     }
     this.intervening = true;
     // log the moment it happens; the final explanation is appended later as a superseding event
     const first = this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
     try {
-      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
+      await this.showCard({ tone: "block", title: g.statement, caseKey, text: socratic, guardrail: g }, moment);
       // the expert may have spoken another language: the quote stays verbatim, the English meaning goes with it
       const lang = this.wm.expert.language;
       const meaning = await this.meaning(quote);
@@ -200,7 +210,7 @@ export class Tutor {
         spoken = ex.spoken;
         await this.hub.agentSay(spoken, "intervention");
       }
-      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${said}. ${g.requiredAction}.` : spoken, guardrail: g }, moment);
+      await this.showCard({ tone: "block", title: g.statement, caseKey, text: spoken === socratic ? `${said}. ${g.requiredAction}.` : spoken, guardrail: g }, moment);
       this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0, first.id);
     } finally {
       this.intervening = false;
@@ -269,9 +279,11 @@ export class Tutor {
       ...(q ? { quote: { text: q.text, who: this.wm.expert.displayName, when: fmtT(q.t), ...(translation ? { translation } : {}) } } : {}),
       ...(imageUrl ? { imageUrl } : {}),
       ...(moment?.bbox ? { bbox: moment.bbox } : {}),
+      ...cardMeta(this.wm, c.tone, c.guardrail, c.caseKey),
     };
     this.onCard(card);
-    send({ kind: "tutorCard", tone: card.tone, title: card.title, text: card.text, ...(card.quote ? { quote: card.quote } : {}), ...(card.imageUrl ? { imageUrl: card.imageUrl } : {}), ...(card.bbox ? { bbox: card.bbox } : {}) });
+    const { tone, title, text, quote, imageUrl: img, bbox, label, provenance: prov } = card;
+    send({ kind: "tutorCard", tone, title, text, ...(quote ? { quote } : {}), ...(img ? { imageUrl: img } : {}), ...(bbox ? { bbox } : {}), ...(label ? { label } : {}), ...(prov ? { provenance: prov } : {}) });
   }
 
   private lastAppEventId(): Id {
@@ -284,14 +296,8 @@ export class Tutor {
     const rep: MasteryReport = {
       sessionId: this.hub.session.id, workMapId: this.wm.id, learner: this.hub.session.participant,
       perGuardrail: this.wm.guardrails.map((x) => ({ guardrailId: x.id, status: g(x.id) })),
-      // A step counts as practiced when the learner saved a case it applies to (step.when, e.g. "only for
-      // capex" or "only Hofmann in December"; no `when` = every case) without the tutor stepping in.
-      perStep: this.wm.steps.map((s) => {
-        const st = s.guardrailIds.map(g);
-        if (st.includes("caught_by_tutor")) return { stepId: s.id, status: "assisted" as const };
-        const applied = [...this.saved.values()].some((f) => { try { return !s.when || evaluate(s.when, f); } catch { return false; } });
-        return { stepId: s.id, status: applied || (st.length && st.every((x) => x === "respected")) ? "mastered" as const : "not_seen" as const };
-      }),
+      // evidence-based: a step with rules needs one of them met and followed; see mastery.ts stepStatus
+      perStep: this.wm.steps.map((s) => ({ stepId: s.id, status: stepStatus(s, g, [...this.saved.values()]) })),
       predictions: this.predictions,
       practiceNext: this.wm.guardrails.filter((x) => this.caught.has(x.id)).map((x) => x.statement),
     };

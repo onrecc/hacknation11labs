@@ -89,6 +89,13 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 8%, transparent); }
 .pill.danger { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .pill.capture { color: var(--accent-2); }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+/* mastery report (TeachPage) */
+.mastery-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.mastery-list li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: baseline; }
+.mastery-list li .actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mastery-score { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+.mastery-score b { color: var(--text); }
 .muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: 12px; } .error { color: var(--danger); }
 .feed { max-height: 70vh; overflow: auto; font-size: 13px; background: var(--subtle); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .feed-row { padding: 4px 0; border-bottom: 1px solid var(--line); }

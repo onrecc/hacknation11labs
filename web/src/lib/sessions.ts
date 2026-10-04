@@ -51,7 +51,8 @@ export function subscribeEvents(sessionId: Id, cb: (events: Event[]) => void): (
   });
 }
 
-export interface WorkMapHead { id: Id; latestVersion: number; status: WorkMap["status"]; title?: string; updatedAt: string; sourceSessionIds: Id[] }
+/** `featured`: an expert pinned this map as the default training module (TeachPage ranks it first). */
+export interface WorkMapHead { id: Id; latestVersion: number; status: WorkMap["status"]; title?: string; updatedAt: string; sourceSessionIds: Id[]; featured?: boolean }
 
 export async function listWorkMaps(): Promise<WorkMapHead[]> {
   return (await getDocs(collection(db, col.workmaps))).docs.map((d) => ({ id: d.id, ...(d.data() as Omit<WorkMapHead, "id">) }));
@@ -70,7 +71,12 @@ export async function saveWorkMapVersion(wm: WorkMap): Promise<void> {
   await setDoc(doc(db, col.workmapVersions(wm.id), versionDocId(wm.version)), { json: JSON.stringify(wm), createdAt: new Date().toISOString() });
   await setDoc(doc(db, col.workmaps, wm.id), {
     latestVersion: wm.version, status: wm.status, sourceSessionIds: wm.sourceSessionIds, title: wm.task.title, updatedAt: wm.updatedAt,
-  });
+  }, { merge: true }); // merge: head-only flags (featured) survive new versions
+}
+
+/** Pin / unpin a Work Map as the featured training module (head doc only; versions stay immutable). */
+export async function setWorkMapFeatured(id: Id, featured: boolean): Promise<void> {
+  await updateDoc(doc(db, col.workmaps, id), { featured });
 }
 
 const urlCache = new Map<string, Promise<string>>();

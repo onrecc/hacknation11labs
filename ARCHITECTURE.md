@@ -102,7 +102,7 @@ Firestore
   sessions/{sessionId}                         Session + nextSeq counter
   sessions/{sessionId}/chunks/{seqFrom:08d}    { seqFrom, seqTo, tFrom, tTo, writer, types[], events: Event[] }
   sessions/{sessionId}/report/mastery          MasteryReport (teach sessions)
-  workmaps/{workMapId}                         { latestVersion, status, sourceSessionIds, updatedAt }
+  workmaps/{workMapId}                         { latestVersion, status, sourceSessionIds, title, updatedAt, featured? }  (featured = default training module, set by the expert)
   workmaps/{workMapId}/versions/{v}            full WorkMap JSON (immutable)
 Cloud Storage  (bucket in us-east1 → Always Free tier)
   sessions/{sessionId}/{uri}                   uri exactly as in events: frames/frm_0012.webp, media/screen-003.webm (model_calls/*.json planned, not written yet)

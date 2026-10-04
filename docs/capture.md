@@ -86,7 +86,7 @@
 
 - **Seed data:**
   - the 3 demo invoices from the fixture (4471, 4472, 4473), plus filler rows
-  - Teach's cases T1–T4 (see [teach.md](teach.md#test-cases))
+  - Teach's cases T1–T5 (see [teach.md](teach.md#test-cases))
   - supplier history, including Hofmann's paid INV-4431 with DN-88213
 - **Fields:** at least those in `CaseFacts` (`category`, `costCenter`, `assetNo`, `status`, `approver`, `comment`, supplier `group`, …).
 - **Events:** on every change emit `app.event` (`field`, `oldValue`, `newValue`). On save emit `app.event` (`action: "save"`) with a full `snapshot`. Typing, clicks and idle feed `input.activity` (counts only, 2 s windows).

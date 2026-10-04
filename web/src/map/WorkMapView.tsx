@@ -32,7 +32,8 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
     // open on the strongest moment: a step whose quote shows the expert correcting herself, else any quoted step
     const selfCorrected = (st: Step) => { const q = stepQuote(wm, st); return !!q && stepCorrected(wm, st) && quoteParts(q, true).some((p) => p.style === "struck"); };
     const spoken = ordered.find(selfCorrected) ?? ordered.find((st) => !!stepQuote(wm, st));
-    const first = (spoken ?? ordered[0]) ? { kind: "step" as const, id: (spoken ?? ordered[0]).id } : null;
+    const linked = wm.guardrails.find((g) => `#${g.id}` === window.location.hash); // e.g. the mastery report's "See the rule"
+    const first = linked ? { kind: "guardrail" as const, id: linked.id } : (spoken ?? ordered[0]) ? { kind: "step" as const, id: (spoken ?? ordered[0]).id } : null;
     if (!sel) setSel(first);
     else if (sel.kind === "step" && !wm.steps.some((s) => s.id === sel.id)) setSel(first);
   }, [wm, sel, ordered]);
