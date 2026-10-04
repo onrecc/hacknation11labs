@@ -7,12 +7,13 @@ import { Link } from "react-router-dom";
 import type { User } from "../lib/users";
 import type { CaptureHub } from "../capture/hub";
 import { answerQuestion, openQuestionsFor, type OpenQuestion } from "./compare";
+import { toast } from "../components/toast";
 
 export function ExpertQuestions({ user, hub }: { user: User; hub?: CaptureHub | null }) {
   const [qs, setQs] = useState<OpenQuestion[]>([]);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
-  const reload = () => void openQuestionsFor(user).then(setQs).catch(() => {});
+  const reload = (): void => void openQuestionsFor(user).then(setQs).catch((e: unknown) => toast.error(e, reload, "Couldn't load Ada's questions"));
   useEffect(reload, [user.id]);
   if (!qs.length) return null;
 
@@ -21,7 +22,10 @@ export function ExpertQuestions({ user, hub }: { user: User; hub?: CaptureHub | 
     setBusy(q.itemId);
     try {
       await answerQuestion(q, text.trim());
+      setDrafts(({ [q.itemId]: _sent, ...rest }) => rest);
       reload();
+    } catch (e) {
+      toast.error(e, () => void submit(q, text), "Couldn't save your answer");
     } finally {
       setBusy(null);
     }
@@ -35,6 +39,8 @@ export function ExpertQuestions({ user, hub }: { user: User; hub?: CaptureHub | 
       const text = replies.map((r) => r.payload.text).join(" ");
       if (text) await answerQuestion(q, text);
       reload();
+    } catch (e) {
+      toast.error(e, () => void aloud(q), "Couldn't record your answer");
     } finally {
       setBusy(null);
     }

@@ -1,7 +1,7 @@
 /**
  * Plumbing test for "two experts, one task": compare → each expert sees Ada's "why?" on My day → both answer →
  * team rule appears on /compare. Uses a TEMPORARY copy of the demo map attributed to Ilse (deleted afterwards),
- * so it runs without a second real recording; with Gemini down it exercises the mock answers.
+ * so it runs without a second real recording; without CLAUDE_KEY it exercises the mock answers.
  *   npm run e2e:compare -w tools   (needs `npm run dev` + `npm run api`)
  */
 import puppeteer, { type Page } from "puppeteer";

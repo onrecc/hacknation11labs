@@ -15,6 +15,8 @@ import { useUser } from "../lib/users";
 import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
+import { toast } from "../components/toast";
+import { Skeleton } from "../components/Feedback";
 import { WorkMapView } from "./WorkMapView";
 import type { FrameSource, MediaSource } from "./WorkMapView";
 
@@ -30,12 +32,18 @@ function MapIndex() {
   const nav = useNavigate();
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [maps, setMaps] = useState<WorkMapHead[] | null>(null);
-  useEffect(() => {
-    void signedIn.then(async () => {
-      setSessions(await listSessions());
-      setMaps(await listWorkMaps());
-    });
-  }, []);
+  const [failed, setFailed] = useState(false);
+  const load = () => {
+    setFailed(false);
+    signedIn()
+      .then(async () => {
+        const [s, m] = await Promise.all([listSessions(), listWorkMaps()]);
+        setSessions(s);
+        setMaps(m);
+      })
+      .catch((e: unknown) => (setFailed(true), toast.error(e, load, "Couldn't load Work Maps")));
+  };
+  useEffect(load, []);
   const STATUS: Record<string, string> = { draft: "Draft", debrief: "In debrief", teachback_pending: "Awaiting teach-back", confirmed: "Confirmed" };
   const when = (iso: string) => {
     const d = new Date(iso);
@@ -53,9 +61,11 @@ function MapIndex() {
       </header>
 
       <section className="mi-grid">
-        {maps === null && <div className="mi-card skeleton" />}
+        {maps === null && !failed && <div className="mi-card skeleton" aria-busy="true" />}
+        {maps === null && failed && <p className="muted">Work Maps couldn't be loaded.</p>}
         {maps?.map((m) => (
-          <button key={m.id} className="mi-card" onClick={() => m.sourceSessionIds[0] && nav(`/map/${m.sourceSessionIds[0]}`)}>
+          <button key={m.id} className="mi-card" disabled={!m.sourceSessionIds[0]} title={m.sourceSessionIds[0] ? undefined : "No recorded session linked to this map"}
+            onClick={() => m.sourceSessionIds[0] && nav(`/map/${m.sourceSessionIds[0]}`)}>
             <span className="mi-card-top">
               <span className="mi-icon">{(m.title ?? "W").charAt(0)}</span>
               <span className="mi-title">{m.title ?? m.id}</span>
@@ -81,6 +91,7 @@ function MapIndex() {
                   <td className="num muted">{when(s.createdAt)}</td>
                 </tr>
               ))}
+              {sessions === null && !failed && <tr><td colSpan={4}><Skeleton lines={3} /></td></tr>}
               {sessions?.length === 0 && <tr><td colSpan={4} className="muted">No sessions yet.</td></tr>}
             </tbody>
           </table>
@@ -138,23 +149,24 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   useEffect(() => {
     let offEvents = () => {}, offSession = () => {}, offHead = () => {};
     let headFor: string | null = null;
-    void signedIn.then(async () => {
+    const load = () => signedIn().then(async () => {
       setSession(await getSession(sessionId));
       offEvents = subscribeEvents(sessionId, setEvents);
-      offSession = onSnapshot(doc(db, col.sessions, sessionId), (d) => {
+      offSession = onSnapshot(doc(db(), col.sessions, sessionId), (d) => {
         const s = d.data() as Session | undefined;
         if (!s) return;
         setSession(s);
         if (s.workMapId && s.workMapId !== headFor) {
           headFor = s.workMapId;
           offHead();
-          offHead = onSnapshot(doc(db, col.workmaps, s.workMapId), (h) => {
+          offHead = onSnapshot(doc(db(), col.workmaps, s.workMapId), (h) => {
             setFeatured(h.get("featured") === true);
             void loadWorkMap(s.workMapId!).then((w) => w && setWm(w));
           });
         }
-      });
-    });
+      }, (e) => toast.error(e, undefined, "Live updates stopped"));
+    }).catch((e: unknown) => toast.error(e, () => void load(), "Couldn't load the session"));
+    void load();
     return () => (offEvents(), offSession(), offHead());
   }, [sessionId]);
 
@@ -179,18 +191,18 @@ function SessionMap({ sessionId }: { sessionId: string }) {
       if (auto && fresh?.status !== "live") return; // debrief started meanwhile: it takes over
       const head = fresh?.workMapId ? await loadWorkMap(fresh.workMapId) : null;
       if ((head?.version ?? 0) !== (prev?.version ?? 0)) {
-        if (!auto) setProblems(["Someone saved a newer version meanwhile; reload and try again."]);
+        if (!auto) toast.error("Someone saved a newer version meanwhile; reload and try again.");
         return;
       }
       const { workmap, problems } = buildWorkMap(session, events, proposal, prev, auto ? "Live draft during capture" : "Re-extracted from session log");
-      if (!workmap.steps.length) throw new Error("The LLM returned no steps (mock mode without GEMINI_API_KEY?). Nothing saved.");
+      if (!workmap.steps.length) throw new Error("The LLM returned no steps (mock mode without CLAUDE_KEY?). Nothing saved.");
       const next = { ...workmap, status: auto ? ("draft" as const) : prev?.status === "confirmed" ? ("teachback_pending" as const) : workmap.status };
       await saveWorkMapVersion(next);
       if (!session.workMapId) await updateSession(session.id, { workMapId: next.id });
       setWm(next);
       setProblems(problems.map((p) => `${p.where}: ${p.problem}`));
     } catch (e) {
-      setProblems([(e as Error).message]);
+      toast.error(e, auto ? undefined : () => void rebuild(false), auto ? "Live draft update failed" : "Rebuild failed");
     } finally {
       busyRef.current = false;
       setBusy(null);
@@ -213,7 +225,7 @@ function SessionMap({ sessionId }: { sessionId: string }) {
       await setWorkMapFeatured(wm.id, next);
     } catch (e) {
       setFeatured(!next);
-      setProblems([`Couldn't change the training module: ${(e as Error).message}`]);
+      toast.error(e, () => void toggleFeatured(), "Couldn't change the training module");
     }
   }
 

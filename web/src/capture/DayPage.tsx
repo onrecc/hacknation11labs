@@ -18,6 +18,8 @@ import { PAUSE } from "./hub";
 import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
 import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
+import { toast } from "../components/toast";
+import { Skeleton } from "../components/Feedback";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const fmtDur = (a: string, b?: string) => {
@@ -32,19 +34,20 @@ const worked = (t: Workday["tasks"][number]) => t.status !== "interruption" && t
 export default function DayPage() {
   const user = useUser()!;
   const [rec, setRec] = useState<WorkdayRecorder | null>(null);
-  const [past, setPast] = useState<Workday[]>([]);
+  const [past, setPast] = useState<Workday[] | null>(null); // null = loading
   const [vision, setVision] = useState(true);
   const [debrief, setDebrief] = useState<DebriefStatus | null>(null);
   const [debriefing, setDebriefing] = useState<string | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
   const [typed, setTyped] = useState("");
-  const [err, setErr] = useState<string | null>(null);
   const [, tick] = useState(0);
   const snap = useSyncExternalStore((fn) => (rec ? rec.subscribe(fn) : () => {}), () => rec?.snapshot ?? null);
   const hubState = useSyncExternalStore((fn) => (rec?.hub ? rec.hub.subscribe(fn) : () => {}), () => rec?.hub?.state ?? null);
   const evCount = useRef(0);
 
-  useEffect(() => void signedIn.then(async () => setPast(await listWorkdays(user.id))), [user.id]);
+  const loadPast = (): void => void signedIn().then(async () => setPast(await listWorkdays(user.id)))
+    .catch((e: unknown) => toast.error(e, loadPast, "Couldn't load your earlier days"));
+  useEffect(loadPast, [user.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const t = setInterval(() => {
       tick((x) => x + 1); // durations
@@ -62,33 +65,31 @@ export default function DayPage() {
     return () => removeEventListener("beforeunload", flush);
   }, [rec]);
 
-  const active = past.find((d) => d.status === "active" && d.date === new Date().toISOString().slice(0, 10));
+  const active = past?.find((d) => d.status === "active" && d.date === new Date().toISOString().slice(0, 10));
 
   async function start(existing?: Workday) {
     try {
-      setErr(null);
-      await signedIn;
+      await signedIn();
       const r = new WorkdayRecorder(user, { vision });
       await r.start(existing);
       setRec(r);
-      await r.hub.startListening(); // Ada's voice + Scribe; degrades to TTS + typing without a mic
+      await r.hub.startListening().catch((e: unknown) => toast.error(e, () => r.hub.startListening(), "Couldn't start Ada's voice")); // degrades to TTS + typing without a mic
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void start(existing), "Couldn't start your day");
     }
   }
 
   /** Debrief a task of an earlier day: reopen that day (no recording), then debrief as usual. */
   async function debriefEarlier(day: Workday, sessionId: string) {
     try {
-      setErr(null);
-      await signedIn;
+      await signedIn();
       const r = new WorkdayRecorder(user, { vision: false });
       await r.reopenForDebrief(day, sessionId);
       setRec(r);
       await r.hub.startListening();
       await debriefTask(sessionId, r);
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void debriefEarlier(day, sessionId), "Couldn't open that task for the debrief");
     }
   }
 
@@ -101,7 +102,7 @@ export default function DayPage() {
       await rec.openTaskForDebrief(sessionId);
       await runDebrief(rec.hub, setDebrief);
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void debriefTask(sessionId, rec), "Debrief failed");
     } finally {
       setDebriefing(null);
     }
@@ -132,9 +133,9 @@ export default function DayPage() {
             )}
           </div>
         </div>
-        {err && <p className="error">{err}</p>}
         <ExpertQuestions user={user} />
-        {past.length > 0 && (
+        {past === null && <div className="card"><h3>Earlier days</h3><Skeleton lines={3} /></div>}
+        {past && past.length > 0 && (
           <div className="card">
             <h3>Earlier days</h3>
             {past.filter((d) => d.tasks.some(worked)).map((d) => (
@@ -176,7 +177,7 @@ export default function DayPage() {
             {cur.summary && <p>{cur.summary}</p>}
             <div className="btns">
               <button onClick={() => window.open(appUrl(user.app, "capture"), "work")}>Open {user.app.name}</button>
-              <button disabled={s.sharing} onClick={() => void rec.hub.shareScreen().catch((e) => setErr((e as Error).message))} title="Optional when the extension is installed">Share screen{s.extension ? " (optional)" : ""}</button>
+              <button disabled={s.sharing} onClick={() => void rec.hub.shareScreen().catch((e: unknown) => toast.error(e, undefined, "Screen sharing failed"))} title="Optional when the extension is installed">Share screen{s.extension ? " (optional)" : ""}</button>
               <button onClick={() => void rec.newTask()} title="Tell Ada you're starting something different">New task</button>
               <button onClick={() => rec.hub.onMarker("bookmark", "button")}>Bookmark</button>
               <button className="primary" onClick={() => void rec.endDay()}>End my day</button>
@@ -200,7 +201,7 @@ export default function DayPage() {
             </div>
           </label>
         </div>
-        {(err || s.error) && <p className="error">{err ?? s.error}</p>}
+        {s.error && <p className="error">{s.error}</p>}
       </section>
       <section>
         <ExpertQuestions user={user} hub={rec.hub} />
