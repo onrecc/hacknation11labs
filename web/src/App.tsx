@@ -57,11 +57,11 @@ function Nav() {
       {user && <NavLink to="/map">Work Maps</NavLink>}
       <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
       <span className="userchip">
-        <span className="muted" title="API status">{health}</span>
+        <span className={`health ${health.startsWith("api offline") ? "off" : ""}`} title={health}><i />{health.startsWith("api offline") ? "Offline" : health.startsWith("AI: mock") ? "Mock AI" : "Live"}</span>
         {user ? (
           <>
             <span className="avatar sm" style={{ background: user.color }}>{user.short[0]}</span>
-            <span>{user.name} <span className="muted">· {user.role}</span></span>
+            <span>{user.name}</span>
             <button className="link" onClick={() => (logout(), nav("/login"))}>Switch user</button>
           </>
         ) : (

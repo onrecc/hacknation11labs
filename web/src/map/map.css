@@ -328,3 +328,25 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .case-row.off .case-key { font-weight: 500; color: var(--w-muted); }
 .case-out { flex: 1; color: var(--w-muted); text-transform: none; }
 .case-t { color: var(--w-faint); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+/* ── Work Maps index ── */
+.mapindex .mi-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 24px; }
+.mapindex .mi-head p { margin: 0; }
+.mi-btn { height: 32px; padding: 0 12px; display: inline-flex; align-items: center; border-radius: 6px; background: var(--text); color: var(--bg); text-decoration: none; font-size: 13px; font-weight: 500; }
+.mi-btn:hover { opacity: 0.88; }
+.mi-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 16px; margin-bottom: 40px; }
+.mi-card { height: auto; display: flex; flex-direction: column; align-items: stretch; gap: 12px; padding: 16px; text-align: left; white-space: normal; border-radius: 8px; font-weight: 400; transition: border-color 0.15s; }
+.mi-card:hover:not(:disabled) { background: var(--panel); border-color: var(--line-strong); }
+.mi-card.skeleton { min-height: 120px; background: var(--subtle); border: 1px solid var(--line); }
+.mi-card-top { display: flex; gap: 12px; align-items: center; }
+.mi-icon { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; border: 1px solid var(--line); font-weight: 600; font-size: 13px; }
+.mi-title { font-size: 14px; font-weight: 600; line-height: 1.35; }
+.mi-status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; }
+.mi-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); flex: none; }
+.mi-status i.ok { background: var(--ok); }
+.mi-status i.live { background: var(--accent-2); }
+.mi-foot { font-size: 13px; }
+.mi-sessions h3 { margin-bottom: 12px; }
+.mi-table { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.mi-table .grid tbody tr:last-child td { border-bottom: none; }
+.mi-task { font-weight: 500; margin-right: 8px; }

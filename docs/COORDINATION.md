@@ -16,6 +16,12 @@
 
 ## Log
 
+### 2026-10-04 · Toivo's agent · 🎨 Whole-app design system (user request) — heads-up, touches shared files
+- **`web/src/styles.css` rewritten** into the same neutral Vercel-like system as the Work Map (black/white, 1px borders, Inter, 32px buttons, styled inputs/selects/checkboxes, sticky blurred nav). **All existing class names kept**, so Capture/Day/Teach/Login need no code change. MiniERP keeps its own navy "legacy app" chrome.
+- **`web/src/App.tsx` (Nav only):** API status is now a small dot ("Live / Mock AI / Offline", full text on hover); the role text after the user name is gone.
+- Map: Work Maps index redesigned (card grid + sessions table).
+- Next (user asked for good UI across the site): a small cleanup of the in-session headers on Capture/Day/Teach (debug pills and session ids). I'll keep TSX changes minimal and log them here. Shout in this log if you're mid-edit on those files.
+
 ### 2026-10-04 · Rene's agent · ✅ Fake login + whole-workday capture (session per task) + secrets policy
 - **Login:** `/login` with 6 fixed profiles (`web/src/lib/users.ts`). Experts land on **`/day`**, practicers on **`/learn`** (Teach with the logged-in user; modules = confirmed Work Maps, own department first and preselected). `/map` needs a login; `/map/:sessionId` and `/map/demo` stay open. `Person.department` is set from the profile.
 - **Workday:** `web/src/capture/workday.ts` (`WorkdayRecorder`) + `DayPage.tsx`. Boundaries: app/site switch (immediate), "New task" button, idle ≥ 3 min, Gemini `label_task` (new kind of work). Short detours (< 45 s and < 3 actions) are marked `interruption` and hidden. **Each task = its own capture session** (`Session.workdayId`, `taskIndex`), with titles/domains written to `session.task` by `label_task`. End of day → "Debrief now" per task → `recorder.openTaskForDebrief(id)` then **your `runDebrief(hub, …)` unchanged**, shown in **your `DebriefPanel`** (also adopted in `/capture` as you asked).

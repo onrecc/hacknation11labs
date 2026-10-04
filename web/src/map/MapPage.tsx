@@ -3,7 +3,7 @@
  * /map/:sessionId → live session timeline + its Work Map (clickable steps with evidence)
  */
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { doc, onSnapshot } from "firebase/firestore";
 import type { Event, Session, WorkMap } from "@shared/schema";
 import { LogIndex } from "@shared/logindex";
@@ -26,46 +26,65 @@ export default function MapPage() {
 }
 
 function MapIndex() {
-  const [sessions, setSessions] = useState<Session[]>([]);
-  const [maps, setMaps] = useState<WorkMapHead[]>([]);
+  const nav = useNavigate();
+  const [sessions, setSessions] = useState<Session[] | null>(null);
+  const [maps, setMaps] = useState<WorkMapHead[] | null>(null);
   useEffect(() => {
     void signedIn.then(async () => {
       setSessions(await listSessions());
       setMaps(await listWorkMaps());
     });
   }, []);
+  const STATUS: Record<string, string> = { draft: "Draft", debrief: "In debrief", teachback_pending: "Awaiting teach-back", confirmed: "Confirmed" };
+  const when = (iso: string) => {
+    const d = new Date(iso);
+    return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  };
+  const sessionTitle = (s: Session) => s.task.title || "Untitled task";
   return (
-    <div className="page">
-      <h1>Work Maps</h1>
-      <p><Link to={`/map/${DEMO_ID}`}>Open the demo Work Map (bundled, works offline)</Link></p>
-      <div className="cols">
-        <div className="card">
-          <h3>Sessions</h3>
+    <div className="page mapindex">
+      <header className="mi-head">
+        <div>
+          <h1>Work Maps</h1>
+          <p className="muted">What the apprentice learned from each expert, ready to teach.</p>
+        </div>
+        <Link className="mi-btn" to={`/map/${DEMO_ID}`}>Open demo</Link>
+      </header>
+
+      <section className="mi-grid">
+        {maps === null && <div className="mi-card skeleton" />}
+        {maps?.map((m) => (
+          <button key={m.id} className="mi-card" onClick={() => m.sourceSessionIds[0] && nav(`/map/${m.sourceSessionIds[0]}`)}>
+            <span className="mi-card-top">
+              <span className="mi-icon">{(m.title ?? "W").charAt(0)}</span>
+              <span className="mi-title">{m.title ?? m.id}</span>
+            </span>
+            <span className="mi-status"><i className={m.status === "confirmed" ? "ok" : ""} />{STATUS[m.status] ?? m.status}<span className="muted"> · v{m.latestVersion}</span></span>
+            <span className="mi-foot muted">Updated {when(m.updatedAt)}</span>
+          </button>
+        ))}
+        {maps?.length === 0 && <p className="muted">No Work Maps yet. Record a task to create one.</p>}
+      </section>
+
+      <section className="mi-sessions">
+        <h3>Recorded sessions</h3>
+        <div className="mi-table">
           <table className="grid">
+            <thead><tr><th>Task</th><th>Expert</th><th>Status</th><th className="num">Recorded</th></tr></thead>
             <tbody>
-              {sessions.map((s) => (
-                <tr key={s.id}>
-                  <td><Link to={`/map/${s.id}`}>{s.task.title}</Link><div className="muted small mono">{s.id}</div></td>
-                  <td>{s.kind}</td><td>{s.participant.displayName}</td><td>{s.status}</td><td className="muted small">{s.createdAt.slice(0, 16)}</td>
+              {sessions?.map((s) => (
+                <tr key={s.id} onClick={() => nav(`/map/${s.id}`)}>
+                  <td><span className="mi-task">{sessionTitle(s)}</span>{s.kind === "teach" && <span className="pill">training</span>}</td>
+                  <td className="muted">{s.participant.displayName}</td>
+                  <td><span className="mi-status"><i className={s.status === "ended" || s.status === "processed" ? "" : "live"} />{s.status}</span></td>
+                  <td className="num muted">{when(s.createdAt)}</td>
                 </tr>
               ))}
+              {sessions?.length === 0 && <tr><td colSpan={4} className="muted">No sessions yet.</td></tr>}
             </tbody>
           </table>
         </div>
-        <div className="card">
-          <h3>Work Maps</h3>
-          <table className="grid">
-            <tbody>
-              {maps.map((m) => (
-                <tr key={m.id}>
-                  <td>{m.title ?? m.id}<div className="muted small mono">{m.id}</div></td><td>v{m.latestVersion}</td><td>{m.status}</td>
-                  <td>{m.sourceSessionIds[0] && <Link to={`/map/${m.sourceSessionIds[0]}`}>open</Link>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      </section>
     </div>
   );
 }
