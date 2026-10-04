@@ -13,6 +13,8 @@ import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_B
 import { languageName } from "@shared/i18n";
 import { useQuoteTranslation } from "../lib/translate";
 import { JudgeMarker } from "../components/JudgeMarker";
+import { useUser } from "../lib/users";
+import { teachEntry } from "../lib/teachEntry";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
@@ -27,6 +29,8 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
 }) {
   const [tab, setTab] = useState<Tab>("map");
   const [sel, setSel] = useState<Sel>(null);
+  const user = useUser();
+  const entry = teachEntry({ role: user?.role ?? null, status: wm.status, workMapId: wm.id });
   const ix = useMemo(() => new LogIndex(wm.sourceSessionIds[0] ?? "", events), [wm.sourceSessionIds, events]);
   const ordered = useMemo(() => [...wm.steps].sort((a, b) => a.order - b.order), [wm.steps]);
   useEffect(() => {
@@ -53,7 +57,7 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
           </div>
           <div className="wm-actions">
             {actions}
-            <Link className="btn primary" to="/teach">Open in Teach</Link>
+            {entry && <Link className={`btn ${entry.primary ? "primary" : ""}`} to={entry.to} title={entry.title}>{entry.label}</Link>}
           </div>
         </header>
         <nav className="wm-tabs" role="tablist">

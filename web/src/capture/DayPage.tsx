@@ -8,6 +8,7 @@ import type { Event, Workday } from "@shared/schema";
 import { signedIn } from "../lib/firebase";
 import { listWorkdays } from "../lib/sessions";
 import { useUser } from "../lib/users";
+import { appUrl } from "../lib/workApp";
 import { WorkdayRecorder, WORKDAY } from "./workday";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { DebriefPanel } from "../map/DebriefPanel";
@@ -174,7 +175,7 @@ export default function DayPage() {
             <p className="muted small">{cur.app} · since {fmtTime(cur.startedAt)} ({fmtDur(cur.startedAt)}) · {cur.actions} actions · {s.liveQuestions} questions</p>
             {cur.summary && <p>{cur.summary}</p>}
             <div className="btns">
-              <button onClick={() => window.open(user.app.url + (user.app.url.includes("?") ? "&" : "?") + "mode=capture", "work")}>Open {user.app.name}</button>
+              <button onClick={() => window.open(appUrl(user.app, "capture"), "work")}>Open {user.app.name}</button>
               <button disabled={s.sharing} onClick={() => void rec.hub.shareScreen().catch((e) => setErr((e as Error).message))} title="Optional when the extension is installed">Share screen{s.extension ? " (optional)" : ""}</button>
               <button onClick={() => void rec.newTask()} title="Tell Ada you're starting something different">New task</button>
               <button onClick={() => rec.hub.onMarker("bookmark", "button")}>Bookmark</button>
