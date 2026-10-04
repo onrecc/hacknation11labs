@@ -34,7 +34,9 @@ for (const [name, manifest] of Object.entries(targets)) {
   rmSync(out, { recursive: true, force: true });
   mkdirSync(out, { recursive: true });
   writeFileSync(`${out}/manifest.json`, JSON.stringify(manifest, null, 2) + "\n");
-  copyFileSync("icon.png", `${out}/icon.png`);
+  // the Protégé mark (icon.svg, same as the app's nav logo) at the sizes browsers ask for
+  mkdirSync(`${out}/icons`, { recursive: true });
+  for (const px of [16, 32, 48, 128]) copyFileSync(`icons/icon-${px}.png`, `${out}/icons/icon-${px}.png`);
   builds.push({
     entryPoints: { background: "src/background.ts", content: "src/content.ts" },
     bundle: true, outdir: out, format: "iife", target: name === "firefox" ? "firefox128" : "chrome120", logLevel: "info",

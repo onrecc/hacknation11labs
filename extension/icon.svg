@@ -1,0 +1,7 @@
+<!-- The Protégé mark, same geometry as the app's nav logo (web/src/styles.css .nav .brand::before, 16 px):
+     rounded tile, a 2 px ring cut out 4 px in, a 4 px square in the middle. Source for icons/icon-*.png. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16">
+  <rect width="16" height="16" rx="4" fill="#171717"/>
+  <rect x="4" y="4" width="8" height="8" fill="#ffffff"/>
+  <rect x="6" y="6" width="4" height="4" fill="#171717"/>
+</svg>

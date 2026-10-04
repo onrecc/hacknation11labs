@@ -8,6 +8,7 @@
     <script>if (location.pathname.startsWith("/erp")) document.querySelector('meta[name="apprentice-app"]').content = "feed";</script>
     <!-- No extension installed (e.g. a judge opening the hosted demo): the same overlay + save hold from the embed build. Steps aside when the extension is there. -->
     <script>if (location.pathname.startsWith("/erp")) { const s = document.createElement("script"); s.src = "/apprentice-embed.js"; s.defer = true; document.head.appendChild(s); }</script>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Protégé</title>
   </head>
   <body>
