@@ -1,5 +1,5 @@
 /** Read-side helpers over a Session Log. Used by Map, Teach and the tools. */
-import type { Event, FrameCaptured, Id, Ms, Quote, ScreenMoment, Utterance } from "./schema";
+import type { Event, FrameCaptured, Id, MediaChunk, Ms, Quote, ScreenMoment, Uri, Utterance } from "./schema";
 
 export type EventOf<T extends Event["type"]> = Extract<Event, { type: T }>;
 
@@ -91,6 +91,27 @@ export class LogIndex {
   utterancesBetween(t0: Ms, t1: Ms): Utterance[] {
     return [...this.utterances.values()].filter((u) => u.t <= t1 && (u.tEnd ?? u.t) >= t0).sort((a, b) => a.t - b.t);
   }
+}
+
+/** A span inside one recorded media chunk; `start`/`end` are ms offsets from the chunk's own start. */
+export interface MediaClip { readonly uri: Uri; readonly mime: string; readonly start: Ms; readonly end: Ms }
+
+/**
+ * Where to replay [from, to] of a session: the `stream` chunk covering `anchor` (else the one overlapping the window
+ * most), with the window clamped to that chunk. Chunks are self-contained recordings (~10 s), so a clip never spans two.
+ */
+export function mediaClip(events: readonly Event[], stream: MediaChunk["payload"]["stream"], anchor: Ms, from: Ms, to: Ms, sessionId?: Id): MediaClip | null {
+  const chunks = events.filter((e): e is MediaChunk => e.type === "media.chunk" && e.payload.stream === stream && (!sessionId || e.sessionId === sessionId));
+  const overlap = (c: MediaChunk) => Math.min(to, c.t + c.payload.durationMs) - Math.max(from, c.t);
+  const best = chunks.find((c) => c.t <= anchor && anchor < c.t + c.payload.durationMs)
+    ?? chunks.filter((c) => overlap(c) > 0).sort((a, b) => overlap(b) - overlap(a) || a.t - b.t)[0];
+  if (!best) return null;
+  return {
+    uri: best.payload.uri,
+    mime: best.payload.mime,
+    start: Math.max(0, from - best.t),
+    end: Math.min(best.payload.durationMs, to - best.t),
+  };
 }
 
 export const fmtT = (t: Ms) => {
