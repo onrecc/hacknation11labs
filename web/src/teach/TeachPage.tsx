@@ -134,7 +134,7 @@ export default function TeachPage() {
   return (
     <div className="page split">
       <section>
-        <h1>Tutor</h1>
+        <h1>Training</h1>
         <SessionStatus s={s}><p className="muted small mono">{hub.session.id}</p></SessionStatus>
         <div className="btns">
           <button disabled={!live} onClick={() => window.open("/erp?mode=teach", "minierp")}>Open MiniERP</button>
@@ -154,7 +154,7 @@ export default function TeachPage() {
         {err && <p className="error">{err}</p>}
       </section>
       <section>
-        <h3>Teach session log</h3>
+        <h3>Training session log</h3>
         <EventFeed events={events} />
       </section>
     </div>
