@@ -6,7 +6,7 @@
     "./*": "./*.ts"
   },
   "scripts": {
-    "test": "tsx --test conditions.test.ts eventlog.test.ts workmap.test.ts"
+    "test": "tsx --test conditions.test.ts eventlog.test.ts workmap.test.ts logindex.test.ts"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

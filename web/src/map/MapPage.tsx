@@ -15,7 +15,7 @@ import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
 import { WorkMapView } from "./WorkMapView";
-import type { FrameSource } from "./WorkMapView";
+import type { FrameSource, MediaSource } from "./WorkMapView";
 
 const DEMO_ID = "demo";
 
@@ -118,6 +118,9 @@ function storageFrameSource(events: Event[]): FrameSource {
   };
 }
 
+/** Recorded screen/mic chunks from Storage (uri exactly as the media.chunk event recorded it). */
+const storageMediaSource: MediaSource = (sessionId, uri) => blobUrl(sessionId, uri).catch(() => null);
+
 function SessionMap({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
   const [events, setEvents] = useState<Event[]>([]);
@@ -211,5 +214,5 @@ function SessionMap({ sessionId }: { sessionId: string }) {
     </>
   );
   if (!shown) return <div className="page">Loading Work Map…</div>;
-  return <WorkMapView wm={shown} events={events} frameSource={frameSource} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} actions={actions} footer={footer} />;
+  return <WorkMapView wm={shown} events={events} frameSource={frameSource} mediaSource={storageMediaSource} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} actions={actions} footer={footer} />;
 }
