@@ -113,7 +113,7 @@ export default function TeachPage() {
           <input placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
           <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
-        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Any other website works too with the extension (Gemini checks the visible form against the guardrails).</p>
+        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Any other website works too with the extension (Claude checks the visible form against the guardrails).</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (
           <div className="card">

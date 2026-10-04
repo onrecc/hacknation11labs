@@ -37,4 +37,4 @@ createServer(async (req, res) => {
     res.end(JSON.stringify({ error: (err as Error).message }));
     console.error(`${req.url} → ${status} ${(err as Error).message}`);
   }
-}).listen(port, () => console.log(`dev api on http://localhost:${port} (LLM: ${process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY ? "mock" : "gemini"}, voice: ${process.env.ELEVENLABS_API_KEY ? "elevenlabs" : "browser"})`));
+}).listen(port, () => console.log(`dev api on http://localhost:${port} (LLM: ${process.env.LLM_MOCK === "1" || !(process.env.CLAUDE_KEY ?? process.env.ANTHROPIC_API_KEY) ? "mock" : "claude"}, voice: ${process.env.ELEVENLABS_API_KEY ? "elevenlabs" : "browser"})`));

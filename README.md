@@ -22,7 +22,7 @@ Create `.env.local` in the repo root. It is **gitignored and must never be commi
 ```bash
 GOOGLE_APPLICATION_CREDENTIALS=/absolute/path/to/hacknation11labs-firebase-adminsdk-....json   # ask the team, never commit
 FIREBASE_PROJECT_ID=hacknation11labs
-GEMINI_API_KEY=           # Google Gemini (all LLM tasks); empty = mock LLM (every flow still works)
+CLAUDE_KEY=               # Anthropic Claude (all LLM tasks); empty = mock LLM (every flow still works)
 ELEVENLABS_API_KEY=       # needs Text to Speech, Speech to Text and Agents access; empty = browser speech fallback
 ```
 
@@ -49,7 +49,7 @@ ln -s ../../scripts/check-secrets.sh .git/hooks/pre-commit
 ```
 
 Open http://localhost:5173 and pick a person on the demo login (no passwords):
-- **Experts** (Sabine, Ilse, Jürgen) → **My day**: "Start my day", then work as usual. Ada asks *why* at natural pauses, and the day is split into tasks automatically (app switch, "New task", a break, or Gemini noticing a different kind of work). Each task gets its own Work Map; "Debrief now" per task.
+- **Experts** (Sabine, Ilse, Jürgen) → **My day**: "Start my day", then work as usual. Ada asks *why* at natural pauses, and the day is split into tasks automatically (app switch, "New task", a break, or Claude noticing a different kind of work). Each task gets its own Work Map; "Debrief now" per task.
 - **Practicers** (Lena, Aylin, Tim) → **Training**: their department's confirmed Work Map is preselected.
 
 - **Compare** (`/compare`): two experts, one task. Where Sabine and Ilse differ, Ada asks each of them why and turns the answers into a team rule.
@@ -73,7 +73,7 @@ npm run build:extension
 
 Then start a Capture or Teach session in the web app and work in any other tab:
 - **Capture:** records field changes, clicks and navigation (passwords, IBANs and card numbers are masked). Screenshots the active work tab once per second as frames, so no screen-share dialog is needed. The overlay pill shows recording, with off-record and bookmark buttons.
-- **Teach:** the overlay shows Ada's guidance cards with the expert's quote and screen moment. Save/Submit/Approve-like clicks are held until Gemini has checked them against the Work Map's guardrails.
+- **Teach:** the overlay shows Ada's guidance cards with the expert's quote and screen moment. Save/Submit/Approve-like clicks are held until Claude has checked them against the Work Map's guardrails.
 - For same-origin apps without the extension: `<script src="https://<host>/apprentice-embed.js" defer></script>`.
 
 ## Repo
@@ -87,7 +87,7 @@ shared/            contract + logic used everywhere (no framework code)
   conditions.ts      deterministic guardrail engine (violation predicates over CaseFacts)
   llm.ts             typed contract of every LLM task (vision, pick_question, extract_workmap, …)
 web/               Vite + React app: /capture /map /teach /erp (MiniERP sandbox)
-functions/         `api` Cloud Function: LLM tasks (Gemini) + ElevenLabs tokens/TTS; keys never in the browser
+functions/         `api` Cloud Function: LLM tasks (Claude) + ElevenLabs tokens/TTS; keys never in the browser
 extension/         Chrome MV3 extension: DOM capture on any site, overlay, cross-tab relay, tab screenshots
 tools/             admin scripts: dev-api server, seed fixture, pull session, deploy rules, project setup
 fixtures/          demo session + expected Work Map (test oracle)
@@ -109,13 +109,13 @@ python3 scripts/validate_bundle.py data/sessions/<id> --part capture|map|teach
 Firestore (`eur3`) and Storage (`us-east1`) are set up. A web app is registered, anonymous auth is enabled and the rules are deployed (`npm run deploy:rules`). Cloud Functions need an account with Functions + Secret Manager rights (the service account doesn't have them). Until then, `npm run api` serves the same handlers locally. To deploy them:
 
 ```bash
-firebase functions:secrets:set GEMINI_API_KEY
+firebase functions:secrets:set CLAUDE_KEY
 ```
 
 ```bash
 npm run deploy:functions
 ```
 
-Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Google Gemini (`gemini-3.8-flash`, `LLM_MODEL` / `LLM_MODEL_DEEP` to override) · Firebase · Chrome MV3 extension. All data is fictional sandbox data.
+Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Anthropic Claude (Sonnet 5.5 for every live and offline task, Opus 5.5 only for the Work Map extraction; `LLM_MODEL` / `LLM_MODEL_MAP` to override; both ElevenAgents also run on Claude Sonnet 5.5) · Firebase · Chrome MV3 extension. All data is fictional sandbox data.
 
-Tool checks against the real services: `npm run smoke -w tools` (every Gemini task), `npm run agent-test -w tools` (both agents' control protocol over WebSocket), `npm run scribe-test -w tools` (Scribe realtime with word timestamps), `npm run e2e:voice -w tools` / `npm run e2e:teach-voice -w tools` (live ElevenAgents interviewer / tutor + Scribe in a real browser with a synthetic mic), `npm run e2e:extension -w tools` (the real extension in Chrome for Testing; needs `npm run dev` + `npm run api`; first time: `npx puppeteer browsers install chrome`).
+Tool checks against the real services: `npm run smoke -w tools` (every Claude task), `npm run agent-test -w tools` (both agents' control protocol over WebSocket), `npm run scribe-test -w tools` (Scribe realtime with word timestamps), `npm run e2e:voice -w tools` / `npm run e2e:teach-voice -w tools` (live ElevenAgents interviewer / tutor + Scribe in a real browser with a synthetic mic), `npm run e2e:extension -w tools` (the real extension in Chrome for Testing; needs `npm run dev` + `npm run api`; first time: `npx puppeteer browsers install chrome`).

@@ -13,7 +13,7 @@ const KEY = process.env.ELEVENLABS_API_KEY;
 if (!KEY) throw new Error("ELEVENLABS_API_KEY missing in .env.local");
 const EL = "https://api.elevenlabs.io/v1/convai";
 const H = { "xi-api-key": KEY, "Content-Type": "application/json" };
-const LLM = process.env.ELEVENLABS_AGENT_LLM ?? "gemini-3.5-flash";
+const LLM = process.env.ELEVENLABS_AGENT_LLM ?? "claude-sonnet-5-5";
 
 const CONTROL = `
 CONTROL MESSAGES (sent by the app, never by the human; never mention them):

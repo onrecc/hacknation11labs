@@ -33,7 +33,7 @@
 |---|---|---|
 | Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T4) | ✅ |
 | Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser with real Gemini; `validate_bundle --part teach` → 0 errors |
-| Generic web apps | Gemini `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
+| Generic web apps | Claude `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
 | Tutor voice | ElevenAgents Tutor with the Work Map as `{{work_map}}`, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` | ✅ protocol verified (`npm run agent-test -w tools`) |
 | Overlay | `extension/src/overlay.ts`: docked in MiniERP, floating on other sites | ✅ |
 | Predictions | `[PREDICT]` + `grade_prediction` → `tutor.prediction` | ✅ |

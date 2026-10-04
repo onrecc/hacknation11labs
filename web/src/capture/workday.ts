@@ -8,7 +8,7 @@
  * Boundaries:
  *  - context_switch: work moves to another app/site (MiniERP → ProcureX → mail …)
  *  - idle: nothing happened for IDLE_MS; the next activity starts a new task
- *  - new_kind_of_work: Gemini `label_task` sees different work in the same app (e.g. invoices → supplier master data)
+ *  - new_kind_of_work: Claude `label_task` sees different work in the same app (e.g. invoices → supplier master data)
  *  - manual: the expert presses "New task"
  * Tiny detours (< INTERRUPTION_MS and < 3 actions) are kept but marked "interruption" and hidden from the list.
  */
@@ -205,7 +205,7 @@ export class WorkdayRecorder {
     if (t && this.actionsSinceLabel >= 2 && Date.now() - this.lastLabelAt > WORKDAY.labelEveryMs) void this.label();
   }
 
-  // ───────────── labeling (Gemini) ─────────────
+  // ───────────── labeling (Claude) ─────────────
   private async label() {
     const t = this.current;
     if (!t || this.labeling) return;

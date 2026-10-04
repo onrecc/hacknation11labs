@@ -1,6 +1,6 @@
 /**
  * Cloud Functions entry (2nd gen). Deploy from an account with Functions + Secret Manager rights:
- *   firebase functions:secrets:set GEMINI_API_KEY
+ *   firebase functions:secrets:set CLAUDE_KEY
  *   firebase functions:secrets:set ELEVENLABS_API_KEY
  *   npm run deploy -w functions
  * Locally, tools/src/dev-api.ts serves the same handlers on http://localhost:8787.
@@ -12,11 +12,11 @@ import { getAuth } from "firebase-admin/auth";
 import { handle, HttpError, isBinary } from "./handlers";
 
 initializeApp();
-const GEMINI_API_KEY = defineSecret("GEMINI_API_KEY");
+const CLAUDE_KEY = defineSecret("CLAUDE_KEY");
 const ELEVENLABS_API_KEY = defineSecret("ELEVENLABS_API_KEY");
 
 export const api = onRequest(
-  { region: "europe-west1", cors: true, secrets: [GEMINI_API_KEY, ELEVENLABS_API_KEY], timeoutSeconds: 300, memory: "512MiB" },
+  { region: "europe-west1", cors: true, secrets: [CLAUDE_KEY, ELEVENLABS_API_KEY], timeoutSeconds: 300, memory: "512MiB" },
   async (req, res) => {
     try {
       const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");

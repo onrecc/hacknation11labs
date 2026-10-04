@@ -5,7 +5,7 @@
  *   a practicer logs in → Training preselects THAT map → new €7,200 equipment invoice on opex → blocked before save.
  *
  *   EXPERT=sabine npm run golden -w tools      (default)  ·  EXPERT=ilse npm run golden -w tools
- *   SKIP_TEACH=1 to stop after the Work Map. Needs `npm run dev` + `npm run api` (real Gemini + ElevenLabs).
+ *   SKIP_TEACH=1 to stop after the Work Map. Needs `npm run dev` + `npm run api` (real Claude + ElevenLabs).
  * Answers are typed (the hub's typed-utterance path); Ada's voice and Scribe run on a synthetic silent mic.
  * Prints the ids it creates, so cleanup can target exactly those.
  */
@@ -112,7 +112,7 @@ try {
   await hub.goto(`${HUB}/login`, { waitUntil: "networkidle2" });
   await hub.evaluate((u) => { localStorage.setItem("apprentice.user", u); localStorage.removeItem("apprentice.idleMs"); }, PEOPLE.userId);
   await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
-  await hub.evaluate(() => (window.open = () => null, [...document.querySelectorAll("input[type=checkbox]")].forEach((c) => (c as HTMLInputElement).checked && (c as HTMLInputElement).click()))); // vision off: saves Gemini quota
+  await hub.evaluate(() => (window.open = () => null, [...document.querySelectorAll("input[type=checkbox]")].forEach((c) => (c as HTMLInputElement).checked && (c as HTMLInputElement).click()))); // vision off: keeps the run fast and cheap
   await click(hub, "Start a new day");
   await click(hub, "Start my day");
   for (let i = 0; i < 20 && !(await hub.evaluate(() => (window as any).__hub?.state.voice !== "-" && !!(window as any).__hub)).valueOf(); i++) await sleep(1000);

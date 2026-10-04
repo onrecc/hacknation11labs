@@ -94,7 +94,7 @@ export default function DayPage() {
         <h1>Good {new Date().getHours() < 12 ? "morning" : "day"}, {user.short}</h1>
         <p className="muted">{user.title} · {user.departmentLabel}. Start your day and work as usual in {user.app.name} or any web app. Ada stays quiet, asks <i>why</i> at natural pauses, and splits your day into tasks. You'll debrief each task afterwards.</p>
         <div className="card">
-          <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> Let Ada look at changed screens (Gemini vision)</label>
+          <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> Let Ada look at changed screens (Claude vision)</label>
           <p className="muted small">Recording only runs while you're on the record. Say "off the record" (or press the button) any time. Passwords, IBANs and card numbers are masked.</p>
           <div className="btns">
             {active ? (

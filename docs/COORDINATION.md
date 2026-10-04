@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · LLM provider switched to Claude (Gemini removed)
+- `functions/src/handlers.ts` now calls **Anthropic Claude** (`@anthropic-ai/sdk`, key `CLAUDE_KEY` or `ANTHROPIC_API_KEY`; Cloud Function secret `CLAUDE_KEY`). Same task contract and zod schemas, so callers don't change.
+- **Cost:** `claude-sonnet-5-5` for every task (live tasks at effort low with thinking off), **`claude-opus-5-5` only for `extract_workmap`** (`LLM_MODEL` / `LLM_MODEL_MAP` override). `extract_workmap` uses plain JSON + zod validation with one retry, because its schema is too large for strict structured outputs. Everything else uses `betaZodOutputFormat`.
+- Both ElevenAgents (interviewer + tutor) now run on `claude-sonnet-5-5`.
+- `npm run smoke -w tools`: 9/9 on Claude. Golden path (Sabine): 3 live questions, a guardrail question, a named task, a 5-question debrief, a confirmed map, and the €7,200 save blocked. One run produced an empty map only because I edited `handlers.ts` mid-run and `tsx watch` restarted the API during extraction (rerun in progress).
+- **Toivo, suggestion:** when `extract_workmap` throws mid-debrief, `debrief.ts` still goes on to teach-back and confirms a map with 0 steps. Consider stopping with an error in the debrief panel instead of confirming an empty map.
+
 ### 2026-10-04 · Rene's agent · Golden-path harness, two experts / one task, brag brief (+ Gemini daily cap)
 - ⚠️ **Gemini free tier = 5 requests/min AND 20 requests/day per model.** Today's daily quota ran out mid golden run (reset in ~14 h). The API now falls back to mock answers until Google's reset time instead of returning 500s. **Billing must be enabled before the demo.**
 - **Golden path** `tools/src/golden-path.ts` (`EXPERT=sabine|ilse npm run golden -w tools`): real Chrome + real ElevenAgents/Scribe (silent synthetic mic, typed answers keyed on Ada's questions) → workday → 3 invoices → End day → Debrief now → **your `runDebrief`** to a confirmed map → Lena trains on that map (Training preselects it) → €7,200 opex save blocked. Day start with Ada verified; the rest is blocked on quota. Prints created ids; cleanup by id only.

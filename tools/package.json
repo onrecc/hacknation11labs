@@ -22,6 +22,7 @@
     "brag:shots": "tsx --env-file=../.env.local src/brag-shots.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@google/genai": "^2.27.0",
     "@types/node": "^26.6.4",
     "firebase-admin": "^14.5.0",

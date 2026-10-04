@@ -1,17 +1,21 @@
 /**
  * Server-side handlers shared by Cloud Functions (index.ts) and the local dev server (tools/src/dev-api.ts).
- * Keys live only here: GEMINI_API_KEY, ELEVENLABS_API_KEY. Set LLM_MOCK=1 to run every task without keys.
- * LLM provider: Google Gemini (structured JSON output via responseJsonSchema).
+ * Keys live only here: CLAUDE_KEY (or ANTHROPIC_API_KEY), ELEVENLABS_API_KEY. Set LLM_MOCK=1 to run every task without keys.
+ * LLM provider: Anthropic Claude (structured outputs via betaZodOutputFormat).
+ * Cost: Sonnet for everything live and most offline work; Opus only for the one Work Map extraction per task.
  */
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import Anthropic from "@anthropic-ai/sdk";
+import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import * as z from "zod/v4";
 import type { LlmTask, LlmInput, LlmOutput } from "../../shared/llm";
 import { mockOutput } from "./mocks";
 
-const MODEL = process.env.LLM_MODEL ?? "gemini-3.8-flash";
-const MODEL_DEEP = process.env.LLM_MODEL_DEEP ?? MODEL;
+const MODEL = process.env.LLM_MODEL ?? "claude-sonnet-5-5";
+/** Only extract_workmap (one call per finished task, decides the whole map) runs on Opus. */
+const MODEL_MAP = process.env.LLM_MODEL_MAP ?? "claude-opus-5-5";
+const apiKey = () => process.env.CLAUDE_KEY ?? process.env.ANTHROPIC_API_KEY;
 
-// ───────────── output schemas (mirror shared/llm.ts; Gemini-friendly: no records, no unions) ─────────────
+// ───────────── output schemas (mirror shared/llm.ts; structured-output friendly: no records, no unions) ─────────────
 const bbox = z.object({ x: z.number(), y: z.number(), w: z.number(), h: z.number() });
 const category = z.enum(["why", "guardrail_limit", "exception", "stop_and_ask", "never_do", "counterfactual", "scope", "frequency", "who_decides", "definition"]);
 
@@ -102,7 +106,7 @@ Ask about the most recent judgment call visible in the actions: why they did it,
 Speak naturally and concretely ("You moved that one to capex. What made you do that?"). Never ask what the screen already shows (score screenAlreadyAnswers high for those and reject them). Never ask about routine navigation (opening an item, going back). Never repeat an asked question.
 If the live budget is 0 or the question can wait, set ask=false and deferInstead=true. List the candidates you rejected with reasons.`,
   detect_correction: `Decide whether the expert's latest utterance corrects something they said or did earlier ("no wait", "actually", "that's wrong", "about what I said earlier"...).
-quote must be copied verbatim from the utterance. Target the earlier utterances/actions it corrects by id. before/after describe the knowledge, not the words. If it is not a correction, set isCorrection=false and leave other fields empty.`,
+quote must be copied verbatim from the utterance. Target the earlier utterances/actions it corrects by id. before/after describe the knowledge, not the words. If it is not a correction, set isCorrection=false, kind="statement_revised", appliesTo="always", confidence=0 and leave the other strings and lists empty.`,
   link_answer: `Link the expert's answer to the question. quote must be a verbatim substring of one utterance: the shortest span that carries the reason or rule.`,
   extract_workmap: `You turn an expert's recorded work session into a Work Map that teaches a new hire to do the same work.
 The log lines are tagged with ids: ACTION evt_…, EXPERT utt_…, QUESTION q_…, CORRECTION evt_…. Off-record parts were removed; never mention or guess them.
@@ -148,7 +152,10 @@ both_valid (each is right under a different condition: give that condition), a_i
 
 const DEEP: ReadonlySet<LlmTask> = new Set<LlmTask>(["extract_workmap", "plan_debrief", "teachback", "compare_workmaps"]);
 
-let client: GoogleGenAI | null = null;
+/** Schemas too large for strict structured outputs: plain JSON + zod validation. */
+const LOOSE: ReadonlySet<LlmTask> = new Set<LlmTask>(["extract_workmap"]);
+
+let client: Anthropic | null = null;
 const jsonSchemas = new Map<LlmTask, unknown>();
 function jsonSchema(task: LlmTask) {
   if (!jsonSchemas.has(task)) {
@@ -160,51 +167,29 @@ function jsonSchema(task: LlmTask) {
 
 export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
   if (!(task in schemas)) throw new HttpError(400, `unknown task ${task}`);
-  if (geminiDown && Date.now() > geminiDownUntil) geminiDown = null; // re-probe: keys get fixed, credits topped up
-  if (process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || geminiDown) return mockOutput(task, input);
-  client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  if (llmDown && Date.now() > llmDownUntil) llmDown = null; // re-probe: keys get fixed, credits topped up
+  if (process.env.LLM_MOCK === "1" || !apiKey() || llmDown) return mockOutput(task, input);
   await takeBudget(task);
   try {
-    // transient overload (503 "high demand") / rate limit (429): retry with backoff before giving up
-    for (let attempt = 0; ; attempt++) {
-      try {
-        return await runGemini(task, input);
-      } catch (err) {
-        const transient = /\b(503|429)\b|UNAVAILABLE|high demand|overloaded|rate limit/i.test((err as Error).message) && !/credits are depleted/i.test((err as Error).message);
-        // Google tells us when quota frees up ("Please retry in 21.2s"): don't burn requests retrying sooner
-        const hinted = Number(/retry in ([\d.]+)s/i.exec((err as Error).message)?.[1] ?? 0) * 1000;
-        if (!transient || attempt >= 2 || hinted > 8000) throw err;
-        await new Promise((r) => setTimeout(r, Math.max(hinted, 1200 * 2 ** attempt) + Math.random() * 400));
-      }
-    }
+    return await runClaude(task, input); // the SDK retries 429/5xx/overloaded with backoff itself
   } catch (err) {
-    // a revoked/invalid key must not take the whole demo down: switch to canned answers and say so in /health
-    // only a broken key or depleted prepaid credits switch to mock answers (a 429 rate limit also mentions
-    // "billing" in its text, but it's transient: it must not turn Gemini off)
-    const msg = (err as Error).message;
-    // free tier's DAILY cap (20 requests/model/day): no point retrying for hours; mock until Google's reset time
-    const daily = /PerDay/i.test(msg) ? Number(/"retryDelay":\s*"(\d+)s"/.exec(msg)?.[1] ?? 3600) : 0;
-    if (process.env.LLM_STRICT !== "1" && daily) {
-      geminiDown = `Gemini daily free quota used up at ${new Date().toISOString()}: mock answers until ${new Date(Date.now() + daily * 1000).toISOString()} (enable billing to lift it)`;
-      geminiDownUntil = Date.now() + daily * 1000;
-      console.error(geminiDown);
-      return mockOutput(task, input);
-    }
-    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|credits are depleted/i.test(msg)) {
-      geminiDown = `Gemini unavailable (key or credits) at ${new Date().toISOString()}: mock answers, retrying in 5 min`;
-      geminiDownUntil = Date.now() + 5 * 60_000;
-      console.error(geminiDown);
+    // a revoked key or empty credit balance must not take the whole demo down: canned answers, say so in /health
+    const e = err as { status?: number; message: string };
+    if (process.env.LLM_STRICT !== "1" && (e.status === 401 || e.status === 403 || /credit balance is too low/i.test(e.message))) {
+      llmDown = `Claude unavailable (key or credits, ${e.status ?? "?"}) at ${new Date().toISOString()}: mock answers, retrying in 5 min`;
+      llmDownUntil = Date.now() + 5 * 60_000;
+      console.error(llmDown);
       return mockOutput(task, input);
     }
     throw err;
   }
 }
 
-let geminiDown: string | null = null;
-let geminiDownUntil = 0;
+let llmDown: string | null = null;
+let llmDownUntil = 0;
 
 /**
- * Request budget per minute (LLM_RPM, e.g. 5 on Gemini's free tier; unset = unlimited).
+ * Optional request budget per minute (LLM_RPM; unset = unlimited).
  * Interactive tasks wait up to 20 s for a slot; background tasks are skipped when the budget is spent
  * (the app already treats a failed vision/label/correction call as "nothing new").
  */
@@ -222,40 +207,70 @@ async function takeBudget(task: LlmTask) {
   }
 }
 
-async function runGemini<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
-  client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
+  client ??= new Anthropic({ apiKey: apiKey(), maxRetries: 3 });
 
-  const parts: Array<{ text: string } | { inlineData: { mimeType: string; data: string } }> = [];
+  const content: Anthropic.Beta.BetaContentBlockParam[] = [];
   if (task === "vision") {
     const v = input as LlmInput<"vision">;
-    parts.push({ inlineData: { mimeType: v.mediaType, data: v.frameBase64 } });
-    parts.push({ text: JSON.stringify({ prevSummary: v.prevSummary ?? "", recentActions: v.recentActions }) });
+    content.push({ type: "image", source: { type: "base64", media_type: v.mediaType as "image/webp", data: v.frameBase64 } });
+    content.push({ type: "text", text: JSON.stringify({ prevSummary: v.prevSummary ?? "", recentActions: v.recentActions }) });
   } else {
-    parts.push({ text: JSON.stringify(input) });
+    content.push({ type: "text", text: JSON.stringify(input) });
   }
 
-  const res = await client.models.generateContent({
-    model: DEEP.has(task) ? MODEL_DEEP : MODEL,
-    contents: [{ role: "user", parts }],
-    config: {
-      systemInstruction: SYSTEM[task],
-      responseMimeType: "application/json",
-      responseJsonSchema: jsonSchema(task),
-      thinkingConfig: { thinkingLevel: DEEP.has(task) ? ThinkingLevel.HIGH : ThinkingLevel.LOW },
-      maxOutputTokens: DEEP.has(task) ? 32000 : 4000,
-    },
-  });
-  const text = res.text;
-  if (!text) throw new HttpError(502, `no output (finish: ${res.candidates?.[0]?.finishReason ?? "unknown"})`);
-  const parsed = schemas[task].safeParse(JSON.parse(text));
-  if (!parsed.success) throw new HttpError(502, `output failed schema: ${parsed.error.message.slice(0, 300)}`);
-  const out = parsed.data as Record<string, unknown>;
+  const deep = DEEP.has(task);
+  const map = task === "extract_workmap";
+  const base = {
+    model: map ? MODEL_MAP : MODEL,
+    max_tokens: map ? 20000 : deep ? 12000 : 4000, // ≤21k keeps the SDK from demanding streaming
+    // live tasks (questions while the expert waits, guardrail checks before save) skip thinking for latency
+    ...(deep ? {} : { thinking: { type: "between_tools" as const } }),
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default" as const,
+  };
+  let out: Record<string, unknown>;
+  if (LOOSE.has(task)) {
+    // the Work Map schema compiles to a grammar too large for strict structured outputs:
+    // ask for JSON against the schema and validate with zod instead (one retry with the error)
+    const system = `${SYSTEM[task]}\n\nRespond with ONLY one JSON object (no prose, no code fence) matching this JSON Schema:\n${JSON.stringify(jsonSchema(task))}`;
+    const messages: Anthropic.Beta.BetaMessageParam[] = [{ role: "user", content }];
+    for (let attempt = 0; ; attempt++) {
+      const res = await client.beta.messages.create({ ...base, system, messages, output_config: { effort: "medium" } });
+      if (res.stop_reason === "refusal") throw new HttpError(422, `${task}: model declined`);
+      const text = res.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("");
+      const json = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+      let problem: string;
+      try {
+        const parsed = schemas[task].safeParse(JSON.parse(json));
+        if (parsed.success) {
+          out = parsed.data as Record<string, unknown>;
+          break;
+        }
+        problem = parsed.error.message.slice(0, 1500);
+      } catch (e) {
+        problem = `invalid JSON (stop: ${res.stop_reason}): ${(e as Error).message}`;
+      }
+      if (attempt >= 1) throw new HttpError(502, `${task}: output failed schema: ${problem.slice(0, 300)}`);
+      messages.push({ role: "assistant", content: text }, { role: "user", content: `That did not validate: ${problem}\nSend the corrected JSON object only.` });
+    }
+  } else {
+    const res = await client.beta.messages.parse({
+      ...base,
+      system: SYSTEM[task],
+      messages: [{ role: "user", content }],
+      output_config: { effort: deep ? "medium" : "low", format: betaZodOutputFormat(schemas[task]) },
+    });
+    if (res.stop_reason === "refusal") throw new HttpError(422, `${task}: model declined`);
+    if (!res.parsed_output) throw new HttpError(502, `${task}: no structured output (stop: ${res.stop_reason})`);
+    out = res.parsed_output as Record<string, unknown>;
+  }
   if (task === "vision") {
     // models sometimes return pixel coordinates: drop boxes that aren't normalized 0..1
     const ok = (b?: { x: number; y: number; w: number; h: number }) => !!b && [b.x, b.y, b.w, b.h].every((n) => n >= 0 && n <= 1);
     out.changes = (out.changes as Array<{ bbox?: { x: number; y: number; w: number; h: number } }>).map(({ bbox, ...c }) => (ok(bbox) ? { ...c, bbox } : c));
     out.piiRegions = (out.piiRegions as Array<{ bbox: { x: number; y: number; w: number; h: number } }>).filter((p) => ok(p.bbox));
-    // fields come back as [{name,value}] (Gemini-friendly); the contract uses a record
+    // fields come back as [{name,value}] (schema-friendly); the contract uses a record
     out.visibleEntities = (out.visibleEntities as Array<{ fields: Array<{ name: string; value: string }> }>).map((e) => ({ ...e, fields: Object.fromEntries(e.fields.map((f) => [f.name, f.value])) }));
   }
   return out as LlmOutput<T>;
@@ -309,7 +324,7 @@ export async function handle(path: string, body: unknown): Promise<unknown> {
   if (path.endsWith("/llm")) return runLlm(b.task as LlmTask, b.input as never);
   if (path.endsWith("/voice-token")) return voiceToken(b.kind as "agent" | "scribe", b.agentId as string | undefined);
   if (path.endsWith("/tts")) return tts(String(b.text ?? ""), b.voiceId as string | undefined);
-  if (path.endsWith("/health")) return { ok: true, provider: "gemini", model: MODEL, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || !!geminiDown, warning: geminiDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
+  if (path.endsWith("/health")) return { ok: true, provider: "claude", model: MODEL, mapModel: MODEL_MAP, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !apiKey() || !!llmDown, warning: llmDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
   throw new HttpError(404, `no route ${path}`);
 }
 

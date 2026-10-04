@@ -1,5 +1,5 @@
 /**
- * Canned outputs so every flow works without API keys (LLM_MOCK=1 or no GEMINI_API_KEY).
+ * Canned outputs so every flow works without API keys (LLM_MOCK=1 or no CLAUDE_KEY).
  * Deliberately simple and deterministic. Replace with real calls as soon as keys exist.
  */
 import type { LlmTask, LlmInput, LlmOutput } from "../../shared/llm";

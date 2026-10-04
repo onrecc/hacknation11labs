@@ -1,7 +1,7 @@
 /**
  * Tutor engine (docs/teach.md). Runs on a CaptureHub in teach mode.
  *  - MiniERP (CaseFacts): deterministic guardrail checks — nudge on change, BLOCK on save (beforeSave).
- *  - Any other website (extension): Gemini `check_guardrails` on the visible form before Save/Submit/Approve.
+ *  - Any other website (extension): Claude `check_guardrails` on the visible form before Save/Submit/Approve.
  *  - Interventions: overlay card with the expert's quote + screen moment, and the ElevenAgents tutor
  *    asks Socratically first ([INTERVENE]), then explains in the expert's words.
  *  - Predictions: when a case opens that hits a guardrail, the tutor asks the new hire to predict ([PREDICT]).

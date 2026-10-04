@@ -1,5 +1,5 @@
 {
   "interviewerAgentId": "agent_5001m41wtzkvex89maf0wh6g388m",
   "tutorAgentId": "agent_2701m41wv22dehtb5nqgnhm4wawt",
-  "llm": "gemini-3.5-flash"
+  "llm": "claude-sonnet-5-5"
 }
