@@ -22,9 +22,10 @@ import { newId } from "../../../shared/ids";
 import { llm } from "../lib/api";
 import { loadWorkMap, saveWorkMapVersion, updateSession } from "../lib/sessions";
 import type { CaptureHub } from "../capture/hub";
+import { blockingGaps, notConfirmedDetail, notConfirmedSentence } from "./confirmation";
 
 export interface DebriefStatus {
-  stage: "planning" | "asking" | "extracting" | "teachback" | "confirmed" | "error";
+  stage: "planning" | "asking" | "extracting" | "teachback" | "confirmed" | "not_confirmed" | "error";
   detail: string;
   /** Open gaps with priority ≥ 0.5: the debrief ends when this reaches 0 (Apprentice Test Q3). */
   gapsOpen: number;
@@ -67,7 +68,7 @@ const NON_ANSWER = /^\W*(i'?m not sure|not sure|i don'?t know|no idea|dunno|pass
 
 const openHigh = (gaps: Gap[]) => gaps.filter((g) => g.status === "open" && g.priority >= DEBRIEF.stopBelowPriority).length;
 /** High-priority gaps nobody answered yet (open or asked without an answer): these block "confirmed". */
-const unresolvedHigh = (gaps: Gap[]) => gaps.filter((g) => (g.status === "open" || g.status === "asked") && g.priority >= DEBRIEF.stopBelowPriority).length;
+const unresolvedHigh = (gaps: Gap[]) => blockingGaps(gaps, DEBRIEF.stopBelowPriority).length;
 const gapView = (gaps: Gap[]) => gaps.map((g) => ({ id: g.id, proposedQuestion: g.proposedQuestion, priority: g.priority, status: g.status, kind: g.kind }));
 function settle<T>(p: Promise<T>) {
   const s: { done: boolean; value?: T } = { done: false };
@@ -139,6 +140,19 @@ export async function runDebrief(hub: CaptureHub, onStatus: (s: DebriefStatus) =
       }
     };
 
+    /** Ask one gap; resolved when answered, else open again (mayRetry) or asked-but-unanswered. Logs gap.status. */
+    const askGap = async (g: Gap, text: string, mayRetry: boolean) => {
+      const actionIds = g.about.eventIds.filter((id) => hub.events.some((e) => e.id === id && e.type === "screen.action"));
+      const { questionId, replies } = await hub.ask(text, { category: CATEGORY[g.kind] ?? "scope", gapId: g.id, actionIds, intent: "follow_up" });
+      const a = answers(hub, g, questionId, replies);
+      const retry = !a.ok && mayRetry;
+      g.status = a.ok ? "resolved" : retry ? "open" : "asked";
+      if (a.ok && a.linkId) g.resolvedBy = { questionId, answerEventId: a.linkId };
+      const note = a.ok ? undefined : retry ? "not answered; asking once more" : "not answered; left for review";
+      hub.emit({ t: hub.now(), type: "gap.status", source: "map", payload: { gapId: g.id, status: g.status, ...(note ? { note } : {}) } });
+      return replies;
+    };
+
     // ── 2. ask in priority order until no open gap ≥ threshold, the expert is done, or the cap
     await hub.agentSay("Thanks, that was really helpful. I have a few things I couldn't work out from the screen.", "other");
     let asked = 0;
@@ -168,17 +182,10 @@ export async function runDebrief(hub: CaptureHub, onStatus: (s: DebriefStatus) =
       const n = tries.get(g.id) ?? 0;
       const text = n ? `Sorry, I didn't quite get that. ${g.proposedQuestion}` : g.proposedQuestion;
       onStatus({ stage: "asking", detail: text, gapsOpen: openHigh(plan), gaps: gapView(plan), asked, workMapVersion: wm.version });
-      const actionIds = g.about.eventIds.filter((id) => hub.events.some((e) => e.id === id && e.type === "screen.action"));
-      const { questionId, replies } = await hub.ask(text, { category: CATEGORY[g.kind] ?? "scope", gapId: g.id, actionIds, intent: "follow_up" });
+      // not answered: a high-priority gap is asked once more; after that it stays unresolved (blocks confirmation)
+      const replies = await askGap(g, text, n === 0 && g.priority >= opts.stopBelowPriority);
       asked++;
       tries.set(g.id, n + 1);
-      const a = answers(hub, g, questionId, replies);
-      // not answered: a high-priority gap is asked once more; after that it stays unresolved (blocks confirmation)
-      const retry = !a.ok && n === 0 && g.priority >= opts.stopBelowPriority;
-      g.status = a.ok ? "resolved" : retry ? "open" : "asked";
-      if (a.ok && a.linkId) g.resolvedBy = { questionId, answerEventId: a.linkId };
-      const note = a.ok ? undefined : retry ? "not answered; asking once more" : "not answered; left for review";
-      hub.emit({ t: hub.now(), type: "gap.status", source: "map", payload: { gapId: g.id, status: g.status, ...(note ? { note } : {}) } });
       onStatus({ stage: "asking", detail: text, gapsOpen: openHigh(plan), gaps: gapView(plan), asked, workMapVersion: wm.version });
       if (asked >= opts.minQuestions && replies.some((r) => DONE.test(r.payload.text))) break;
     }
@@ -270,17 +277,32 @@ export async function runDebrief(hub: CaptureHub, onStatus: (s: DebriefStatus) =
       }
     }
 
-    // ── 5. final confirmation (explicit yes, every part confirmed last, no unresolved high-priority gaps)
+    // ── 5. last chance: every high-priority question still unanswered is asked once more before the final question
+    const lastChance = blockingGaps(wm.gaps, opts.stopBelowPriority);
+    if (lastChance.length) {
+      await hub.agentSay(lastChance.length === 1 ? "Before we finish, one question is still open." : `Before we finish, ${lastChance.length} questions are still open.`, "teachback");
+      for (const open of lastChance) {
+        // the plan holds the live gap state (mergeGaps lets it win); gaps the extraction carried over join it here
+        if (!plan.some((x) => x.id === open.id)) plan.push({ ...open });
+        const g = plan.find((x) => x.id === open.id)!;
+        onStatus({ ...tbStatus(), detail: `Still open: ${g.proposedQuestion}` });
+        await askGap(g, g.proposedQuestion, false);
+        asked++;
+      }
+      wm = { ...wm, gaps: mergeGaps(wm.gaps, plan) };
+    }
+
+    // ── 6. final confirmation (explicit yes, every part confirmed last, no unresolved high-priority gaps)
     onStatus(tbStatus());
     const final = await hub.ask("So that's the whole process. Is that how it works?", { intent: "teachback", timeoutMs: 20_000 });
     const fv = await verdictFor("That is the whole process.", final.replies, wm);
     const ix2 = new LogIndex(session.id, hub.events);
     const yesU = fv.verdict === "confirmed" ? final.replies[0] : undefined;
     const confirmationQuote = yesU ? ix2.quote([yesU.payload.utteranceId], yesU.payload.text) ?? undefined : undefined;
-    const notConfirmed = segments.filter((s) => s.verdict !== "confirmed").length;
-    const gapsLeft = unresolvedHigh(wm.gaps);
-    const confirmed = !!confirmationQuote && notConfirmed === 0 && gapsLeft === 0;
-    if (!confirmed) problems.push(`not confirmed: ${[!confirmationQuote && "no final yes", notConfirmed && `${notConfirmed} part(s) not re-confirmed`, gapsLeft && `${gapsLeft} high-priority gap(s) unresolved`].filter(Boolean).join(", ")}`);
+    const outcome = { finalYes: !!confirmationQuote, partsOpen: segments.filter((s) => s.verdict !== "confirmed").length, gaps: blockingGaps(wm.gaps, opts.stopBelowPriority) };
+    const notConfirmed = notConfirmedDetail(outcome);
+    const confirmed = notConfirmed === null;
+    if (notConfirmed) problems.push(notConfirmed);
     const teachBack: WorkMap["teachBack"] = {
       segments, status: confirmed ? "confirmed" : "in_progress",
       ...(confirmed ? { confirmedAt: new Date().toISOString(), confirmationQuote } : {}),
@@ -288,8 +310,9 @@ export async function runDebrief(hub: CaptureHub, onStatus: (s: DebriefStatus) =
     wm = replayPatch(session, hub, { ...wm, teachBack, status: confirmed ? "confirmed" : "teachback_pending" }, confirmed ? "Teach-back confirmed" : "Teach-back incomplete", plan, "expert", yesU ? [yesU.id] : []);
     await saveWorkMapVersion(wm);
     hub.setPhase("review");
-    if (confirmed) void hub.agentSay("Great, thank you. I've got it.", "other");
-    onStatus({ ...tbStatus(), stage: confirmed ? "confirmed" : "teachback", detail: confirmed ? "Work Map confirmed" : "Teach-back not confirmed: review it in /map", workMapVersion: wm.version });
+    // never a silent dead end: the expert hears what is missing, the panel shows it
+    void hub.agentSay(confirmed ? "Great, thank you. I've got it." : notConfirmedSentence(outcome) ?? "I can't mark this as confirmed yet.", "other");
+    onStatus({ ...tbStatus(), stage: confirmed ? "confirmed" : "not_confirmed", detail: notConfirmed ?? "Work Map confirmed", workMapVersion: wm.version });
     return wm;
   } catch (err) {
     onStatus({ stage: "error", detail: (err as Error).message, gapsOpen: 0, problems });

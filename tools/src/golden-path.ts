@@ -24,6 +24,9 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failures++;
 };
 
+/** "What makes it a true duplicate?" / "Which match counts?": asked when the debrief can't tell a duplicate rule from a habit. */
+const DUPLICATE_RULE = /what makes .*duplicate|true duplicate|counts? as a duplicate|which (match|field|number)|match(es)? on|same (amount|delivery note|number)/i;
+
 // ── how each expert works and what they say (they genuinely differ: that's the "two experts" stretch) ──
 const PEOPLE = {
   sabine: {
@@ -31,29 +34,33 @@ const PEOPLE = {
     hofmann: async (w: Page) => { await w.type("#comment", "Possible duplicate of INV-4431 (DN-88213). Waiting for credit note.\n"); await btn(w, "Hold"); },
     brno: async (w: Page) => { await w.select("#approver", "M. Weber (Controlling)"); await sleep(700); await btn(w, "Send for approval"); },
     answers: [
+      [DUPLICATE_RULE, "Same delivery note number is what makes it a duplicate. Same amount alone isn't enough, repeat orders happen."],
       [/hold|hofmann|duplicate|december|credit note|releas/i, "Hofmann double-bills us every December. I hold it until I have their credit note, I never pay or reject it straight away. If it's over ten thousand, the AP lead Jonas signs off the release."],
       [/asset|capex|0400|cost cent|threshold|5,?000|five thousand|equipment/i, "Equipment over five thousand euros is always capex, cost center 0400. And no asset number, no capex booking: I ask the controller to create the asset first."],
       [/brno|intercompany|czech|weber|second approv|controll|subsidiar/i, "Brno is our Czech subsidiary. Anything intercompany goes to the controller, Weber, for a second approval, whatever the amount. Transfer pricing."],
     ] as Array<[RegExp, string]>,
+    fallback: "It depends on the invoice. If anything doesn't match the delivery note or the order, I stop and ask the controller, Weber, before I save it.",
   },
   ilse: {
     userId: "u_ilse",
     hofmann: async (w: Page) => { await w.select("#approver", "Jonas (AP lead)"); await sleep(700); await w.type("#comment", "Duplicate DN-88213, Jonas to decide.\n"); await btn(w, "Send for approval"); },
     brno: async (w: Page) => { await w.select("#approver", "Jonas (AP lead)"); await sleep(700); await btn(w, "Send for approval"); },
     answers: [
+      [DUPLICATE_RULE, "If the delivery note number matches one we've already paid, it's a duplicate. A matching amount on its own means nothing."],
       [/hold|hofmann|duplicate|december|credit note|releas|jonas/i, "A suspected duplicate goes straight to Jonas, the AP lead, with a comment. I don't park things on hold, held invoices get forgotten at month end."],
       [/asset|capex|0400|cost cent|threshold|5,?000|five thousand|equipment/i, "Anything that's equipment over five thousand euros is capex, 0400, and it needs an asset number before I save it."],
       [/brno|intercompany|czech|weber|second approv|controll|subsidiar/i, "Intercompany from Brno goes to Jonas first. He forwards it to controlling only when it's over ten thousand, otherwise he approves it himself."],
     ] as Array<[RegExp, string]>,
+    fallback: "It depends on the invoice. If I'm not sure, I don't guess: I send it to Jonas, the AP lead, with a comment saying what looks off.",
   },
 }[EXPERT];
 
-const DEFAULT = "Only in that case. Otherwise I book it normally, and if I'm unsure I ask the controller.";
 function answerFor(q: string): string {
   if (/whole process|how it works\?/i.test(q)) return "Yes. That's how it works.";
   if (/is that right/i.test(q)) return "Yes, that's right.";
   if (/anything else|did i miss/i.test(q)) return "No, that's all.";
-  return PEOPLE.answers.find(([re]) => re.test(q))?.[1] ?? DEFAULT;
+  // unmatched: a real (if general) answer in the expert's voice, never an unrelated canned one
+  return PEOPLE.answers.find(([re]) => re.test(q))?.[1] ?? PEOPLE.fallback;
 }
 
 async function btn(p: Page, label: string) {
@@ -211,8 +218,10 @@ try {
       await sleep(5000);
       const s = await hub.$eval(".debrief-panel .kicker", (e) => e.textContent ?? "").catch(() => "");
       if (s !== stage) log(`   debrief: ${(stage = s)}`);
-      if (/confirmed|went wrong/i.test(s)) break;
+      if (/Work Map confirmed|Not confirmed|went wrong/i.test(s)) break; // every end state of the debrief panel
     }
+    const why = await hub.$eval(".debrief-panel .not-confirmed", (e) => e.textContent ?? "").catch(() => "");
+    if (why) log(`   ${why}`);
     stop = true;
     await answering;
     wm = await hub.evaluate(async (sid) => {
@@ -220,7 +229,7 @@ try {
       return { workMapId: h.session.workMapId, sid };
     }, task.id);
     result.workMapId = wm.workMapId;
-    check("debrief ended with a confirmed Work Map", /confirmed/i.test(stage), stage);
+    check("debrief ended with a confirmed Work Map", /^Work Map confirmed/i.test(stage), why || stage);
     const head = (await db.doc(`workmaps/${wm.workMapId}`).get()).data();
     const map = head && JSON.parse((await db.doc(`workmaps/${wm.workMapId}/versions/${String(head.latestVersion).padStart(4, "0")}`).get()).get("json"));
     check(`the Work Map has steps and guardrails in ${EXPERT}'s words`, map?.steps.length >= 3 && map?.guardrails.length >= 2,
@@ -228,6 +237,10 @@ try {
     const debriefQs = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "debrief").length);
     check("≥3 debrief questions", debriefQs >= 3, String(debriefQs));
     await hub.screenshot({ path: `../docs/brag/golden-${EXPERT}-debrief.png` }).catch(() => {});
+    // close the expert's hub + work tab: a hub left open keeps broadcasting "capture" status on the shared bridge
+    await sleep(3000); // let the event log flush
+    await work.close();
+    await hub.close();
   }
 
 
@@ -244,8 +257,10 @@ try {
     else check("Training preselects the new Work Map", picked === wm.workMapId, `${picked} vs ${wm.workMapId}`);
     await lena.evaluate(() => (window.open = () => null));
     await click(lena, "Start practising with Ada");
-    await sleep(3000);
-    result.teachSessionId = await lena.evaluate(() => (window as any).__hub?.session.id);
+    // the practice session must be live before the work tab opens: without a teach hub nothing holds a save
+    result.teachSessionId = await lena.waitForFunction(() => (window as any).__hub?.session.id, { timeout: 30_000 })
+      .then((h) => h.jsonValue() as Promise<string>).catch(() => undefined);
+    check("practice session started (teach hub live)", !!result.teachSessionId, String(result.teachSessionId));
     const erp = await browser.newPage();
     await erp.goto(`${HUB}/erp?mode=teach`, { waitUntil: "networkidle2" });
     await erp.evaluate(() => localStorage.removeItem("minierp.v1"));
@@ -273,7 +288,7 @@ try {
     await sleep(6000);
     const held = await card(), s1 = await statusNow();
     check("new case INV-4494 (Brno spare parts, never shown): Approve without a 2nd approver is held by the intercompany rule",
-      /held|hold on|blocked/i.test(held) && /intercompany|weber|second|2nd|brno/i.test(held) && s1 !== "approved", `${held} · status ${s1}`);
+      /held|hold on|blocked/i.test(held) && /intercompany|weber|second|2nd|brno|вебер|брно/i.test(held) && s1 !== "approved", `${held} · status ${s1}`);
     await erp.screenshot({ path: "../docs/brag/golden-teach-new-case.png" }).catch(() => {});
     await erp.select("#approver", "M. Weber (Controlling)");
     await sleep(2000);

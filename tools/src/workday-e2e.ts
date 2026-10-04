@@ -19,9 +19,9 @@ const browser = await puppeteer.launch({ headless: true, defaultViewport: { widt
 const click = (p: Page, text: string) => p.evaluate((t) => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes(t))?.click(), text);
 const tasks = (p: Page) => p.$$eval(".tasks li", (ls) => ls.map((l) => (l.querySelector("b")?.textContent ?? "") + " | " + (l.querySelector(".muted")?.textContent ?? "")));
 
+const hub = await browser.newPage(); // outside try: the finally block reads its ids for cleanup
 try {
   // ── fake login ──
-  const hub = await browser.newPage();
   await hub.goto(`${HUB}/`, { waitUntil: "networkidle2" });
   check("unauthenticated → login page", hub.url().endsWith("/login"), hub.url());
   await hub.evaluate((ms) => localStorage.setItem("apprentice.idleMs", String(ms)), IDLE_MS);
