@@ -171,7 +171,7 @@ function Card({ c }: { c: TutorCard }) {
       {c.quote && <blockquote className="quote">“{c.quote.text}” <span className="muted">· {c.quote.who} · {c.quote.when}</span></blockquote>}
       {c.imageUrl && (
         <div className="frame">
-          <img src={c.imageUrl} alt="expert's screen" />
+          <img src={c.imageUrl} alt={c.quote ? `${c.quote.who}'s screen at ${c.quote.when}` : "The expert's screen at this moment"} />
           {c.bbox && <div className="bbox" style={{ left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` }} />}
         </div>
       )}

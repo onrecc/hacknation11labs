@@ -18,7 +18,7 @@ const STAGE: Record<DebriefStatus["stage"], string> = {
 
 export function DebriefPanel({ s, sessionId }: { s: DebriefStatus; sessionId?: string }) {
   return (
-    <div className="card debrief-panel wm" style={{ padding: "0.8rem 1rem", maxWidth: "none" }}>
+    <div className="card debrief-panel wm" style={{ padding: "0.8rem 1rem", maxWidth: "none" }} aria-live="polite">
       <div className="kicker">{STAGE[s.stage]}{s.workMapVersion ? ` · Work Map v${s.workMapVersion}` : ""}</div>
       {(s.stage === "asking" || s.stage === "planning" || s.stage === "extracting") && (
         <>

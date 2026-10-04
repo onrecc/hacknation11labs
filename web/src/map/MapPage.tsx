@@ -13,6 +13,7 @@ import { col } from "@shared/paths";
 import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, setWorkMapFeatured, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
 import { useUser } from "../lib/users";
 import { whenLabel } from "../lib/dates";
+import { rowLink } from "../lib/tabKeys";
 import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
@@ -72,7 +73,7 @@ function MapIndex() {
             <thead><tr><th>Task</th><th>Expert</th><th>Status</th><th className="num">Recorded</th></tr></thead>
             <tbody>
               {sessions?.map((s) => (
-                <tr key={s.id} onClick={() => nav(`/map/${s.id}`)}>
+                <tr key={s.id} {...rowLink(() => nav(`/map/${s.id}`))}>
                   <td><span className="mi-task">{sessionTitle(s)}</span>{s.kind === "teach" && <span className="pill">training</span>}</td>
                   <td className="muted">{s.participant.displayName}</td>
                   <td><span className="mi-status"><i className={s.status === "ended" || s.status === "processed" ? "" : "live"} />{s.status}</span></td>

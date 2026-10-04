@@ -39,7 +39,11 @@ button.link { height: auto; border: none; background: none; color: var(--muted);
 button.link:hover:not(:disabled) { background: none; color: var(--text); }
 input, select, textarea { font: inherit; font-size: 14px; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); width: 100%; }
 textarea { height: auto; padding: 8px 10px; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 10%, transparent); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--text); }
+/* one visible keyboard focus ring for every control (beats per-component `outline: none`) */
+:focus-visible { outline: 2px solid var(--accent-2) !important; outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 1px; }
+tr:focus-visible { outline-offset: -2px; }
 input::placeholder { color: var(--faint); }
 select { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none' stroke='%238f8f8f' stroke-width='1.6'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
@@ -105,7 +109,7 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .grid { width: 100%; border-collapse: collapse; font-size: 14px; }
 .grid th { text-align: left; font-size: 13px; font-weight: 500; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .grid td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.grid tbody tr:hover { background: var(--hover); cursor: pointer; }
+.grid tbody tr.row-link:hover, .grid tbody tr.row-link:focus-visible { background: var(--hover); cursor: pointer; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; }
 .frame { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--subtle); }
 .frame img { display: block; width: 100%; }
@@ -132,7 +136,7 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .erp input, .erp select { background: #fff; color: #171717; border-color: #ccd; }
 .erp button:not(.erp-bar button) { background: #fff; color: #171717; border-color: #ccd; }
 .erp button.primary { background: #1f3a5f; color: #fff; border-color: #1f3a5f; }
-.erp .grid th, .erp .grid td { border-color: #dde1e6; } .erp .grid tbody tr:hover { background: #eef2f7; }
+.erp .grid th, .erp .grid td { border-color: #dde1e6; } .erp .grid tbody tr.row-link:hover, .erp .grid tbody tr.row-link:focus-visible { background: #eef2f7; }
 .banner { padding: 10px 16px; font-weight: 500; font-size: 14px; }
 .banner.block { background: var(--danger); color: #fff; } .banner.info { background: var(--soft); }
 

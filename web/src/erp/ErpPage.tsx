@@ -7,6 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseFacts } from "@shared/schema";
 import { send, type ErpMode } from "../lib/bridge";
+import { rowLink } from "../lib/tabKeys";
 import { APPROVERS, COST_CENTERS, HISTORY, KNOWN_SUPPLIERS, SEED, type Invoice } from "./data";
 
 const LS = "minierp.v1";
@@ -141,7 +142,7 @@ export default function ErpPage() {
             <thead><tr><th>Invoice</th><th>Supplier</th><th>Date</th><th className="num">Amount</th><th>Status</th></tr></thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.key} onClick={() => openInvoice(r.key)}>
+                <tr key={r.key} {...rowLink(() => openInvoice(r.key))}>
                   <td>INV-{r.key}</td><td>{r.supplier}</td><td>{r.date}</td><td className="num">{r.amount.toLocaleString("en", { minimumFractionDigits: 2 })}</td><td>{r.status}</td>
                 </tr>
               ))}
