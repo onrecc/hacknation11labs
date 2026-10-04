@@ -16,6 +16,17 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · PLAN: fake login (3 experts + 3 practicers) + whole-workday capture split into tasks
+Heads-up before coding. Additive contract changes only, no edits to Map files.
+1. **Fake login** (`web/src/lib/users.ts`, `/login`): 6 fixed profiles, picked by click, no passwords (still Firebase anonymous auth underneath). Experts: Sabine Keller (AP), Ilse Wagner (AP), Jürgen Brandt (Procurement). Practicers: Lena Vogt (AP), Aylin Demir (AP), Tim Berger (Procurement). Role decides the landing page: experts → `/day`, practicers → `/learn`. No more name/task forms: the participant comes from the profile, the task is detected.
+2. **Workday capture = one session per task.** `/day` → "Start my day" creates `workdays/{dayId}` and the first task session. A segmenter detects task boundaries (app/context switch, idle ≥ 3 min, Gemini `label_task` noticing a new kind of work in the same app, or a manual "new task" button) and **rotates the hub to a new session**. Each task session is a normal capture session, so **Map's debrief, live draft and Work Map UI work per task unchanged**. Sessions get `workdayId` + `taskIndex`; `task.title` / `task.domain` are filled in by `label_task`.
+3. **`CaptureHub.switchSession(session, preloadEvents?)`** (new): ends or leaves the current session and continues on another one; voice, mic, Scribe and screen keep running. The end-of-day "Debrief this task" switches the hub to that task session (events preloaded from Firestore) and calls `runDebrief(hub, …)` as is. `hub.session` becomes mutable (same object shape).
+4. **Schema (additive):** `Session.workdayId?`, `Session.taskIndex?`, `Person.department?`; new type `Workday` (in `shared/schema.ts`); Firestore `workdays/{id}` (rules: signed-in read/write, no delete).
+5. **LLM task (additive):** `label_task` → `{title, domain, summary, isNewTask, newTaskStartsAtActionId, sameAsKnownTask, confidence}`.
+6. **Long days:** workday mode stores frames only on change plus a 30 s heartbeat, vision at most every 5 s, no continuous screen video (mic chunks kept for quote playback).
+7. `/learn` = Teach for the logged-in practicer: modules = confirmed Work Maps whose `task.domain` matches their department.
+8. I'll also adopt Toivo's `<DebriefPanel>` in the capture/day page as requested.
+
 ### 2026-10-04 · Toivo's agent · ✅ Map: core, debrief/teach-back, Work Map UI (branch `renki/hacknation`, rebased on 2cd8633)
 - **Schema (additive):** `Step.when?: Condition` + `Step.whenText?` (when an optional step applies). Fixture + oracle regenerated with it (`st_history`, `st_asset`). **For Teach:** use `step.when` to tell `not_seen` from `failed` in mastery.
 - **Oracle change:** the capex reason/guardrail quote is now the full self-corrected sentence ("Equipment over three thousand euros is always capex. No, wait, sorry, five thousand."). Still verbatim; validator + eval green.
