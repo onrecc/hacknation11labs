@@ -11,7 +11,7 @@
  */
 import { doc, setDoc } from "firebase/firestore";
 import type { CaseFacts, Guardrail, Id, MasteryReport, WorkMap } from "@shared/schema";
-import { violations } from "@shared/conditions";
+import { violatedFields, violations } from "@shared/conditions";
 import { col } from "@shared/paths";
 import { fmtT } from "@shared/logindex";
 import { db } from "../lib/firebase";
@@ -110,13 +110,13 @@ export class Tutor {
     if (m.kind === "beforeSave") {
       this.facts = m.facts;
       const block = violations(this.wm, m.facts).filter((g) => g.severity === "block");
-      send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined });
+      send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined, fields: fieldsToFix(block[0], m.facts) });
       if (block[0]) void this.intervene(block[0], true, m.facts.invoice.key);
       else { this.markRespected(m.facts); this.saved.set(m.facts.invoice.key, m.facts); }
     } else if (m.kind === "beforeAction" && m.feed && this.facts) {
       const f = afterAction(this.facts, m.action);
       const block = violations(this.wm, f).filter((g) => g.severity === "block");
-      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined });
+      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined, fields: fieldsToFix(block[0], f) });
       if (block[0]) void this.intervene(block[0], true, f.invoice.key);
       else { this.markRespected(f); this.saved.set(f.invoice.key, f); }
     } else if (m.kind === "beforeAction") {
@@ -324,7 +324,7 @@ export class Tutor {
       predictions: this.predictions,
       practiceNext: this.wm.guardrails.filter((x) => this.caught.has(x.id)).map((x) => x.statement),
     };
-    await setDoc(doc(db, col.report(this.hub.session.id), "mastery"), rep);
+    await setDoc(doc(db(), col.report(this.hub.session.id), "mastery"), rep);
     return rep;
   }
 }
@@ -341,6 +341,9 @@ function emptyFacts(label: string): CaseFacts {
 }
 
 /** The case facts as they would be after the held click (the button decides the status, e.g. Approve → approved). */
+/** Fact paths the blocking guardrail hinges on, so the work app can point at the field to fix. */
+const fieldsToFix = (g: Guardrail | undefined, f: CaseFacts): string[] | undefined => (g?.condition ? violatedFields(g.condition, f) : undefined);
+
 function afterAction(f: CaseFacts, action: string): CaseFacts {
   const status = /approv/i.test(action) && !/send|request/i.test(action) ? "approved"
     : /send for approval|request approval|route/i.test(action) ? "awaiting_approval"

@@ -2,7 +2,7 @@
 // embeddable same-origin script for the web app (web/public/apprentice-embed.js).
 //   npm run build -w extension            → load dist/chrome (chrome://extensions → Load unpacked)
 //                                            or dist/firefox (about:debugging → This Firefox → Load Temporary Add-on → manifest.json)
-//   npm run package -w extension          → also dist/ai-apprentice-chrome.zip and dist/ai-apprentice-firefox.zip
+//   npm run package -w extension          → also dist/protege-chrome.zip and dist/protege-firefox.zip
 import { build, context } from "esbuild";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -47,8 +47,8 @@ else for (const b of builds) await build(b);
 
 if (process.argv.includes("--package")) {
   for (const name of Object.keys(targets)) {
-    rmSync(`dist/ai-apprentice-${name}.zip`, { force: true });
-    execFileSync("zip", ["-qr", `../ai-apprentice-${name}.zip`, "."], { cwd: `dist/${name}` });
-    console.log(`packaged dist/ai-apprentice-${name}.zip`);
+    rmSync(`dist/protege-${name}.zip`, { force: true });
+    execFileSync("zip", ["-qr", `../protege-${name}.zip`, "."], { cwd: `dist/${name}` });
+    console.log(`packaged dist/protege-${name}.zip`);
   }
 }

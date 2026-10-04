@@ -18,6 +18,7 @@ import { getWorkday, loadEvents, getSession, makeSession, persistSession, saveWo
 import { llm } from "../lib/api";
 import type { BridgeMsg } from "../lib/bridge";
 import { personOf, type User } from "../lib/users";
+import { localDate } from "../lib/dates";
 import { CaptureHub, PAUSE } from "./hub";
 import { REDACTION_CONFIG } from "./redaction";
 import agents from "../lib/elevenlabs.json";
@@ -82,7 +83,7 @@ export class WorkdayRecorder {
   // ───────────── start / continue ─────────────
   /** Start today's workday, or continue it if one is still active (e.g. after a page reload). */
   async start(existing?: Workday): Promise<void> {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDate();
     if (existing && existing.status === "active") {
       this.workday = existing;
       for (const t of this.workday.tasks) if (t.status === "active") this.finishTask(t); // the old page's task is over

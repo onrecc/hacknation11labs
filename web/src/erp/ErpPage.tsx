@@ -6,7 +6,9 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CaseFacts } from "@shared/schema";
-import { send, type ErpMode } from "../lib/bridge";
+import { listen, send, type ErpMode } from "../lib/bridge";
+import { rowLink } from "../lib/tabKeys";
+import { EDITABLE, fieldToFix, type EditableField } from "./fix";
 import { APPROVERS, COST_CENTERS, HISTORY, KNOWN_SUPPLIERS, SEED, type Invoice } from "./data";
 
 const LS = "minierp.v1";
@@ -36,12 +38,24 @@ export default function ErpPage() {
   const [open, setOpen] = useState<string | null>(null);
   const [view, setView] = useState<"list" | "invoice" | "history">("list");
   const [query, setQuery] = useState("");
-  const [banner, setBanner] = useState<{ tone: "block" | "info"; text: string } | null>(null);
+  const [banner, setBanner] = useState<{ tone: "block" | "info"; text: string; field?: EditableField } | null>(null);
+  const [fix, setFix] = useState<EditableField | null>(null); // the field a held save points at
+  const [resetting, setResetting] = useState(false);
   const counts = useRef({ keystrokes: 0, clicks: 0, scrolls: 0, mouseMovePx: 0 });
   const inv = rows.find((r) => r.key === open) ?? null;
   const visible = useMemo(() => rows.filter((r) => (mode === "teach" ? r.set !== "demo" : r.set !== "teach")), [rows, mode]);
 
   useEffect(() => localStorage.setItem(LS, JSON.stringify(rows)), [rows]);
+  // Ada held Save/Approve: say why in a banner that points at the field to fix
+  const openRef = useRef(open);
+  openRef.current = open;
+  useEffect(() => listen((m) => {
+    if ((m.kind !== "beforeSaveResult" && m.kind !== "beforeActionResult") || !openRef.current) return;
+    if (m.allow) return setBanner((b) => (b?.tone === "block" ? null : b));
+    const field = fieldToFix(m.fields);
+    setBanner({ tone: "block", text: m.message ?? "Ada held this save: check it against the expert's rules.", ...(field ? { field } : {}) });
+    setFix(field);
+  }), []);
   useEffect(() => {
     send({ kind: "hello", from: "erp", mode });
     // activity counts (no content) every 2 s
@@ -88,6 +102,7 @@ export default function ErpPage() {
     setOpen(key);
     setView("invoice");
     setBanner(null);
+    setFix(null);
     send({ kind: "case", state: "start", case: caseRef(i), facts: facts(i), at: Date.now() });
     send({ kind: "app", payload: { action: "view", entity: entity(i), route: `/ap/invoices/${key}` }, verb: "open", description: `Opened invoice INV-${key} (${i.supplier}, ${i.amount.toLocaleString("en", { minimumFractionDigits: 2 })} EUR, ${i.category})`, facts: facts(i), at: Date.now() });
   }
@@ -98,11 +113,13 @@ export default function ErpPage() {
     setOpen(null);
     setView("list");
     setBanner(null);
+    setFix(null);
   }
 
   /** Commit a field change (on blur / select) and report it. */
   function change(field: keyof Invoice, value: string, verb = "edit") {
     if (!inv || inv[field] === value) return;
+    if (field === fix) setFix(null);
     const next = { ...inv, [field]: value } as Invoice;
     setRows((rs) => rs.map((r) => (r.key === inv.key ? next : r)));
     send({
@@ -120,6 +137,14 @@ export default function ErpPage() {
     send({ kind: "app", payload: { action: "save", entity: entity(inv), snapshot: { ...next, iban: undefined } }, verb, description: `Saved INV-${inv.key}: status ${inv.status} -> ${next.status}`, facts: facts(next), at: Date.now() });
   }
 
+  /** Highlight (and mark invalid) the field a held save points at. */
+  const fixProps = (f: EditableField) => (fix === f ? { className: "needs-fix", "aria-invalid": true } : {});
+  function goToField(f: EditableField) {
+    const el = document.getElementById(f);
+    el?.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    el?.focus({ preventScroll: true });
+  }
+
   function search(q: string) {
     setView("history");
     send({ kind: "app", payload: { action: "submit", entity: { kind: "supplier_search" }, field: "query", newValue: q, route: "/ap/search" }, verb: "search", description: `Searched supplier history for '${q}': ${HISTORY.filter((h) => h.supplier.toLowerCase().includes(q.toLowerCase())).map((h) => `INV-${h.key} ${h.amount} EUR ${h.dn} ${h.status}`).join("; ") || "no results"}`, at: Date.now() });
@@ -130,10 +155,21 @@ export default function ErpPage() {
       <header className="erp-bar">
         <b>MiniERP · Accounts Payable</b>
         <span style={{ flex: 1 }} />
-        <button onClick={() => { if (confirm("Reset all invoices to seed data?")) setRows(SEED); }}>Reset data</button>
+        {resetting ? (
+          <span className="row" role="group" aria-label="Confirm reset">
+            <span>Reset all invoices to the seed data?</span>
+            <button onClick={() => (setRows(SEED), setResetting(false), back())}>Reset</button>
+            <button onClick={() => setResetting(false)} autoFocus>Cancel</button>
+          </span>
+        ) : <button onClick={() => setResetting(true)}>Reset data</button>}
       </header>
 
-      {banner && <div className={`banner ${banner.tone}`}>{banner.text}</div>}
+      {banner && (
+        <div className={`banner ${banner.tone}`} role={banner.tone === "block" ? "alert" : "status"}>
+          {banner.text}
+          {banner.field && <button className="banner-go" onClick={() => goToField(banner.field!)}>Go to {EDITABLE[banner.field]}</button>}
+        </div>
+      )}
 
       {view === "list" && (
         <main>
@@ -142,7 +178,7 @@ export default function ErpPage() {
             <thead><tr><th>Invoice</th><th>Supplier</th><th>Date</th><th className="num">Amount</th><th>Status</th></tr></thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.key} onClick={() => openInvoice(r.key)}>
+                <tr key={r.key} {...rowLink(() => openInvoice(r.key))}>
                   <td>INV-{r.key}</td><td>{r.supplier}</td><td>{r.date}</td><td className="num">{r.amount.toLocaleString("en", { minimumFractionDigits: 2 })}</td><td>{r.status}</td>
                 </tr>
               ))}
@@ -180,17 +216,17 @@ export default function ErpPage() {
             <Field label="Delivery note" value={inv.dn} readOnly />
             <Field label="IBAN" value="•••• •••• •••• (masked)" readOnly />
             <label>Cost center
-              <select id="costCenter" value={inv.costCenter} onChange={(e) => change("costCenter", e.target.value)}>
+              <select id="costCenter" {...fixProps("costCenter")} value={inv.costCenter} onChange={(e) => change("costCenter", e.target.value)}>
                 {Object.entries(COST_CENTERS).map(([k, v]) => <option key={k} value={k}>{k}: {v}</option>)}
               </select>
             </label>
-            <Field label="Asset no." id="assetNo" value={inv.assetNo} onCommit={(v) => change("assetNo", v)} />
+            <Field label="Asset no." id="assetNo" {...fixProps("assetNo")} value={inv.assetNo} onCommit={(v) => change("assetNo", v)} />
             <label>2nd approver
-              <select id="approver" value={inv.approver} onChange={(e) => change("approver", e.target.value, "route")}>
+              <select id="approver" {...fixProps("approver")} value={inv.approver} onChange={(e) => change("approver", e.target.value, "route")}>
                 {APPROVERS.map((a) => <option key={a} value={a}>{a || "-"}</option>)}
               </select>
             </label>
-            <Field label="Comment" id="comment" value={inv.comment} onCommit={(v) => change("comment", v, "comment")} wide />
+            <Field label="Comment" id="comment" {...fixProps("comment")} value={inv.comment} onCommit={(v) => change("comment", v, "comment")} wide />
             <Field label="Status" value={inv.status} readOnly />
           </div>
           <div className="actions">
@@ -208,12 +244,12 @@ export default function ErpPage() {
   );
 }
 
-function Field(p: { label: string; value: string; id?: string; readOnly?: boolean; wide?: boolean; onCommit?: (v: string) => void }) {
+function Field(p: { label: string; value: string; id?: string; readOnly?: boolean; wide?: boolean; className?: string; "aria-invalid"?: boolean; onCommit?: (v: string) => void }) {
   const [v, setV] = useState(p.value);
   useEffect(() => setV(p.value), [p.value]);
   return (
     <label className={p.wide ? "wide" : ""}>{p.label}
-      <input id={p.id} value={v} readOnly={p.readOnly} onChange={(e) => setV(e.target.value)} onBlur={() => p.onCommit?.(v)} onKeyDown={(e) => e.key === "Enter" && p.onCommit?.(v)} />
+      <input id={p.id} className={p.className} aria-invalid={p["aria-invalid"]} value={v} readOnly={p.readOnly} onChange={(e) => setV(e.target.value)} onBlur={() => p.onCommit?.(v)} onKeyDown={(e) => e.key === "Enter" && p.onCommit?.(v)} />
     </label>
   );
 }

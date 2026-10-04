@@ -1,7 +1,7 @@
 /**
  * Captures the product screenshots used by docs/BRAG.md (launch video / pitch). 1440×900 @2x into docs/brag/.
  *   npm run brag:shots -w tools      (needs `npm run dev` + `npm run api`)
- * Shots that need live Gemini output (task names, comparisons) come from the golden-path run instead.
+ * Shots that need live LLM (Claude) output (task names, comparisons) come from the golden-path run instead.
  */
 import puppeteer, { type Page } from "puppeteer";
 

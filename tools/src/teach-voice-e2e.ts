@@ -93,7 +93,7 @@ try {
   await sleep(1500);
   await erp.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent === "Approve")?.click());
   await sleep(3000);
-  const banner = await erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? "");
+  const banner = await erp.evaluate(() => document.getElementById("protege-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? "");
   check("save held before it happened (extension overlay)", /hold on|held|blocked/i.test(banner), banner);
 
   let rows: string[] = [];

@@ -3,7 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import type { CaseFacts, WorkMap } from "./schema";
-import { violations } from "./conditions";
+import { violatedFields, violations } from "./conditions";
 
 const wm = JSON.parse(readFileSync(new URL("../fixtures/demo-session/expected_workmap.json", import.meta.url), "utf8")) as WorkMap;
 
@@ -30,3 +30,17 @@ const cases: Array<[string, CaseFacts, string[]]> = [
 for (const [name, facts, expected] of cases) {
   test(name, () => assert.deepEqual(ids(facts), expected.sort()));
 }
+
+// violatedFields: which fields the learner should fix (MiniERP points its block banner there)
+const cond = (id: string) => wm.guardrails.find((g) => g.id === id)!.condition!;
+test("violatedFields: opex on equipment points at the cost center", () => {
+  assert.deepEqual(violatedFields(cond("gr_capex_threshold"), cases[0][1]), ["invoice.category", "invoice.amount", "invoice.costCenter"]);
+});
+test("violatedFields: a missing value comes first", () => {
+  assert.deepEqual(violatedFields(cond("gr_asset_number"), cases[1][1]), ["invoice.assetNo", "invoice.costCenter"]);
+  assert.equal(violatedFields(cond("gr_intercompany_approval"), cases[7][1])[0], "invoice.approver");
+});
+test("violatedFields: only leaves that are true now, never inside not()", () => {
+  assert.deepEqual(violatedFields(cond("gr_december_hold"), cases[5][1]), ["supplier.name", "invoice.month", "invoice.duplicateDeliveryNote"]);
+  assert.deepEqual(violatedFields(cond("gr_asset_number"), cases[9][1]), []);
+});

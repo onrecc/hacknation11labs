@@ -8,7 +8,8 @@ export function useStore<T>(store: { subscribe: (fn: () => void) => () => void }
   return useSyncExternalStore((fn) => (store ? store.subscribe(fn) : () => {}), get);
 }
 
-export function FrameImg({ sessionId, frameId, uri, bbox, className }: { sessionId: Id; frameId?: Id; uri?: string; bbox?: ScreenMoment["bbox"]; className?: string }) {
+/** A recorded screen frame. `who` + `t` give the alt text, e.g. "Sabine's screen at 03:12". */
+export function FrameImg({ sessionId, frameId, uri, bbox, className, who, t }: { sessionId: Id; frameId?: Id; uri?: string; bbox?: ScreenMoment["bbox"]; className?: string; who?: string; t?: number }) {
   const [src, setSrc] = useState<string | null>(null);
   const [err, setErr] = useState(false);
   useEffect(() => {
@@ -26,7 +27,7 @@ export function FrameImg({ sessionId, frameId, uri, bbox, className }: { session
   if (err) return <div className={`frame missing ${className ?? ""}`}>frame unavailable</div>;
   return (
     <div className={`frame ${className ?? ""}`}>
-      {src && <img src={src} alt={frameId ?? "frame"} />}
+      {src && <img src={src} alt={`${who ? `${who}'s screen` : "Recorded screen"}${t !== undefined ? ` at ${fmtT(t)}` : ""}`} />}
       {bbox && <div className="bbox" style={{ left: `${bbox.x * 100}%`, top: `${bbox.y * 100}%`, width: `${bbox.w * 100}%`, height: `${bbox.h * 100}%` }} />}
     </div>
   );

@@ -55,6 +55,22 @@ export function violations(map: Pick<WorkMap, "guardrails">, facts: CaseFacts): 
     .sort((a, b) => rank[a.severity] - rank[b.severity]);
 }
 
+/**
+ * Fact paths a violated condition currently hinges on (its true leaves; `not` subtrees skipped), `missing` checks
+ * first since a blank field is usually the one to fill in. Empty when the condition isn't violated.
+ */
+export function violatedFields(c: Condition, facts: CaseFacts | Record<string, unknown>): string[] {
+  if (!evaluate(c, facts)) return [];
+  const leaves: Array<{ field: string; missing: boolean }> = [];
+  const walk = (x: Condition): void => {
+    if ("all" in x) x.all.forEach(walk);
+    else if ("field" in x && evaluate(x, facts)) leaves.push({ field: x.field, missing: x.op === "missing" });
+  };
+  walk(c);
+  const ordered = [...leaves.filter((l) => l.missing), ...leaves.filter((l) => !l.missing)].map((l) => l.field);
+  return [...new Set(ordered)];
+}
+
 /** Human-readable condition, for UIs and agent prompts. */
 export function describe(c: Condition): string {
   switch (c.op) {

@@ -15,6 +15,7 @@ import { personOf, useUser } from "../lib/users";
 import { REDACTION_CONFIG } from "./redaction";
 import { appUrl } from "../lib/workApp";
 import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
+import { toast } from "../components/toast";
 
 export default function CapturePage() {
   const user = useUser()!;
@@ -23,7 +24,6 @@ export default function CapturePage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [debrief, setDebrief] = useState<DebriefStatus | null>(null);
   const [typed, setTyped] = useState("");
-  const [err, setErr] = useState<string | null>(null);
   const state = useStore(hub, () => hub?.state ?? null);
   const evRef = useRef(0);
 
@@ -37,7 +37,7 @@ export default function CapturePage() {
 
   async function start() {
     try {
-      await signedIn;
+      await signedIn();
       const session = await createSession({
         kind: "capture",
         participant: personOf(user),
@@ -61,19 +61,19 @@ export default function CapturePage() {
         },
       });
       setHub(hub);
-      // one start: session + Ada's voice (degrades to TTS + typing without a mic); one greeting line, then quiet
-      await hub.startListening(`Hi, I'm Ada. Work as usual; I'll only ask when you pause.`);
+      // one greeting line, then quiet; degrades to TTS + typing without a mic
+      const greeting = `Hi, I'm Ada. Work as usual; I'll only ask when you pause.`;
+      await hub.startListening(greeting).catch((e: unknown) => toast.error(e, () => hub.startListening(greeting), "Couldn't start Ada's voice"));
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void start(), "Couldn't start recording");
     }
   }
 
-  const run = (fn: () => Promise<unknown> | void) => async () => {
+  const run = (fn: () => Promise<unknown> | void) => async (): Promise<void> => {
     try {
-      setErr(null);
       await fn();
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, run(fn));
     }
   };
 
@@ -89,7 +89,6 @@ export default function CapturePage() {
           <button className="primary" onClick={start}>Start recording with Ada</button>
           <p className="muted small wide">Starting means you consent to recording this task. Say "off the record" any time to pause it.</p>
         </div>
-        {err && <p className="error">{err}</p>}
       </div>
     );
 
@@ -131,7 +130,7 @@ export default function CapturePage() {
             </div>
           </label>
         </div>
-        {(err || s.error) && <p className="error">{err ?? s.error}</p>}
+        {s.error && <p className="error">{s.error}</p>}
         <details className="devlog">
           <summary>Developer log</summary>
           <EventFeed events={events} />

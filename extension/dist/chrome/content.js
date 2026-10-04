@@ -92,7 +92,7 @@
   var EDGE_GAP = 8;
   function startOverlay(t, opts) {
     const host = document.createElement("div");
-    host.id = "ai-apprentice-overlay";
+    host.id = "protege-overlay";
     const root = host.attachShadow({ mode: "open" });
     const cards = h("div", { class: "cards" });
     const caption = h("div", { class: "caption" });
@@ -204,7 +204,7 @@
       }
       const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
       if (src) {
-        const frame2 = h("div", { class: "frame" }, h("img", { src }));
+        const frame2 = h("div", { class: "frame" }, h("img", { src, alt: `${c.quote?.who ?? "The expert"}'s screen${c.quote ? ` at ${c.quote.when}` : " at this moment"}` }));
         if (c.bbox) {
           const box = h("div", { class: "bbox" });
           Object.assign(box.style, { left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` });

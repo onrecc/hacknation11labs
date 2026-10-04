@@ -114,10 +114,10 @@ Both on camera, Stockholm hub in the background. Loose, not read.
 - [ ] Challenge: 01 ElevenLabs
 - [ ] Demo / tech / team video links, **open access** (YouTube unlisted or Drive "anyone with link"), each ≤ 60 s
 - [ ] Repo public, with README setup + description: `github.com/onrecc/hacknation11labs`
-- [ ] Hosted demo: https://hacknation11labs.web.app (redeploy Hosting + the function after the Claude switch)
+- [x] Hosted demo: https://hacknation11labs.web.app (redeploy Hosting + the function after the Claude switch)
 - [ ] Team picture
 - [x] MIT `LICENSE` in the repo
-- [ ] Before submitting, check that `/map/demo` and the nav status dot show "Live"
+- [ ] Before submitting, check that `/map/demo` and the nav status dots (AI, Voice) are green
 
 ## Recording plan (start ~13:00)
 1. 13:00 Freeze `main`, deploy, run the golden path once on the hosted site.

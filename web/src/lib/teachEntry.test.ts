@@ -3,8 +3,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mayOpen, teachEntry } from "./teachEntry";
 
-test("practicer on a confirmed map: Open in Teach, preselecting the map", () => {
-  assert.deepEqual(teachEntry({ role: "practicer", status: "confirmed", workMapId: "wm_1" }), { label: "Open in Teach", to: "/learn?map=wm_1", primary: true });
+test("practicer on a confirmed map: Open in Training, preselecting the map", () => {
+  assert.deepEqual(teachEntry({ role: "practicer", status: "confirmed", workMapId: "wm_1" }), { label: "Open in Training", to: "/learn?map=wm_1", primary: true });
 });
 
 test("practicer on an unconfirmed map: nothing to open", () => {

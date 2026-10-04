@@ -39,7 +39,7 @@ console.log(`browser: ${BROWSER} ${await browser.version()}`);
 
 const overlay = (p: Page) =>
   p.evaluate(() => {
-    const r = document.getElementById("ai-apprentice-overlay")?.shadowRoot;
+    const r = document.getElementById("protege-overlay")?.shadowRoot;
     return { exists: !!r, pill: r?.querySelector(".pill")?.textContent ?? "", card: r?.querySelector(".card h4")?.textContent ?? "", ext: document.documentElement.dataset.apprenticeExt ?? "" };
   });
 const feed = (p: Page) => p.$$eval(".feed-row", (rows) => rows.map((r) => r.textContent ?? ""));
