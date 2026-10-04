@@ -8,6 +8,7 @@
  */
 import { Conversation } from "@elevenlabs/client";
 import { voiceToken, tts } from "../lib/api";
+import { preferredMicId } from "./mic";
 
 export interface SpokenTurn {
   text: string;
@@ -74,8 +75,10 @@ class AgentVoice implements Voice {
 
   static async start(signedUrl: string, opts: AgentOptions, ev: VoiceEvents): Promise<AgentVoice> {
     const v = new AgentVoice(ev);
+    const inputDeviceId = await preferredMicId(); // not a Bluetooth headset's mic when another exists (voice/mic.ts)
     v.conv = await Conversation.startSession({
       signedUrl,
+      ...(inputDeviceId ? { inputDeviceId } : {}),
       dynamicVariables: opts.dynamicVariables,
       clientTools: opts.clientTools,
       onMessage: (m) => {

@@ -17,7 +17,7 @@ const LLM = process.env.ELEVENLABS_AGENT_LLM ?? "claude-haiku-4-5" // the agent 
 
 const CONTROL = `
 CONTROL MESSAGES (sent by the app, never by the human; never mention them):
-- "[ASK] <question>": ask that question now, naturally, in your own words, max 20 words. Then stop and listen.
+- "[ASK] <question>": say that question right away, as written (you may smooth the wording, max 20 words). Never call a tool first. Then stop and listen.
 - "[SAY] <text>": say exactly that text, nothing else.
 - "[QUIET]": say nothing (use skip_turn).
 Screen context arrives as contextual updates: use it to understand, never narrate it.`;
@@ -60,9 +60,9 @@ const agents = {
     // no greeting on connect (the agent reconnects for task switches and debriefs): the hub says ONE line itself,
     // only when a fresh day or teach session starts (CaptureHub.startListening(greeting))
     first_message: "",
-    tools: [
-      clientTool("get_recent_screen_events", "Recent actions the expert took on screen (newest last).", { limit: { type: "number", description: "max events" } }, []),
-    ],
+    // no screen tool: the hub pushes every screen action as a contextual update anyway, and the agent called the tool
+    // before EVERY [ASK] (an extra round trip + second LLM call before Ada spoke; see tools/src/agent-latency.ts)
+    tools: [],
     dynamic: { expert_name: "Sabine", task_title: "Process open supplier invoices" },
   },
   tutor: {
@@ -96,9 +96,12 @@ function body(a: (typeof agents)[keyof typeof agents]) {
           tools: [...a.tools, { type: "system", name: "skip_turn", description: "Stay silent this turn (the human is thinking aloud or busy).", params: { system_tool_type: "skip_turn" } }],
         },
       },
-      tts: { model_id: "eleven_v3_conversational", voice_id: a.voice_id, expressive_mode: true },
+      // 44.1 kHz instead of the 16 kHz default (phone quality); measured: no extra latency, and v3 conversational
+      // is both the best-sounding and the fastest model for English agents (agent-latency.ts)
+      tts: { model_id: "eleven_v3_conversational", voice_id: a.voice_id, expressive_mode: true, agent_output_audio_format: "pcm_44100" },
       // never re-engage on silence ("Are you still there?"): the app decides when Ada speaks
-      turn: { turn_timeout: Number(process.env.EL_TURN_TIMEOUT ?? 300), turn_eagerness: "patient", silence_end_call_timeout: -1 },
+      // "normal" eagerness: Ada acknowledges an answer sooner (the hub still waits for the full answer via Scribe)
+      turn: { turn_timeout: Number(process.env.EL_TURN_TIMEOUT ?? 300), turn_eagerness: "normal", speculative_turn: true, silence_end_call_timeout: -1 },
       conversation: { max_duration_seconds: 3600 },
     },
     platform_settings: {

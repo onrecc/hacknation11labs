@@ -2,7 +2,8 @@
  * Server-side handlers shared by Cloud Functions (index.ts) and the local dev server (tools/src/dev-api.ts).
  * Keys live only here: CLAUDE_KEY (or ANTHROPIC_API_KEY), ELEVENLABS_API_KEY. Set LLM_MOCK=1 to run every task without keys.
  * LLM provider: Anthropic Claude (structured outputs via betaZodOutputFormat).
- * Cost: Sonnet for everything live and most offline work; Opus only for the one Work Map extraction per task.
+ * Cost/latency: Haiku for the calls on the live voice path (between the expert's answer and Ada's next line),
+ * Sonnet for everything else, Opus only for the one Work Map extraction per task.
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
@@ -13,6 +14,9 @@ import { mockOutput } from "./mocks";
 const MODEL = process.env.LLM_MODEL ?? "claude-sonnet-5-5";
 /** Only extract_workmap (one call per finished task, decides the whole map) runs on Opus. */
 const MODEL_MAP = process.env.LLM_MODEL_MAP ?? "claude-opus-5-5";
+/** Calls the person is waiting on mid-conversation: each one sits between their answer and Ada's next line. */
+const MODEL_FAST = process.env.LLM_MODEL_FAST ?? "claude-haiku-4-5";
+const FAST: ReadonlySet<LlmTask> = new Set<LlmTask>(["link_answer", "teachback_verdict", "detect_correction", "grade_prediction"]);
 const apiKey = () => process.env.CLAUDE_KEY ?? process.env.ANTHROPIC_API_KEY;
 
 // ───────────── output schemas (mirror shared/llm.ts; structured-output friendly: no records, no unions) ─────────────
@@ -239,11 +243,13 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
 
   const deep = DEEP.has(task);
   const map = task === "extract_workmap";
+  const model = map ? MODEL_MAP : FAST.has(task) ? MODEL_FAST : MODEL;
+  const haiku = model.includes("haiku"); // no effort parameter, no adaptive thinking (thinking is off by default)
   const base = {
-    model: map ? MODEL_MAP : MODEL,
+    model,
     max_tokens: map ? 20000 : deep ? 12000 : 4000, // ≤21k keeps the SDK from demanding streaming
     // live tasks (questions while the expert waits, guardrail checks before save) skip thinking for latency
-    ...(deep ? {} : { thinking: { type: "between_tools" as const } }),
+    ...(deep || haiku ? {} : { thinking: { type: "between_tools" as const } }),
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default" as const,
   };
@@ -279,7 +285,7 @@ async function runClaude<T extends LlmTask>(task: T, input: LlmInput<T>): Promis
       ...base,
       system: SYSTEM[task],
       messages: [{ role: "user", content }],
-      output_config: { effort: deep ? "medium" : "low", format: betaZodOutputFormat(schemas[task]) },
+      output_config: { ...(haiku ? {} : { effort: deep ? ("medium" as const) : ("low" as const) }), format: betaZodOutputFormat(schemas[task]) },
     });
     served = res.model;
     if (res.stop_reason === "refusal") throw new HttpError(422, `${task}: model declined`);
@@ -349,7 +355,7 @@ export async function handle(path: string, body: unknown): Promise<unknown> {
   }
   if (path.endsWith("/voice-token")) return voiceToken(b.kind as "agent" | "scribe", b.agentId as string | undefined);
   if (path.endsWith("/tts")) return tts(String(b.text ?? ""), b.voiceId as string | undefined);
-  if (path.endsWith("/health")) return { ok: true, provider: "claude", model: MODEL, mapModel: MODEL_MAP, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !apiKey() || !!llmDown, warning: llmDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
+  if (path.endsWith("/health")) return { ok: true, provider: "claude", model: MODEL, fastModel: MODEL_FAST, mapModel: MODEL_MAP, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !apiKey() || !!llmDown, warning: llmDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
   throw new HttpError(404, `no route ${path}`);
 }
 

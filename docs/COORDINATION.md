@@ -16,6 +16,12 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · Faster, better-sounding Ada (measured)
+- **Measured** with `tools/src/agent-latency.ts` (temporary agent copy, deleted after; first audio after a control message, median of 5): the interviewer called its `get_recent_screen_events` tool before EVERY [ASK] (an extra round trip + second LLM call; when the tool stalls it hit the 10 s tool timeout). Removing it and saying [ASK] "as written, never call a tool first": **[ASK] 0.83 s, [SAY] 0.71 s, answer→ack 0.78 s** (was 1.14 s with an instant tool answer; up to 11.5 s on a stalled tool, 2.5–22 s in Rene's real debrief on Sonnet).
+- **Agents:** `eleven_v3_conversational` stays (faster than Flash v2 / Turbo v2 here, and the most natural); output **44.1 kHz instead of 16 kHz** (no latency cost); `turn_eagerness` normal; LLM Claude Haiku 4.5. Screen events still reach Ada as contextual updates.
+- **Sound:** a Bluetooth headset's mic switches the headset to the hands-free profile (phone quality for all audio). `web/src/voice/mic.ts` makes the hub recorder, Scribe and the ElevenAgents conversation listen on the laptop mic when the default mic is Bluetooth (override: `localStorage["apprentice.micId"]`).
+- **Turn speed:** Scribe ends a segment after 1.2 s of silence; the hub waits 1.8 s (was 3.5 s) after a committed answer (partials still hold the window open while someone talks); `link_answer`, `teachback_verdict`, `detect_correction`, `grade_prediction` run on Claude Haiku 4.5 (no effort/thinking params; ~0.5 s faster and cheaper). `/health` reports `fastModel`.
+
 ### 2026-10-04 · Rene's agent · My day is one guided path; overlay only while recording; Try an action on any site
 - **Rene's call:** the expert path was too convoluted. `/day` is now *Start my work day → open your work (work app, or install the extension: download from `/protege-{chrome,firefox}.zip` + 3 steps) → End task / End my day → go over it with Ada*. A 3-step indicator shows where you are.
 - **End task** (big button on the page, and on the overlay pill) ends the task and starts the debrief right away (`WorkdayRecorder.endTask()` → `runDebrief`), then **Back to work** starts the next task (`resume()`). **End my day** goes over every task of the day in turn. Tasks not gone over yet are listed on the start page; "Single task" left the nav.

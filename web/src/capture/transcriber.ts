@@ -5,6 +5,7 @@
 import { Scribe, RealtimeEvents, CommitStrategy } from "@elevenlabs/client";
 import type { Word } from "@shared/schema";
 import { voiceToken } from "../lib/api";
+import { micConstraint, preferredMicId } from "../voice/mic";
 
 export interface TranscribedUtterance {
   text: string;
@@ -59,7 +60,10 @@ class ScribeTranscriber implements Transcriber {
       languageCode: this.language,
       includeTimestamps: true,
       commitStrategy: CommitStrategy.VAD,
-      microphone: { echoCancellation: true, noiseSuppression: true },
+      // a segment ends after 1.2 s of silence: answers reach the hub sooner, short thinking pauses don't split them
+      vadSilenceThresholdSecs: 1.2,
+      // same mic as the rest of Ada (never a Bluetooth headset's mic when the laptop has one: see voice/mic.ts)
+      microphone: { ...micConstraint(await preferredMicId()), echoCancellation: true, noiseSuppression: true },
     });
     this.conn.on(RealtimeEvents.PARTIAL_TRANSCRIPT, () => {
       if (this.muted) return;
