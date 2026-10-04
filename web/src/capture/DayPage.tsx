@@ -208,7 +208,7 @@ export default function DayPage() {
       toast.error(e, () => void endDay(), "Couldn't end your day");
       return;
     }
-    const queue = rec.tasks.filter((t) => worked(t) && !results[t.sessionId]).map((t) => t.sessionId);
+    const queue = rec.tasks.filter((t) => worked(t) && !wentOver(t.sessionId)).map((t) => t.sessionId); // also after a reload
     if (!queue.length) return setGoOver(null);
     setGoOver({ mode: "day", queue, at: 0 });
     await debriefTask(queue[0], rec);
@@ -417,7 +417,7 @@ export default function DayPage() {
       <DaySteps at={2} />
       <SessionStatus s={s} />
       {!wentToWork ? (
-        <WorkSetup app={user.app} extension={s.extension} onOpen={openWork} onShare={shareScreen} />
+        <WorkSetup app={user.app} extension={s.extension} onOpen={openWork} onShare={shareScreen} onEndDay={tasks.some(worked) ? () => void endDay() : undefined} />
       ) : (
         <section className="card current-task day-hero">
           <p className="kicker">{away === "back" ? `Welcome back, ${user.short}` : "Ada is following your work"}</p>

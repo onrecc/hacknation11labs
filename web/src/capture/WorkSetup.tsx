@@ -22,9 +22,11 @@ interface WorkSetupProps {
   extension: boolean;
   onOpen: () => void;
   onShare: () => void;
+  /** Continuing a day that already has work: ending it right here must be possible. */
+  onEndDay?: () => void;
 }
 
-export function WorkSetup({ app, extension, onOpen, onShare }: WorkSetupProps) {
+export function WorkSetup({ app, extension, onOpen, onShare, onEndDay }: WorkSetupProps) {
   const [install, setInstall] = useState(false);
   return (
     <section className="card setup" aria-label="Open your work">
@@ -55,7 +57,10 @@ export function WorkSetup({ app, extension, onOpen, onShare }: WorkSetupProps) {
           {install && <InstallSteps />}
         </>
       )}
-      <p className="muted small setup-alt">Neither? <button className="link" onClick={onShare}>Share your screen instead</button></p>
+      <p className="muted small setup-alt">
+        Neither? <button className="link" onClick={onShare}>Share your screen instead</button>
+        {onEndDay && <> · Done for today? <button className="link" onClick={onEndDay}>End my day</button></>}
+      </p>
     </section>
   );
 }
