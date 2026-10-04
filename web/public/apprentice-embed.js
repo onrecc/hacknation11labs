@@ -358,6 +358,7 @@
         return () => void listeners.delete(fn);
       }
     };
-    startSite(transport);
-  }, 400);
+    const feed = document.querySelector('meta[name="apprentice-app"]')?.getAttribute("content") === "feed";
+    startSite(transport, void 0, { feed });
+  }, 1200);
 })();

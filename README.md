@@ -2,6 +2,10 @@
 
 An apprentice, not a recorder. It watches an expert do real screen work and asks *why* at natural pauses (ElevenLabs voice agent). It turns the session into a clickable **Work Map** of steps, decisions and guardrails in the expert's own words. Then it **tutors the next new hire** and catches mistakes before they are saved.
 
+**▶ Live demo: https://hacknation11labs.web.app** (no install, no passwords). Pick **Sabine** to teach Ada, or **Lena** to train. **`/map/demo`** shows a finished Work Map instantly. In Training, open MiniERP, code invoice INV-4490 (€7,200 equipment) as opex and press Save: Ada holds it and explains with Sabine's own words. The browser extension is optional; it brings the same coaching to any website.
+
+Team: Rene Saarikko (Capture + Teach), Toivo (Work Map). Challenge 01, ElevenLabs "The AI Apprentice".
+
 | Part | What | Guide | Code |
 |---|---|---|---|
 | 1. Capture | Screen + always-on transcript + interviewer agent → Session Log | [docs/capture.md](docs/capture.md) | `web/src/capture/`, `web/src/erp/` |
@@ -121,3 +125,7 @@ npm run deploy:functions
 Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Anthropic Claude (Sonnet 5.5 for every live and offline task, Opus 5.5 only for the Work Map extraction; `LLM_MODEL` / `LLM_MODEL_MAP` to override; both ElevenAgents also run on Claude Sonnet 5.5) · Firebase · Chrome MV3 extension. All data is fictional sandbox data.
 
 Tool checks against the real services: `npm run smoke -w tools` (every Claude task), `npm run agent-test -w tools` (both agents' control protocol over WebSocket), `npm run scribe-test -w tools` (Scribe realtime with word timestamps), `npm run e2e:voice -w tools` / `npm run e2e:teach-voice -w tools` (live ElevenAgents interviewer / tutor + Scribe in a real browser with a synthetic mic), `npm run e2e:extension -w tools` (the real extension in Chrome for Testing; needs `npm run dev` + `npm run api`; first time: `npx puppeteer browsers install chrome`).
+
+## License
+
+[MIT](LICENSE)

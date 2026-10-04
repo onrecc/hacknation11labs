@@ -26,5 +26,7 @@ setTimeout(() => {
       return () => void listeners.delete(fn);
     },
   };
-  startSite(transport);
-}, 400);
+  // MiniERP publishes structured events itself ("feed"): overlay + save hold only, no duplicate DOM capture
+  const feed = document.querySelector('meta[name="apprentice-app"]')?.getAttribute("content") === "feed";
+  startSite(transport, undefined, { feed });
+}, 1200); // the extension's content script (document_idle) marks the page first; then this fallback steps aside
