@@ -1,7 +1,7 @@
 /**
  * GOLDEN PATH (the brief's "that's the bar" scenario), end to end on the real stack:
- *   expert logs in → "Start my day" → works 3 invoices in MiniERP, answering Ada's live questions →
- *   "End my day" → "Debrief now" → Map's debrief + teach-back → confirmed Work Map →
+ *   expert logs in → "Start my work day" → works 3 invoices in MiniERP, answering Ada's live questions →
+ *   "End my day" → Ada goes over the task (Map's debrief + teach-back) → confirmed Work Map →
  *   a practicer logs in → Training preselects THAT map → new €7,200 equipment invoice on opex → blocked before save.
  *
  *   EXPERT=sabine npm run golden -w tools      (default)  ·  EXPERT=ilse npm run golden -w tools
@@ -125,7 +125,7 @@ try {
     await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
     await hub.evaluate(() => (window.open = () => null, [...document.querySelectorAll("input[type=checkbox]")].forEach((c) => (c as HTMLInputElement).checked && (c as HTMLInputElement).click()))); // vision off: keeps the run fast and cheap
     await click(hub, "Start a new day");
-    await click(hub, "Start my day");
+    await click(hub, "Start my work day");
     for (let i = 0; i < 20 && !(await hub.evaluate(() => (window as any).__hub?.state.voice !== "-" && !!(window as any).__hub)).valueOf(); i++) await sleep(1000);
     const voice = await hub.evaluate(() => `${(window as any).__hub?.state.voice} / ${(window as any).__hub?.state.stt}`);
     check("day started with Ada listening", /elevenagents|elevenlabs/.test(voice), voice);
@@ -201,7 +201,9 @@ try {
     result.taskSessionId = task.id;
     check("the invoice work is one named task", !!task && task.actions >= 8 && !/Detecting/.test(task.title), `${task?.title} (${task?.actions} actions)`);
 
-    await hub.evaluate((id) => [...document.querySelectorAll(".tasks li")].find((li) => li.querySelector("a")?.getAttribute("href")?.endsWith(id))?.querySelector("button")?.click(), task.id);
+    // End my day goes over the day's tasks in turn, starting right away with the first
+    const goingOver = await hub.evaluate(() => (window as any).__hub.session.id as string);
+    check("End my day goes straight into going over the invoice task", goingOver === task.id, `${goingOver} vs ${task.id}`);
     log("   debrief started");
     let stage = "";
     const dStart = Date.now();

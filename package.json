@@ -20,7 +20,7 @@
     "seed:fixture": "npm run seed -w tools",
     "pull": "npm run pull -w tools --",
     "deploy:rules": "npm run deploy:rules -w tools",
-    "deploy:hosting": "npm run build -w web && firebase deploy --only hosting",
+    "deploy:hosting": "npm run package -w extension && npm run build -w web && firebase deploy --only hosting",
     "deploy:functions": "firebase deploy --only functions",
     "build:extension": "npm run build -w extension",
     "check:secrets": "bash scripts/check-secrets.sh"

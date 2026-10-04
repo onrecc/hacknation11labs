@@ -20,4 +20,5 @@ secrets/
 # never commit config with keys
 web/src/lib/firebase-config.json
 extension/dist/*.zip
+web/public/protege-*.zip
 tools/golden-*.json

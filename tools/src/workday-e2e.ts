@@ -1,6 +1,7 @@
 /**
- * Workday e2e: fake login → "Start my day" → work in MiniERP, then ProcureX, press "New task", take a break,
- * "End my day" → the day is split into the expected tasks. Then a practicer logs in and lands on Training.
+ * Workday e2e: fake login → "Start my work day" → "Open MiniERP" → work in MiniERP, then ProcureX, press "New task",
+ * take a break, "End my day" → the day is split into the expected tasks and Ada starts going over the first one.
+ * Then a practicer logs in and lands on Training.
  *   npm run e2e:workday -w tools      (needs `npm run dev` + `npm run api`)
  */
 import puppeteer, { type Page } from "puppeteer";
@@ -29,9 +30,12 @@ try {
   check("expert lands on My day", hub.url().endsWith("/day"), hub.url());
 
   await hub.evaluate(() => (window.open = () => null));
-  await click(hub, "Start a new day").then(() => click(hub, "Start my day"));
+  await click(hub, "Start a new day").then(() => click(hub, "Start my work day"));
   await sleep(4000);
-  check("day started", !!(await hub.$(".current-task")));
+  check("day started: step 2 asks to open the work app", !!(await hub.$(".setup")));
+  await click(hub, "Open MiniERP"); // window.open is stubbed: the work tab is opened below
+  await sleep(500);
+  check("then End task / End my day are right there", !!(await hub.$(".current-task")));
 
   // ── task 1: invoices in MiniERP ──
   const work = await browser.newPage();
@@ -99,18 +103,16 @@ try {
   await click(hub, "End my day");
   const wdIds = await hub.evaluate(() => { const r = (window as any).__rec; return `${r.workday.id} · tasks: ${r.workday.tasks.map((t: any) => t.sessionId).join(", ")}`; });
   await sleep(4000);
-  list = await tasks(hub);
-  const hidden = await hub.$eval(".card h3", (e) => e.textContent ?? "").catch(() => "");
-  check("day ended with 4 tasks, all done, no spurious detours", list.length === 4 && !/detours/.test(hidden), list.join(" // "));
-  check("each task has a Work Map link and a Debrief button", (await hub.$$eval(".tasks li", (ls) => ls.every((l) => l.textContent?.includes("Work Map") && l.textContent.includes("Debrief now")))));
+  const done = await hub.evaluate(() => (window as any).__rec.workday.tasks.filter((t: any) => t.status !== "interruption").map((t: any) => `${t.title} | ${t.status}`) as string[]);
+  check("day ended with 4 tasks, all done, no spurious detours", done.length === 4 && done.every((t) => t.endsWith("| done")), done.join(" // "));
+  check("the overlay is told the day is over", await hub.evaluate(() => !(window as any).__hub.recording));
 
-  // ── per-task debrief reopens that task's session and runs Map's debrief ──
+  // ── End my day goes straight into going over the first task (its session, Map's debrief) ──
   const firstTask = await hub.evaluate(() => (window as any).__rec.workday.tasks.find((t: any) => t.status === "done").sessionId as string);
-  await hub.evaluate(() => [...document.querySelectorAll(".tasks li")][0].querySelector<HTMLButtonElement>("button")?.click());
   await sleep(6000);
   const onTask = await hub.evaluate(() => (window as any).__hub.session.id as string);
   const panel = await hub.$eval(".debrief-panel .kicker", (e) => e.textContent ?? "").catch(() => "");
-  check("Debrief now reopens that task session", onTask === firstTask, `${onTask} vs ${firstTask}`);
+  check("End my day starts going over task 1", onTask === firstTask, `${onTask} vs ${firstTask}`);
   check("Map's debrief panel is running", panel.length > 0, panel);
   const preloaded = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "screen.action").length);
   check("the task's earlier events are loaded for the debrief", preloaded >= 5, `${preloaded} actions`);

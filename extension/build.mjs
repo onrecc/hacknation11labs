@@ -2,7 +2,8 @@
 // embeddable same-origin script for the web app (web/public/apprentice-embed.js).
 //   npm run build -w extension            → load dist/chrome (chrome://extensions → Load unpacked)
 //                                            or dist/firefox (about:debugging → This Firefox → Load Temporary Add-on → manifest.json)
-//   npm run package -w extension          → also dist/protege-chrome.zip and dist/protege-firefox.zip
+//   npm run package -w extension          → also dist/protege-chrome.zip and dist/protege-firefox.zip, copied to
+//                                            web/public/ so My day offers them as the "Install the extension" download
 import { build, context } from "esbuild";
 import { copyFileSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
@@ -49,6 +50,7 @@ if (process.argv.includes("--package")) {
   for (const name of Object.keys(targets)) {
     rmSync(`dist/protege-${name}.zip`, { force: true });
     execFileSync("zip", ["-qr", `../protege-${name}.zip`, "."], { cwd: `dist/${name}` });
-    console.log(`packaged dist/protege-${name}.zip`);
+    copyFileSync(`dist/protege-${name}.zip`, `../web/public/protege-${name}.zip`);
+    console.log(`packaged dist/protege-${name}.zip (+ web/public/)`);
   }
 }
