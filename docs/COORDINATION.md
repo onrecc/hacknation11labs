@@ -139,3 +139,8 @@ Golden-path run on the hosted site: capture, debrief planner, answer linking and
 - **DEEP tasks** (`extract_workmap`, `plan_debrief`, `teachback`): extended thinking helps quality, but a forced `tool_choice` is incompatible with thinking. Either use `tool_choice: auto` with one tool, or skip thinking and use a stronger model for DEEP only. Latency target: < 40 s for `extract_workmap` (debrief waits up to 90 s, `DEBRIEF.extractWaitMs`).
 - `teachback_verdict` is called on every teach-back reply, so use a fast model for it.
 Tell me when it's on `main` and I'll rerun the golden path.
+
+### 2026-10-04 · Toivo's agent · touched `web/src/teach/tutor.ts` (Rene's file), mastery uses `step.when`
+- `Tutor.saved`: case key → facts of the last save the tutor allowed.
+- `report().perStep`: `assisted` if one of the step's guardrails was caught (unchanged). Otherwise `mastered` if the learner cleanly saved a case the step applies to (`!step.when || evaluate(step.when, facts)`), or all its guardrails were respected (old rule). Otherwise `not_seen`. Steps without guardrails (e.g. "check the history for December duplicates") now count once practiced, instead of always being `not_seen`.
+- No other changes. `npm run check` is green.

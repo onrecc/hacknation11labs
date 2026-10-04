@@ -9,7 +9,7 @@
  */
 import { doc, setDoc } from "firebase/firestore";
 import type { CaseFacts, Guardrail, Id, MasteryReport, WorkMap } from "@shared/schema";
-import { violations } from "@shared/conditions";
+import { evaluate, violations } from "@shared/conditions";
 import { col } from "@shared/paths";
 import { fmtT } from "@shared/logindex";
 import { db } from "../lib/firebase";
@@ -41,6 +41,7 @@ export class Tutor {
   readonly caught = new Set<Id>();
   readonly respected = new Set<Id>();
   readonly relevant = new Map<string, Set<Id>>(); // case key → guardrails that applied when it opened
+  readonly saved = new Map<string, CaseFacts>(); // case key → facts at the last save the tutor allowed
   predictions = { asked: 0, correct: 0 };
   private nudged = new Map<Id, number>();
   private predicted = new Set<string>();
@@ -94,7 +95,7 @@ export class Tutor {
       const block = violations(this.wm, m.facts).filter((g) => g.severity === "block");
       send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined });
       if (block[0]) void this.intervene(block[0], true, m.facts.invoice.key);
-      else this.markRespected(m.facts);
+      else { this.markRespected(m.facts); this.saved.set(m.facts.invoice.key, m.facts); }
     } else if (m.kind === "beforeAction") {
       this.page = m.page;
       const out = await this.checkGeneric(m.page, m.action);
@@ -261,9 +262,13 @@ export class Tutor {
     const rep: MasteryReport = {
       sessionId: this.hub.session.id, workMapId: this.wm.id, learner: this.hub.session.participant,
       perGuardrail: this.wm.guardrails.map((x) => ({ guardrailId: x.id, status: g(x.id) })),
+      // A step counts as practiced when the learner saved a case it applies to (step.when, e.g. "only for
+      // capex" or "only Hofmann in December"; no `when` = every case) without the tutor stepping in.
       perStep: this.wm.steps.map((s) => {
         const st = s.guardrailIds.map(g);
-        return { stepId: s.id, status: st.includes("caught_by_tutor") ? "assisted" : st.length && st.every((x) => x === "respected") ? "mastered" : "not_seen" };
+        if (st.includes("caught_by_tutor")) return { stepId: s.id, status: "assisted" as const };
+        const applied = [...this.saved.values()].some((f) => { try { return !s.when || evaluate(s.when, f); } catch { return false; } });
+        return { stepId: s.id, status: applied || (st.length && st.every((x) => x === "respected")) ? "mastered" as const : "not_seen" as const };
       }),
       predictions: this.predictions,
       practiceNext: this.wm.guardrails.filter((x) => this.caught.has(x.id)).map((x) => x.statement),
