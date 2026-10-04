@@ -8,6 +8,40 @@ Each video is ≤ 60 s. That's about 140 spoken words, so read at a calm pace. R
 
 ---
 
+## 0. Video production plan (from the hack #6 winners)
+
+**What the winners did.** Demo: founder on camera states the problem (8 s), then AI-generated cinematic footage (10 s), logo, then "let's jump straight into the demo" and **~35 s of the real product** in a browser frame on a gradient background, word-by-word captions with key words highlighted, a hard number, then a tagline end card. Team: group shot + "MEET THE TEAM" banner, each person with a name/role banner, one playful moment, group finale, logo end card, light music.
+
+**Our rule:** AI-generated footage only for the *problem* and transitions. The product part must be our real app. Judges score technical depth, and an all-AI demo looks like a mock-up.
+
+### Demo (60 s)
+| Time | Shot | Source |
+|---|---|---|
+| 0–8 s | Toivo + Rene walking a Stockholm street, Toivo to camera: "Sabine has done accounts payable for 24 years. In 18 months she retires, and everything she knows walks out with her." | phone, outside |
+| 8–17 s | Cinematic: an empty desk with a retirement card · a new hire staring at an invoice screen · "11,200 people retire every day" | AI video |
+| 17–19 s | Logo card "AI Apprentice: an apprentice, not a recorder" | AI / end-card PNG |
+| 19–52 s | **Real app** in a browser frame: Sabine works in MiniERP → Ada asks *why* (**real ElevenLabs voice audible**) → Work Map with the struck-through self-correction + screen moment → Lena codes €7,200 as opex → **Save held** + Sabine's quote | Playwright screen recordings (Toivo's agent) + Ada voice clips |
+| 52–60 s | "Before 24 years of judgment walk out the door." + URL | end card |
+
+Narration: the demo script below (scenes 2–6), voiced by an **ElevenLabs voice** (fits the sponsor) or Toivo.
+
+### Tech (60 s) (no example; keep it simple)
+Talking head at the laptop in Espresso House (or outside if it's loud), cut with screen inserts: architecture diagram → event log → Map provenance (quote ↔ transcript, screen moment) → tutor holding a save. Must cover **how we built it, what worked, what didn't, key tools**:
+- Tools: ElevenAgents (interviewer + tutor), Scribe v2 Realtime, ElevenLabs TTS, Claude, Firebase, React, Chrome/Firefox extension.
+- Worked: verified Work Map (every quote verbatim, every rule checkable), save held before it lands.
+- Didn't: Gemini's free tier ran out mid-hackathon → switched to Claude; voice tested with a synthetic mic plus one real rehearsal; no personal-data scrubbing of transcripts yet.
+
+### Team (60 s)
+Espresso House table or the street. Phone landscape, 1080p/4K 30 fps, phone close (café noise!). Shots: (1) both + "MEET THE TEAM" banner, (2) Rene alone + name banner, (3) Toivo alone + name banner, (4) playful line: "we came in late because we were busy winning another hackathon", (5) both: tagline, (6) logo end card. Banners/captions added by AI editing or CapCut auto-captions.
+
+### Who does what (now → 14:45)
+- **Toivo's agent (now):** clean 1440×900 screen recordings of every product scene from the hosted site, Ada's lines as ElevenLabs audio, narration audio, captions (.srt), logo end card + name-banner PNGs. Served for download from a preview URL.
+- **Toivo + Rene, 13:00–13:30:** street intro (3 takes), team video clips, team picture, tech talking head.
+- **13:30–14:30:** AI-generated problem footage, assembly + captions (CapCut or AI editor), export 1080p, check each ≤ 60 s.
+- **14:30–14:45:** upload (Drive "anyone with link"), submit **HackOS + Google Form**.
+
+---
+
 ## 1. Demo video (≤ 60 s): what we built
 
 | Time | Screen | Voice-over |
