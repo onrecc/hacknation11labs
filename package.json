@@ -14,7 +14,7 @@
     "api": "npm run api -w tools",
     "build": "npm run build -w web && npm run build -w functions && npm run build -w extension",
     "typecheck": "tsc -p shared && tsc -p web --noEmit && tsc -p tools --noEmit && tsc -p functions --noEmit && tsc -p extension --noEmit",
-    "test": "npm test -w shared",
+    "test": "npm test -w shared && npm test -w web",
     "validate": "python3 scripts/validate_bundle.py fixtures/demo-session --workmap fixtures/demo-session/expected_workmap.json && python3 scripts/eval_guardrails.py",
     "check": "npm run check:secrets && npm run typecheck && npm test && npm run validate && npm run verify -w extension",
     "seed:fixture": "npm run seed -w tools",
