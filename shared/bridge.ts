@@ -25,10 +25,10 @@ export type BridgeBody =
   | { kind: "case"; state: "start" | "end"; case: { id: Id; kind: string; key: string; label?: string }; outcome?: string; facts?: CaseFacts; at: number }
   | { kind: "marker"; marker: "off_record_start" | "off_record_end" | "bookmark" | "end_task"; at: number }
   | { kind: "beforeSave"; reqId: string; facts: CaseFacts }
-  | { kind: "beforeSaveResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string }
+  | { kind: "beforeSaveResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string; /** fact paths to fix, e.g. "invoice.assetNo" */ fields?: string[] }
   /** Generic websites: an action (Save/Submit/Approve…) is about to happen; the hub may hold it. */
   | { kind: "beforeAction"; reqId: string; action: string; page: PageSnapshot; feed?: boolean }
-  | { kind: "beforeActionResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string }
+  | { kind: "beforeActionResult"; reqId: string; allow: boolean; guardrailIds?: Id[]; message?: string; fields?: string[] }
   /** Extension-captured screenshot of the work tab (JPEG data URL) — capture without the share dialog. */
   | { kind: "frame"; dataUrl: string; at: number; url: string }
   /** Overlay content on the work tab. */
