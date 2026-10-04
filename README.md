@@ -1,4 +1,4 @@
-# AI Apprentice: ElevenLabs × Hack-Nation (7th Global AI Hackathon)
+# Protégé: ElevenLabs × Hack-Nation (7th Global AI Hackathon)
 
 An apprentice, not a recorder. It watches an expert do real screen work and asks *why* at natural pauses (ElevenLabs voice agent). It turns the session into a clickable **Work Map** of steps, decisions and guardrails in the expert's own words. Then it **tutors the next new hire** and catches mistakes before they are saved.
 

@@ -1,4 +1,4 @@
-# Pitch, videos and submission (AI Apprentice)
+# Pitch, videos and submission (Protégé)
 
 Deadline: **Sun Oct 4, 15:00 CEST** (late = not judged). Local pitch in Stockholm 15:30–16:00.
 Judging: technical depth 33% · communication 33% · innovation 33%.
@@ -19,7 +19,7 @@ Each video is ≤ 60 s. That's about 140 spoken words, so read at a calm pace. R
 |---|---|---|
 | 0–8 s | Toivo + Rene walking a Stockholm street, Toivo to camera: "Sabine has done accounts payable for 24 years. In 18 months she retires, and everything she knows walks out with her." | phone, outside |
 | 8–17 s | Cinematic: an empty desk with a retirement card · a new hire staring at an invoice screen · "11,200 people retire every day" | AI video |
-| 17–19 s | Logo card "AI Apprentice: an apprentice, not a recorder" | AI / end-card PNG |
+| 17–19 s | Logo card "Protégé: an apprentice, not a recorder" | AI / end-card PNG |
 | 19–52 s | **Real app** in a browser frame: Sabine works in MiniERP → Ada asks *why* (**real ElevenLabs voice audible**) → Work Map with the struck-through self-correction + screen moment → Lena codes €7,200 as opex → **Save held** + Sabine's quote | Playwright screen recordings (Toivo's agent) + Ada voice clips |
 | 52–60 s | "Before 24 years of judgment walk out the door." + URL | end card |
 
@@ -51,7 +51,7 @@ Espresso House table or the street. Phone landscape, 1080p/4K 30 fps, phone clos
 | 16–26 s | Ada's question at a pause + Sabine's spoken answer | "…until a natural pause. Then it asks *why*. 'You moved that to capex. What made you do that?'" |
 | 26–38 s | `/map/demo`: the self-corrected quote with strikethrough, the screen moment, the decision | "Every answer becomes a Work Map: steps, decisions and guardrails in her own words, linked to the exact screen moment. Even her self-correction: three thousand… no, five." |
 | 38–52 s | `/erp?mode=teach`: Lena codes €7,200 as opex → **Save held** → tutor card with Sabine's quote | "Then Ada becomes Lena's tutor. On a case Sabine never showed, Lena makes the classic mistake, and the save is held before it lands, explained with Sabine's quote and screen." |
-| 52–60 s | Closing card: logo + "An apprentice, not a recorder." + URL | "AI Apprentice. Before twenty-four years of judgment walk out the door." |
+| 52–60 s | Closing card: logo + "An apprentice, not a recorder." + URL | "Protégé. Before twenty-four years of judgment walk out the door." |
 
 Captions: on-screen lines from BRAG.md (scenes 2–6).
 
@@ -85,9 +85,9 @@ Both on camera, Stockholm hub in the background. Loose, not read.
 >
 > **Rene:** "We came in late. We'd just won another hackathon the same weekend."
 >
-> **Toivo:** "Two people, one weekend, voice to map to tutor, live at hacknation11labs.web.app."
+> **Toivo:** "Three people, one weekend, voice to map to tutor, live at hacknation11labs.web.app."
 >
-> **Both:** "AI Apprentice: an apprentice, not a recorder."
+> **Both:** "Protégé: an apprentice, not a recorder."
 
 (Swap in anything true and personal: school, why knowledge loss matters to you. Judges score this on personality.)
 

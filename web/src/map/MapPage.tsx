@@ -46,7 +46,7 @@ function MapIndex() {
       <header className="mi-head">
         <div>
           <h1>Work Maps</h1>
-          <p className="muted">What the apprentice learned from each expert, ready to teach.</p>
+          <p className="muted">What Protégé learned from each expert, ready to teach.</p>
         </div>
         <Link className="mi-btn" to={`/map/${DEMO_ID}`}>Open demo</Link>
       </header>

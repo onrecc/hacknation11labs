@@ -1,9 +1,9 @@
-# Brag brief: AI Apprentice (for the `/brag` launch video)
+# Brag brief: Protégé (for the `/brag` launch video)
 
 Everything the brag skill needs to make a short launch video: the story, the scenes with their exact routes and screenshots, verified claims, brand, and what not to claim. Screenshots are in `docs/brag/` (1440×900 @2x, regenerate with `npm run brag:shots -w tools`).
 
 ## One-liner
-**AI Apprentice turns a retiring expert's workday into a Work Map and a voice tutor, so the next new hire learns the judgment calls, not just the clicks.**
+**Protégé turns a retiring expert's workday into a Work Map and a voice tutor, so the next new hire learns the judgment calls, not just the clicks.**
 
 Tagline options: "An apprentice, not a recorder." · "Before 24 years of judgment walk out the door." · "Ada asks why."
 

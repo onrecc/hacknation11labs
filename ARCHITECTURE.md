@@ -1,4 +1,4 @@
-# AI Apprentice — Architecture & Data Contract
+# Protégé — Architecture & Data Contract
 
 Owners: **Capture** (person A) · **Map** (person B) · **Teach** (whoever is free first, probably A, since it reuses Capture). Guides: [docs/capture.md](docs/capture.md) · [docs/map.md](docs/map.md) · [docs/teach.md](docs/teach.md)
 The types live in [`shared/schema.ts`](shared/schema.ts). That file is the contract. Change it only by agreement.

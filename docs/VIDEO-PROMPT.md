@@ -1,10 +1,10 @@
-# Prompt: make the three submission videos for AI Apprentice
+# Prompt: make the three submission videos for Protégé
 
 Paste everything below into Claude (Opus 5.5) on the Mac. It is self-contained.
 
 ---
 
-You're helping two hackathon builders, **Rene Saarikko** and **Toivo**, make their three submission videos for **AI Apprentice**, their entry to the **Hack-Nation 7th Global AI Hackathon**, Challenge 01 **ElevenLabs "The AI Apprentice"**. It's Sun Oct 4. **Hard deadline: 15:00 CEST** (late = not judged). Aim to have every video uploaded by **14:30**. They're at an Espresso House in Stockholm and can only film there or outside. Speed matters more than polish, but these videos carry a third of the score, so make them look professional.
+You're helping a three-person hackathon team (**Rene Saarikko**, **Toivo** and a third teammate who joined on the last day; ask for his name and give him the energetic on-camera parts: the demo's street hook and a slot in the team video) make their three submission videos for **Protégé** (pronounced *pro-teh-zhay*; always written with both accents), their entry to the **Hack-Nation 7th Global AI Hackathon**, Challenge 01 **ElevenLabs "The AI Apprentice"**. It's Sun Oct 4. **Hard deadline: 15:00 CEST** (late = not judged). Aim to have every video uploaded by **14:30**. They're at an Espresso House in Stockholm and can only film there or outside. Speed matters more than polish, but these videos carry a third of the score, so make them look professional.
 
 ## Submission rules (Google Form + HackOS, no re-submissions)
 - **Demo video, max 60 s:** the project in action, clear narration or captions.
@@ -15,7 +15,7 @@ You're helping two hackathon builders, **Rene Saarikko** and **Toivo**, make the
 - **Judging:** technical depth 33% · communication 33% · innovation/creativity 33%.
 
 ## The product (what to show)
-AI Apprentice captures a retiring expert's judgment and teaches it to the next hire. Three parts:
+Protégé captures a retiring expert's judgment and teaches it to the next hire. Three parts:
 1. **Capture:** Sabine (accounts payable, 24 years, retires in 18 months) just works in her ERP. Ada, an **ElevenLabs voice agent**, watches the screen and stays quiet. At natural pauses (after a save, no typing, no speech) Ada asks *why*: "You moved that one to capex. What made you do that?" Sabine answers out loud and even corrects herself: "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand."
 2. **Map:** the session becomes a **Work Map**: steps, decisions and guardrails in Sabine's own words. Every quote is verbatim from the transcript, linked to the exact screen moment, and the self-correction is kept (three thousand struck through → five thousand). Before saving, Ada explains the map back by voice and Sabine confirms or corrects it.
 3. **Teach:** Lena, the new hire, gets a case Sabine never showed (a €7,200 equipment invoice). She codes it as opex, and **the save is held before it lands**. Ada (now the tutor) explains with Sabine's quote and screen: "Sabine would stop here. Why do you think?"
@@ -35,9 +35,9 @@ AI Apprentice captures a retiring expert's judgment and teaches it to the next h
 |---|---|---|
 | 0–8 s | **Filmed:** Toivo + Rene walking a Stockholm street, Toivo to camera | "Sabine has done accounts payable for 24 years. In 18 months she retires, and everything she knows walks out with her." |
 | 8–17 s | **AI-generated:** empty office desk with a retirement card · a new hire lost in front of an invoice screen · caption "11,200 people retire every day" | "Screen recordings show what she clicked. Never why." |
-| 17–19 s | Logo card "AI Apprentice" | "So we built an apprentice." |
+| 17–19 s | Logo card "Protégé" | "So we built Protégé." |
 | 19–54 s | **Real product** in a browser frame on a dark gradient (see below) | narration below |
-| 54–60 s | End card: "AI Apprentice: an apprentice, not a recorder." + hacknation11labs.web.app | "Before twenty-four years of judgment walk out the door." |
+| 54–60 s | End card: "Protégé: an apprentice, not a recorder." + hacknation11labs.web.app | "Before twenty-four years of judgment walk out the door." |
 
 Product section narration (≈35 s; ElevenLabs narrator voice "George" `JBFqnCBsd6RMkjVDRZzb`, model eleven_multilingual_v2, fits the sponsor):
 - Capture: "Sabine just works. At a natural pause, our ElevenLabs agent, Ada, asks why." → **play Ada's real voice**: "You moved that one to capex. What made you do that?" → **Sabine's voice**: "Equipment over three thousand euros is always capex. No, wait, sorry, five thousand." Show these as speech cards with a small waveform; on Sabine's card, strike through "three thousand" and highlight "five thousand".
@@ -63,11 +63,11 @@ Lower-third with the stack list; captions with highlighted words.
 
 ## Video 3: Team (≤ 60 s)
 Film at the café table or on the street. Phone in landscape, 1080p/4K, 30 fps, **phone close to whoever is talking** (café noise), or use AirPods as the mic. Loose and natural, not read off a script. Shots:
-1. Both on camera + lower-third "MEET THE TEAM · AI Apprentice · Hack-Nation Stockholm".
+1. Both on camera + lower-third "MEET THE TEAM · Protégé · Hack-Nation Stockholm".
 2. Rene alone + "Rene Saarikko · Capture + Teach": "I built Capture and Teach: the voice agents, the browser extension, and the tutor that stops a bad save."
 3. Toivo alone + "Toivo · Work Map": "I built the Work Map: turning a messy session into verified steps, rules and the expert's own words."
 4. Playful moment: "We came in late because we were busy winning another hackathon." (tag: "GOOD VIBES ONLY" style)
-5. Both: "Two people, one weekend, voice to map to tutor. AI Apprentice: an apprentice, not a recorder."
+5. Both: "Three people, one weekend, voice to map to tutor. Protégé: an apprentice, not a recorder."
 6. End card.
 Add something true and personal (school, why knowledge loss matters to you). Judges score this on personality. Light music, auto-captions (CapCut) with highlighted words.
 

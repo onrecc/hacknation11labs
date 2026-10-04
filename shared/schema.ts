@@ -1,5 +1,5 @@
 /**
- * AI Apprentice — shared data contract between Capture, Map and Teach.
+ * Protégé — shared data contract between Capture, Map and Teach.
  * Capture WRITES Events. Map READS Events (+ writes debrief/teach-back Events) and WRITES WorkMaps.
  * Teach READS WorkMaps and WRITES Events in its own session.
  *

@@ -1,11 +1,11 @@
 {
   "manifest_version": 3,
-  "name": "AI Apprentice",
+  "name": "Protégé",
   "version": "0.2.0",
-  "description": "Ada watches the expert work on any web app (capture) and coaches new hires with an overlay (teach). Pairs with the AI Apprentice web app.",
+  "description": "Ada watches the expert work on any web app (capture) and coaches new hires with an overlay (teach). Pairs with the Protégé web app.",
   "content_scripts": [{ "matches": ["<all_urls>"], "js": ["content.js"], "run_at": "document_idle", "all_frames": false }],
   "permissions": ["tabs", "storage"],
   "host_permissions": ["<all_urls>"],
-  "action": { "default_title": "AI Apprentice" },
+  "action": { "default_title": "Protégé" },
   "icons": { "128": "icon.png" }
 }

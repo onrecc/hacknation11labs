@@ -52,7 +52,7 @@ function Nav() {
   }, []);
   return (
     <nav className="nav">
-      <Link to="/" className="brand">AI Apprentice</Link>
+      <Link to="/" className="brand">Protégé</Link>
       {user?.role === "expert" && <NavLink to="/day">My day</NavLink>}
       {user?.role === "expert" && <NavLink to="/capture">Single task</NavLink>}
       {user?.role === "practicer" && <NavLink to="/learn">Training</NavLink>}

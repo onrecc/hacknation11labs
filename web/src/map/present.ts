@@ -152,7 +152,7 @@ const lowerFirstWord = (t: string) => (/^[A-Z][a-z]+\b/.test(t) && !/^(Hofmann|S
 export function agentInstructions(wm: WorkMap): string {
   const L: string[] = [];
   L.push(`# ${wm.task.title}: operating procedure`, "");
-  L.push(`Learned from ${wm.expert.displayName} (${wm.expert.role}) by the AI Apprentice. Work Map ${wm.id} v${wm.version}, status: ${wm.status}.`, "");
+  L.push(`Learned from ${wm.expert.displayName} (${wm.expert.role}) by Protégé. Work Map ${wm.id} v${wm.version}, status: ${wm.status}.`, "");
   L.push("Follow these steps in order. Where a STOP rule fires, do not save; do the required action or hand over to the named person.", "");
   L.push("## Steps", "");
   for (const s of [...wm.steps].sort((a, b) => a.order - b.order)) {
