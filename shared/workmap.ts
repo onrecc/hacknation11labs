@@ -483,6 +483,8 @@ function checkCondition(json: string): { condition?: Condition; problem?: string
   if (!json || !json.trim()) return {};
   try {
     const c = JSON.parse(json) as Condition;
+    const badOps = conditionOps(c).filter((op) => !(KNOWN_OPS as readonly string[]).includes(op));
+    if (badOps.length) return { problem: `condition uses unknown operator ${[...new Set(badOps)].join(", ")}` };
     const bad = conditionFields(c).filter((f) => !(FACT_PATHS as readonly string[]).includes(f));
     return bad.length ? { problem: `condition uses unknown fields ${bad.join(", ")}` } : { condition: c };
   } catch {
@@ -593,6 +595,17 @@ export function applyClaimPatch(wm: WorkMap, out: LlmOutput<"patch_claim">, ix: 
     quote,
     problems,
   };
+}
+
+const KNOWN_OPS = ["and", "or", "not", "eq", "neq", "gt", "gte", "lt", "lte", "in", "contains", "missing"] as const;
+
+/** Every `op` in an (untrusted, parsed) condition tree; a node without a string op reports "(none)". */
+function conditionOps(c: unknown): string[] {
+  if (c === null || typeof c !== "object") return ["(none)"];
+  const node = c as { op?: unknown; all?: unknown; c?: unknown };
+  const op = typeof node.op === "string" ? node.op : "(none)";
+  const kids = Array.isArray(node.all) ? node.all.flatMap(conditionOps) : node.c !== undefined ? conditionOps(node.c) : [];
+  return [op, ...kids];
 }
 
 function conditionFields(c: Condition): string[] {

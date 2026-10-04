@@ -3,19 +3,37 @@
   // src/api.ts
   var ext = globalThis.browser ?? chrome;
 
+  // src/origins.ts
+  var APP_ORIGINS = [
+    "https://hacknation11labs.web.app",
+    "https://hacknation11labs.firebaseapp.com",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173"
+  ];
+  function isAppOrigin(url) {
+    if (!url) return false;
+    try {
+      return APP_ORIGINS.includes(new URL(url).origin);
+    } catch {
+      return false;
+    }
+  }
+
   // src/background.ts
   var hubTabId = null;
   var lastStatus = null;
   var shotTimer = null;
   ext.runtime.onMessage.addListener((x, sender, reply) => {
     const from = sender.tab?.id;
-    if (x?.type === "hub" && from != null) hubTabId = from;
+    const trusted = isAppOrigin(sender.tab?.url ?? sender.url);
+    if (x?.type === "hub" && from != null && trusted) hubTabId = from;
     if (x?.type === "getStatus") {
       reply(lastStatus);
       return true;
     }
     if (x?.type !== "relay" || !x.msg) return;
     const msg = x.msg;
+    if (msg.kind === "status" && !trusted) return;
     if (msg.kind === "status" && from != null) {
       hubTabId = from;
       lastStatus = msg;

@@ -20,6 +20,7 @@ import { micConstraint, preferredMicId } from "../voice/mic";
 import { redactUtterance, type RedactedUtterance } from "./redaction";
 import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
 import { questionTarget } from "./questionTarget";
+import { looksLikeEcho, speechWords } from "./echo";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 /** Bridge messages that describe work in the work tab (filed into the session that owns that tab). */
@@ -546,7 +547,7 @@ export class CaptureHub {
     if (!turn.spontaneous) this.turnMeta = null;
     const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
     const utteranceId = newId("utt");
-    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd)); // the agent may repeat a name or number back
+    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd), true); // the agent may repeat a number back; its own greeting names stay
     const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: r.text, words: r.words, language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
     this.noteRedaction(u.id, r);
     this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: r.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
@@ -575,12 +576,10 @@ export class CaptureHub {
 
   /** The mic hears the agent's own voice; drop utterances that are just an echo of what the agent said. */
   private isEcho(u: TranscribedUtterance) {
-    const words = u.text.toLowerCase().match(/[a-z0-9']+/g) ?? [];
-    if (!words.length) return true;
+    if (!speechWords(u.text).length) return true;
     return this.agentSpokeAt.some((a) => {
       if (u.t - a.t > 15_000 || a.t - u.tEnd > 2000) return false;
-      const hit = words.filter((w) => a.text.includes(w)).length;
-      return hit / words.length > 0.7;
+      return looksLikeEcho(u.text, a.text);
     });
   }
 
@@ -777,11 +776,13 @@ export class CaptureHub {
       });
       this.modelCall("question_pick", [pauseId, ...actions.map((a) => a.id)], Math.round(performance.now() - t0), undefined, out);
       const about = out.aboutActionIds.filter((id) => actions.some((a) => a.id === id));
-      if (out.ask && out.question && about.length && out.scores.screenAlreadyAnswers < 0.5 && this.now() - this.lastKeyAt >= PAUSE.keyMs && !this.state.expertSpeaking) {
+      // the budget is enforced here, not just in the prompt: at budget, a question the model wants to ask is deferred
+      const overBudget = this.budgetNow() <= 0;
+      if (out.ask && !overBudget && out.question && about.length && out.scores.screenAlreadyAnswers < 0.5 && this.now() - this.lastKeyAt >= PAUSE.keyMs && !this.state.expertSpeaking) {
         this.unasked = [];
         await this.askLive(out.question, out.category, about, pauseId, out.scores, out.rejected);
-      } else if (out.deferInstead && out.question) {
-        const reason = inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
+      } else if ((out.deferInstead || (out.ask && overBudget)) && out.question) {
+        const reason = overBudget || inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
         this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason } });
         this.unasked = [];
         this.set({ lastPauseInfo: describeDeferral(reason), deferredQuestions: this.state.deferredQuestions + 1 });

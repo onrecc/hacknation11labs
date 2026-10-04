@@ -10,6 +10,7 @@ import ComparePage from "./compare/ComparePage";
 import { HealthDots } from "./components/HealthDots";
 import { homeFor, logout, useUser, type Role } from "./lib/users";
 import { mayOpen } from "./lib/teachEntry";
+import { appUrl } from "./lib/workApp";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -52,7 +53,7 @@ function Nav() {
       {user?.role === "practicer" && <NavLink to="/learn">Training</NavLink>}
       {user && <NavLink to="/map">Work Maps</NavLink>}
       {user && <NavLink to="/compare">Compare</NavLink>}
-      <NavLink to={user?.app.url ?? "/erp"} target="_blank">{user?.app.name ?? "MiniERP"} ↗</NavLink>
+      <NavLink to={user ? appUrl(user.app, user.role === "practicer" ? "teach" : "capture") : "/erp"} target="_blank">{user?.app.name ?? "MiniERP"} ↗</NavLink>
       <span className="userchip">
         <HealthDots />
         {user ? (

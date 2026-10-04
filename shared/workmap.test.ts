@@ -97,6 +97,16 @@ test("verifier drops invented quotes, unknown fields and unknown actions", () =>
   assert.equal(workmap.steps.some((s) => s.confirmedByExpert), false, "no teach-back yet → nothing confirmed");
 });
 
+test("verifier rejects unknown guardrail operators, also nested in and/or/not", () => {
+  const p = proposalFromWorkMap(oracle, corrections, ix);
+  p.guardrails[1].conditionJson = JSON.stringify({ op: "and", all: [{ op: "not", c: { op: "greater", field: "invoice.amount", value: 3 } }] });
+  const { workmap, problems } = build(p, null);
+  const asset = workmap.guardrails.find((g) => g.id === "gr_asset_number")!;
+  assert.equal(asset.condition, undefined, "unknown op → no condition that silently never fires");
+  assert.equal(asset.severity, "warn", "un-checkable rule can't block");
+  assert.ok(JSON.stringify(problems).includes("unknown operator greater"), JSON.stringify(problems));
+});
+
 test("ids survive a rebuild when the LLM reuses existing ids", () => {
   const first = build().workmap;
   const again = build(proposalFromWorkMap(first, corrections, ix), first).workmap;
