@@ -116,7 +116,7 @@ export default function TeachPage() {
           <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
         {!s.extension && <p className="error">Ada coaches through the browser extension (Chrome or Firefox). Install it from <code>extension/dist</code>, then reload your work tab: without it there is no overlay and no save check.</p>}
-        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Works the same on any website: the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.</p>
+        <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Then INV-4494 (Brno spare parts): press Approve without a second approver. Works the same on any website: the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (
           <div className="card">
@@ -139,9 +139,11 @@ export default function TeachPage() {
 
 function Card({ c }: { c: TutorCard }) {
   return (
-    <div className={`card intervention ${c.tone}`}>
+    <div className={`card intervention ${c.tone}`} role={c.tone === "block" ? "alert" : undefined}>
+      {c.label && <span className="muted small">{c.label}</span>}
       <h3>{c.title}</h3>
       <p>{c.text}</p>
+      {c.provenance && <p className="muted small">{c.provenance}</p>}
       {c.quote && <blockquote className="quote">“{c.quote.text}” <span className="muted">· {c.quote.who} · {c.quote.when}</span></blockquote>}
       {c.imageUrl && (
         <div className="frame">

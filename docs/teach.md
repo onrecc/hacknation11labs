@@ -31,7 +31,7 @@
 
 | What | File | Status |
 |---|---|---|
-| Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T4) | ✅ |
+| Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T5) | ✅ |
 | Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser (first on Gemini; the golden path on Claude also holds the wrong save); `validate_bundle --part teach` → 0 errors |
 | Generic web apps | Claude `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
 | Tutor voice | ElevenAgents Tutor with the Work Map as `{{work_map}}`, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` | ✅ protocol verified (`npm run agent-test -w tools`) |
@@ -60,12 +60,15 @@ Seed these in MiniERP. Each must give the expected violations at save time; `scr
 | **T2** | INV-4491, Brno Precision, €9,800 equipment | Approve directly on 4711 → **both** `gr_capex_threshold` + `gr_intercompany_approval` (rule stacking from the debrief) |
 | **T3** | INV-4492, Hofmann, December, duplicate delivery note | Approve → `gr_december_hold`; on hold → allowed |
 | **T4** | INV-4493, Würth, €312 consumables | **No intervention.** Tests for false positives |
+| **T5** (second judge case, a different rule) | INV-4494, Brno Precision, €2,400 spare parts | Approve (or save) without a second approver → only **`gr_intercompany_approval`**; Weber as approver + send for approval → allowed |
+
+Block and nudge cards carry a severity label ("Blocked before save" / "Heads-up") and a provenance line derived from the guardrail's first screen moment and the Work Map's recorded cases (`web/src/teach/provenance.ts`), e.g. "Sabine never worked this invoice. Rule learned from INV-4471 at 00:28." If the learner's case is one the expert recorded, the line says so instead.
 
 ## Milestones
 
 | | Deliverable | Check |
 |---|---|---|
-| M0 | TS guardrail engine + unit tests mirroring `eval_guardrails.py` | T1–T4 green |
+| M0 | TS guardrail engine + unit tests mirroring `eval_guardrails.py` | T1–T5 green |
 | M1 | `beforeSave` hook holds the save in MiniERP | T1 is blocked with no voice yet |
 | M2 | Tutor voice: Socratic prompt + expert quote | T1 end-to-end |
 | M3 | Moment replay in the panel | Sabine's 0400 moment plays |

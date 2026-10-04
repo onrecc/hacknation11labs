@@ -84,6 +84,9 @@ const CSS = `
 .frame { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #2a2a2a; } .frame img { display: block; width: 100%; }
 .bbox { position: absolute; border: 2px solid #ef4444; border-radius: 4px; box-shadow: 0 0 0 2px rgba(239,68,68,.25); }
 .label { font-size: 12px; color: #9a9a9a; margin-bottom: -6px; }
+.sev { display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #52a8ff; margin-bottom: 2px; }
+.card.block .sev { color: #ff8589; } .card.nudge .sev { color: #ffc34d; }
+.prov { font-size: 12px; color: #9a9a9a; border-left: 2px solid #2a2a2a; padding-left: 8px; }
 @media (prefers-reduced-motion: reduce) { .dot, .wave i { animation: none; } .pill, .grip { transition: none; } }
 `;
 
@@ -199,9 +202,13 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
 
   const showCard = (c: Extract<BridgeBody, { kind: "tutorCard" }>) => {
     const el = h("div", { class: `card ${c.tone}` });
-    const head = h("div", { class: "head" }, h("span", { class: "tone" }), h("h4", {}, c.title));
+    const title = h("h4", {}, c.title);
+    if (c.label) title.prepend(h("span", { class: "sev" }, c.label));
+    const head = h("div", { class: "head" }, h("span", { class: "tone" }), title);
     head.append(iconBtn(MINUS, "Minimize", () => el.classList.toggle("min")), iconBtn(CLOSE, "Dismiss", () => el.remove()));
+    if (c.tone === "block") el.setAttribute("role", "alert");
     el.append(head, h("p", {}, c.text));
+    if (c.provenance) el.append(h("p", { class: "prov" }, c.provenance));
     if (c.quote) {
       const q = h("div", { class: "quote" }, `“${c.quote.text}”`, h("span", {}, `${c.quote.who} · ${c.quote.when}`));
       if (c.quote.translation) q.append(h("div", { class: "meaning" }, `In English: “${c.quote.translation}”`));
