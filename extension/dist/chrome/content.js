@@ -21,31 +21,49 @@
   // src/overlay.ts
   var CSS2 = `
 :host { all: initial; }
-.wrap { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; gap: 10px;
-  font: 14px/1.4 Inter, system-ui, -apple-system, "Segoe UI", sans-serif; color: #1b1f24; max-width: min(420px, calc(100vw - 32px)); }
+[hidden] { display: none !important; }
+.wrap { position: fixed; right: 16px; bottom: 16px; z-index: 2147483647; display: flex; flex-direction: column; align-items: flex-end; gap: 8px;
+  font: 13px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif; color: #ededed; max-width: min(400px, calc(100vw - 32px));
+  -webkit-font-smoothing: antialiased; }
 /* floating: cards top-right (bottom-right is where apps put their primary buttons), pill + caption bottom-right */
-.wrap:not(.docked) .cards { position: fixed; top: 72px; right: 16px; width: min(400px, calc(100vw - 32px)); }
+.wrap:not(.docked) .cards { position: fixed; top: 72px; right: 16px; width: min(380px, calc(100vw - 32px)); }
 .wrap.docked { position: static; max-width: none; flex-direction: row-reverse; align-items: flex-start; flex-wrap: wrap; padding: 8px 16px; }
 .wrap.docked .cards { flex: 1 1 420px; } .wrap.docked .card { display: grid; grid-template-columns: 1fr 260px; gap: 4px 16px; } .wrap.docked .card > :not(.frame):not(.label) { grid-column: 1; } .wrap.docked .card .label, .wrap.docked .card .frame { grid-column: 2; grid-row: 1 / span 4; } .wrap.docked .card .label { display: none; }
-.wrap:not(.docked) .card.min > :not(h4):not(.x):not(.m) { display: none; }
-.card .m { all: unset; cursor: pointer; float: right; font-size: 16px; color: #66707c; margin-right: 10px; }
-.pill { display: flex; align-items: center; gap: 8px; background: #1f3a5f; color: #fff; border-radius: 999px; padding: 6px 8px 6px 12px; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
-.pill.off { background: #c62828; } .pill.teach { background: #2e5d2e; }
-.dot { width: 8px; height: 8px; border-radius: 50%; background: #ff5252; animation: pulse 1.4s infinite; } .pill.teach .dot { background: #9be39f; } .pill.off .dot { background: #fff; animation: none; }
+.wrap:not(.docked) .card.min > :not(.head) { display: none; }
+.surface, .pill, .caption, .card { background: rgba(10,10,10,.94); border: 1px solid #262626; box-shadow: 0 8px 30px rgba(0,0,0,.35); backdrop-filter: blur(8px); }
+/* status pill */
+.pill { display: flex; align-items: center; gap: 8px; border-radius: 999px; height: 34px; box-sizing: border-box; padding: 0 4px 0 12px; font-weight: 500; white-space: nowrap; }
+.pill.bare { padding-right: 12px; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; box-shadow: 0 0 0 3px rgba(239,68,68,.18); animation: pulse 1.6s infinite; flex: none; }
+.pill.teach .dot { background: #22c55e; box-shadow: 0 0 0 3px rgba(34,197,94,.18); animation: none; }
+.pill.off .dot { background: #f5a524; box-shadow: 0 0 0 3px rgba(245,165,36,.18); animation: none; }
+.pill.off .text { color: #f5a524; }
 @keyframes pulse { 50% { opacity: .35; } }
-.pill button { all: unset; cursor: pointer; font-size: 12px; padding: 3px 8px; border-radius: 999px; background: rgba(255,255,255,.15); }
-.pill button:hover { background: rgba(255,255,255,.3); }
-.caption { background: rgba(20,24,30,.92); color: #fff; padding: 8px 12px; border-radius: 10px; max-width: 100%; box-shadow: 0 4px 16px rgba(0,0,0,.2); }
-.caption .who { font-size: 11px; opacity: .7; display: block; }
-.card { background: #fff; border-radius: 12px; border: 2px solid #3b6fb6; padding: 12px 14px; box-shadow: 0 8px 28px rgba(0,0,0,.25); width: 100%; box-sizing: border-box; }
-.card.block { border-color: #c62828; } .card.nudge { border-color: #b26a00; } .card.info { border-color: #2e7d32; }
-.card h4 { margin: 0 24px 6px 0; font-size: 14px; } .card p { margin: 0 0 8px; }
-.card .x { position: absolute; right: 22px; margin-top: -4px; all: unset; cursor: pointer; float: right; font-size: 16px; color: #66707c; }
-.quote { margin: 0 0 8px; padding: 6px 10px; border-left: 3px solid #3b6fb6; background: #eef2f7; border-radius: 0 6px 6px 0; font-style: italic; }
-.quote span { font-style: normal; color: #66707c; font-size: 12px; }
-.frame { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #dde1e6; } .frame img { display: block; width: 100%; }
-.bbox { position: absolute; border: 3px solid #e53935; border-radius: 4px; }
-.label { font-size: 11px; color: #66707c; margin-bottom: 4px; }
+.sep { width: 1px; height: 16px; background: #262626; margin: 0 2px; }
+/* icon buttons + tooltips */
+.icon { all: unset; box-sizing: border-box; position: relative; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 999px; color: #a1a1a1; cursor: pointer; flex: none; }
+.icon:hover { background: #1f1f1f; color: #ededed; } .icon:focus-visible { outline: 2px solid #ededed; outline-offset: 1px; }
+.icon.on { color: #f5a524; background: rgba(245,165,36,.12); }
+.icon svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+[data-tip]:hover::after, [data-tip]:focus-visible::after { content: attr(data-tip); position: absolute; right: 0; bottom: calc(100% + 8px); white-space: nowrap; background: #ededed; color: #0a0a0a;
+  font-size: 12px; font-weight: 500; padding: 4px 8px; border-radius: 6px; pointer-events: none; box-shadow: 0 4px 12px rgba(0,0,0,.25); }
+.card [data-tip]:hover::after, .card [data-tip]:focus-visible::after { bottom: auto; top: calc(100% + 6px); }
+/* Ada's live caption */
+.caption { padding: 8px 12px; border-radius: 12px; max-width: 100%; box-sizing: border-box; }
+.caption .who { font-size: 11px; color: #a1a1a1; display: block; font-weight: 500; }
+/* guidance cards: neutral surface, tone = small colored dot */
+.card { border-radius: 12px; padding: 12px 14px; width: 100%; box-sizing: border-box; }
+.card .head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.card .tone { width: 7px; height: 7px; border-radius: 50%; background: #3b82f6; flex: none; }
+.card.block .tone { background: #ef4444; } .card.nudge .tone { background: #f5a524; } .card.info .tone { background: #22c55e; }
+.card.block { border-color: rgba(239,68,68,.45); }
+.card h4 { margin: 0; font-size: 13px; font-weight: 600; flex: 1; } .card p { margin: 0 0 10px; color: #d4d4d4; }
+.card .head .icon { width: 22px; height: 22px; } .card .head .icon svg { width: 13px; height: 13px; }
+.quote { margin: 0 0 10px; padding: 6px 10px; border-left: 2px solid #3a3a3a; background: #141414; border-radius: 0 6px 6px 0; }
+.quote span { color: #8f8f8f; font-size: 12px; }
+.frame { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #262626; } .frame img { display: block; width: 100%; }
+.bbox { position: absolute; border: 2px solid #ef4444; border-radius: 4px; box-shadow: 0 0 0 2px rgba(239,68,68,.25); }
+.label { font-size: 11px; color: #8f8f8f; margin-bottom: 4px; }
 `;
   function startOverlay(t, opts) {
     const host = document.createElement("div");
@@ -65,22 +83,22 @@
       const teach = status.mode === "teach";
       pill.className = `pill ${status.offRecord ? "off" : teach ? "teach" : ""}`;
       const label = status.offRecord ? "Off the record" : teach ? "Ada is coaching" : `Ada is learning from ${status.expert ?? "you"}`;
-      pill.replaceChildren(h("span", { class: "dot" }), h("span", {}, label));
+      pill.replaceChildren(h("span", { class: "dot" }), h("span", { class: "text" }, label));
+      pill.classList.toggle("bare", !(opts.controls && !teach));
       if (opts.controls && !teach) {
-        const off2 = btn(status.offRecord ? "Back on record" : "Off the record", () => t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
-        const bm = btn("Bookmark", () => t.send({ kind: "marker", marker: "bookmark", at: Date.now() }));
-        pill.append(off2, bm);
+        const offRecord = !!status.offRecord;
+        const eye = iconBtn(offRecord ? EYE_OFF : EYE, offRecord ? "Back on the record" : "Go off the record: Ada stops watching and listening", () => t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
+        eye.classList.toggle("on", offRecord);
+        const bm = iconBtn(BOOKMARK, "Bookmark this moment", () => t.send({ kind: "marker", marker: "bookmark", at: Date.now() }));
+        pill.append(h("span", { class: "sep" }), eye, bm);
       }
     };
     const showCard = (c) => {
-      const close = h("button", { class: "x", title: "Dismiss" }, "\xD7");
-      const el = h("div", { class: `card ${c.tone}` }, close);
-      if (!opts.mount) {
-        const min = h("button", { class: "m", title: "Minimize" }, "\u2013");
-        min.addEventListener("click", () => el.classList.toggle("min"));
-        el.append(min);
-      }
-      el.append(h("h4", {}, c.title), h("p", {}, c.text));
+      const el = h("div", { class: `card ${c.tone}` });
+      const head = h("div", { class: "head" }, h("span", { class: "tone" }), h("h4", {}, c.title));
+      if (!opts.mount) head.append(iconBtn(MINUS, "Minimize", () => el.classList.toggle("min")));
+      head.append(iconBtn(CLOSE, "Dismiss", () => el.remove()));
+      el.append(head, h("p", {}, c.text));
       if (c.quote) el.append(h("div", { class: "quote" }, `\u201C${c.quote.text}\u201D `, h("span", {}, `\xB7 ${c.quote.who} \xB7 ${c.quote.when}`)));
       const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
       if (src) {
@@ -92,7 +110,6 @@
         }
         el.append(h("div", { class: "label" }, `${c.quote?.who ?? "Expert"}'s screen at this moment`), frame);
       }
-      close.addEventListener("click", () => el.remove());
       cards.replaceChildren(el);
       if (c.tone === "info") setTimeout(() => el.remove(), 2e4);
     };
@@ -114,8 +131,27 @@
       host.remove();
     };
   }
-  function btn(label, onClick) {
-    const b = h("button", {}, label);
+  var EYE = ["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6"];
+  var EYE_OFF = [
+    "M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49",
+    "M14.084 14.158a3 3 0 0 1-4.242-4.242",
+    "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143",
+    "m2 2 20 20"
+  ];
+  var BOOKMARK = ["m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"];
+  var CLOSE = ["M18 6 6 18", "m6 6 12 12"];
+  var MINUS = ["M5 12h14"];
+  function iconBtn(paths, tip, onClick) {
+    const NS = "http://www.w3.org/2000/svg";
+    const svg = document.createElementNS(NS, "svg");
+    svg.setAttribute("viewBox", "0 0 24 24");
+    svg.setAttribute("aria-hidden", "true");
+    for (const d of paths) {
+      const p = document.createElementNS(NS, "path");
+      p.setAttribute("d", d);
+      svg.append(p);
+    }
+    const b = h("button", { class: "icon", type: "button", "aria-label": tip, "data-tip": tip }, svg);
     b.addEventListener("click", onClick);
     return b;
   }

@@ -149,8 +149,14 @@ export default function ErpPage() {
         <span style={{ flex: 1 }} />
         {mode !== "free" && (
           <>
-            <button className={offRecord ? "danger" : ""} onClick={toggleOffRecord} title="Ctrl+Shift+O">{offRecord ? "● Off the record: resume" : "Off the record"}</button>
-            <button onClick={() => send({ kind: "marker", marker: "bookmark", at: Date.now() })} title="Ctrl+Shift+B">Bookmark</button>
+            {offRecord && <span className="pill" style={{ color: "#f5a524" }}>Off the record</span>}
+            <button className={offRecord ? "danger" : ""} style={ICON_BTN} onClick={toggleOffRecord} aria-label={offRecord ? "Back on the record" : "Go off the record"}
+              title={offRecord ? "Back on the record (Ctrl+Shift+O)" : "Go off the record: Ada stops watching and listening (Ctrl+Shift+O)"}>
+              <Icon d={offRecord ? EYE_OFF : EYE} />
+            </button>
+            <button style={ICON_BTN} onClick={() => send({ kind: "marker", marker: "bookmark", at: Date.now() })} aria-label="Bookmark this moment" title="Bookmark this moment (Ctrl+Shift+B)">
+              <Icon d={BOOKMARK} />
+            </button>
           </>
         )}
         <button onClick={() => { if (confirm("Reset all invoices to seed data?")) setRows(SEED); }}>Reset data</button>
@@ -239,5 +245,19 @@ function Field(p: { label: string; value: string; id?: string; readOnly?: boolea
     <label className={p.wide ? "wide" : ""}>{p.label}
       <input id={p.id} value={v} readOnly={p.readOnly} onChange={(e) => setV(e.target.value)} onBlur={() => p.onCommit?.(v)} onKeyDown={(e) => e.key === "Enter" && p.onCommit?.(v)} />
     </label>
+  );
+}
+
+// icon buttons (Lucide paths, same as the overlay): the tooltip says what they do
+const ICON_BTN = { width: 32, padding: 0, display: "inline-flex", alignItems: "center", justifyContent: "center" } as const;
+const EYE = ["M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0", "M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6"];
+const EYE_OFF = ["M10.733 5.076a10.744 10.744 0 0 1 11.205 6.575 1 1 0 0 1 0 .696 10.747 10.747 0 0 1-1.444 2.49", "M14.084 14.158a3 3 0 0 1-4.242-4.242",
+  "M17.479 17.499a10.75 10.75 0 0 1-15.417-5.151 1 1 0 0 1 0-.696 10.75 10.75 0 0 1 4.446-5.143", "m2 2 20 20"];
+const BOOKMARK = ["m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16z"];
+function Icon({ d }: { d: string[] }) {
+  return (
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      {d.map((x) => <path key={x} d={x} />)}
+    </svg>
   );
 }

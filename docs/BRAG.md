@@ -43,7 +43,7 @@ Optional scene: **Two experts, one task**: `/compare` shows where Sabine and Ils
 ## Brand
 - App UI: neutral black/white system (Inter, 1px borders, Vercel-like), accent green status dot. Dark background in the app shots.
 - Demo apps: **MiniERP** navy `#1f3a5f` (accounts payable), **ProcureX** brown `#7a3e1d` (procurement).
-- Tutor overlay: red card for "save held", blue for "predict", amber for nudges; pill "Ada is coaching" (green) / "Ada is learning from …" (navy).
+- Overlay (any web app): same black/white system as the app. Dark cards with a small tone dot (red "save held", blue "predict", amber nudge, green info); status pill with a dot (red pulsing = learning, green = coaching, amber = off the record) and icon buttons with tooltips: 👁 eye = go off the record, bookmark.
 - Voices: interviewer "Chris" (calm, curious), tutor "Alice" (clear educator), both ElevenLabs.
 - Tone: calm, respectful of senior expertise. Ada is the apprentice, never the boss.
 
