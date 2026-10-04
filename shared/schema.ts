@@ -64,7 +64,8 @@ export interface Session {
     agentLlm: string;
     sttModel: string;
     promptVersions: Record<string, string>; // { vision: "v3", questionPicker: "v2", ... }
-    redaction: { enabled: boolean; engine: "presidio" | "none"; entityTypes: string[] };
+    /** engine "regex" = shared/redact.ts on transcript text ("presidio" is only used by the synthetic fixture). */
+    redaction: { enabled: boolean; engine: "presidio" | "regex" | "none"; entityTypes: string[] };
     questionBudgetPer10Min: number;
   };
   media: { screenVideo: Uri[]; micAudio: Uri[]; agentAudio: Uri[] };

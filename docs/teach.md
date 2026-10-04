@@ -47,7 +47,7 @@
 5. **Socratic first.** "Sabine would stop here. Why do you think?" Wait for the answer, then explain with the expert's **verbatim** `reason` quote and offer `replay_moment(screenMoment)`.
 6. **Don't nag.** At most one prediction prompt per decision and one intervention per field per 30 s. Use the same pause rules as Capture: no talking while the new hire types, unless a block is pending.
 7. Use `commonMistakes` as a watch-list. For example, approving Brno directly gets a pre-emptive hint. *Status:* planned, not yet implemented (Map shows `commonMistakes`; the tutor doesn't use them yet).
-8. Same trust rules as Capture: off-record, redaction (masking/blurring only; Presidio not implemented), no keys in the browser.
+8. Same trust rules as Capture: off-record, redaction (regex on transcripts, masking/blurring on screen; no Presidio), no keys in the browser.
 9. End with a `MasteryReport`: per-step status (`mastered`/`assisted`/`failed`/`not_seen`), per-guardrail status (`respected`/`caught_by_tutor`/`violated`/`not_triggered`), prediction accuracy and what to practice next.
 
 ## Test cases

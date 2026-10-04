@@ -39,7 +39,7 @@ Why we do it this way:
 4. **Log every model call** with prompt version, inputs (refs), raw output, latency and tokens. That makes it debuggable and reprocessable. *Today:* `model.call` events carry purpose, input refs, latency and errors; raw output and token counts are not stored yet.
 5. **Record what didn't happen too.** Skipped turns, rejected candidate questions, why the agent stayed silent, low-confidence observations. Map uses these to find gaps, and the demo needs them to answer "when to ask / what to ask".
 6. **Distinguish judgment vs habit vs mistake.** `knowledge.correction` events (from speech, hotkey, debrief or teach-back) plus answer classification. The brief calls out that this is what recordings miss.
-7. **Privacy at the boundary.** Redaction runs before anything leaves the capture machine. Off-record spans are **not recorded at all**; only a marker remains. *Today:* field masking and frame blurring only; transcripts and mic audio are not redacted yet (see Redaction in §3).
+7. **Privacy at the boundary.** Redaction runs before anything leaves the capture machine. Off-record spans are **not recorded at all**; only a marker remains. *Today:* transcript text is redacted in the browser before it is logged or sent to an LLM (regex: IBAN, email, phone, Luhn-checked cards, known user names), fields are masked and frames blurred on vision `piiRegions`; mic audio is not redacted (see Redaction in §3).
 
 ## 3. Capture pipeline (person A)
 
@@ -57,7 +57,7 @@ Why we do it this way:
 | Question picker | candidates scored by "would the screen already answer this?" and guardrail value. Budget: 3–5 per 10 min, the rest queued for the debrief | `agent.question` (with rejected candidates), `question.deferred` | on pause |
 | Expert controls | hotkey/voice: "off the record", "bookmark", "next invoice" | `marker.*` | user-driven |
 | Correction detector | every final utterance + last ~60 s of speech + recent actions → "is this a self-correction, and of what?" | `knowledge.correction` | per utterance |
-| Redaction | Implemented: PII bboxes from vision get blurred in later stored frames; the extension masks passwords, IBANs and card numbers; MiniERP masks IBAN. **Planned, not yet implemented:** Presidio on text and `redaction.applied` events | (`redaction.applied`, planned) | inline |
+| Redaction | Implemented: every `utterance` (expert and agent) goes through `shared/redact.ts` (engine `"regex"`) before it is logged or sent to any LLM: IBAN → `[IBAN]`, email (written or spoken "x at y dot de") → `[EMAIL]`, phone numbers starting with + or 0 → `[PHONE]`, Luhn-valid card numbers → `[CARD]`, names of the app's user profiles → `[PERSON]`; word timings are merged to match. Invoice keys, amounts, cost centers and dates are kept. PII bboxes from vision get blurred in later stored frames; the extension masks passwords, IBANs and card numbers; MiniERP masks IBAN. **Not done:** Presidio/NER (names outside the user list are not caught), redaction of mic audio chunks and unblurred first frames, the ElevenLabs agent hears raw audio | `redaction.applied` (types + placeholder spans, never the original) | inline |
 
 Why instrument the sandbox app: vision is noisy. If the ERP is our own web app, we get **ground-truth** "cost_center 4711 → 0400 on invoice 4471" plus real typing/idle signals for pause detection. Vision then becomes the generic layer that also works on arbitrary apps. Keep both, and store both.
 
@@ -110,7 +110,7 @@ Cloud Functions (2nd gen; secrets in Secret Manager)
   api (europe-west1)  POST /llm {task,input} (tasks in shared/llm.ts: vision | pick_question | detect_correction | link_answer | label_task | extract_workmap | plan_debrief | teachback | teachback_verdict | patch_claim | compare_workmaps | resolve_difference | check_guardrails | grade_prediction | tutor_explain)
                       Claude: claude-sonnet-5-5 (LLM_MODEL), extract_workmap on claude-opus-5-5 (LLM_MODEL_MAP)
                       POST /voice-token (ElevenLabs signed agent URL / Scribe token) · POST /tts · GET /health
-  redact (TODO: planned, not implemented)   Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
+  (no redact function: transcript redaction runs in the browser, shared/redact.ts; a Presidio service is not used)
 Hosting            the web app (/capture, /map/:id, /teach) + the MiniERP sandbox + /apprentice-embed.js
 Auth               Google sign-in for the team, anonymous auth for judges; rules: request.auth != null
 ```
@@ -139,7 +139,7 @@ Auth               Google sign-in for the team, anonymous auth for judges; rules
 3. **One clock.** `t` = ms since session start from `performance.now()`. `Date.now()` goes only into `wall`.
 4. **Every writer uses `shared/eventlog.ts`** (chunking, seq reservation, retries). Nobody writes Firestore event docs by hand.
 5. **Evidence or it didn't happen.** Every derived claim cites event IDs, frames and verbatim quotes. Code (not the LLM) verifies quotes and frames exist.
-6. **Privacy at the boundary.** Raw unredacted frames, audio and text never leave the browser (goal; text redaction is not implemented yet, see §3). Off-record means nothing is persisted.
+6. **Privacy at the boundary.** Raw unredacted frames, audio and text never leave the browser (goal; today transcript text is regex-redacted in the browser, mic audio is uploaded unredacted and frames are blurred only on vision `piiRegions`, see §3). Off-record means nothing is persisted.
 7. **No API keys in the browser.** All model calls go through Functions.
 8. **Done = validator green** for your part on the fixture **and** on a real recorded session.
 

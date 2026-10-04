@@ -118,8 +118,12 @@ export class ChunkRecorder {
     this.rec = rec;
   }
 
-  private cut() {
-    if (this.rec && this.rec.state !== "inactive") this.rec.stop();
+  /** Close the current slice; with `discard`, drop it instead of handing it to onChunk. */
+  private cut(discard = false) {
+    if (this.rec && this.rec.state !== "inactive") {
+      if (discard) this.rec.onstop = null;
+      this.rec.stop();
+    }
     this.rec = null;
   }
 
@@ -131,10 +135,14 @@ export class ChunkRecorder {
       this.begin();
     }, this.sliceMs);
   }
-  /** Off-record: close the current slice (it only holds on-record media) and record nothing until resume. */
-  pause() {
+  /**
+   * Off-record: close the current slice and record nothing until resume. With `discard`, the in-progress slice is
+   * thrown away instead of saved: used when off-record was triggered by voice, since that slice holds the spoken
+   * "off the record" (and whatever was said right before it).
+   */
+  pause(discard = false) {
     this.paused = true;
-    this.cut();
+    this.cut(discard);
   }
   resume() {
     if (!this.paused) return;

@@ -15,6 +15,7 @@ import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
 import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
+import { redactUtterance, type RedactedUtterance } from "./redaction";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
@@ -34,6 +35,8 @@ export interface HubState {
   lastPause: string;
   liveQuestions: number;
   frames: number;
+  /** PII items replaced in transcripts so far (shared/redact via ./redaction). */
+  redactedCount: number;
   error: string | null;
 }
 
@@ -88,7 +91,7 @@ export class CaptureHub {
     this.clock = SessionClock.fromWall(session.clock.wallAtT0);
     this.state = {
       phase: session.kind === "teach" ? "teach" : "capture", offRecord: false, sharing: false, listening: false, agentSpeaking: false,
-      expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, error: null,
+      expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, redactedCount: 0, error: null,
     };
     this.log = this.makeLog(session);
     this.unlisten = listen((m) => this.onBridge(m));
@@ -383,7 +386,9 @@ export class CaptureHub {
       this.emit({ t, type: "marker.off_record", source: "user", payload: { state: "start", trigger } });
       void this.log.flush();
       this.screenRec?.pause();
-      this.micRec?.pause();
+      // voice trigger: drop the in-progress mic slice, it contains the spoken command (a slice that already
+      // closed before the transcript arrived is not recalled)
+      this.micRec?.pause(trigger === "voice");
       if (this.transcriber) this.transcriber.muted = true;
       this.set({ offRecord: true });
       void this.voice?.say("Okay, not recording.");
@@ -427,8 +432,10 @@ export class CaptureHub {
     if (!turn.spontaneous) this.turnMeta = null;
     const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
     const utteranceId = newId("utt");
-    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: turn.text, words: interpolateWords(turn.text, t, tEnd), language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
-    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: turn.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
+    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd)); // the agent may repeat a name or number back
+    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: r.text, words: r.words, language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
+    this.noteRedaction(u.id, r);
+    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: r.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
     this.agentSpokeAt.push({ t, text: turn.text.toLowerCase() });
     if (this.agentSpokeAt.length > 20) this.agentSpokeAt.shift();
     send({ kind: "agentState", speaking: true, listening: this.listening, caption: turn.text });
@@ -478,10 +485,14 @@ export class CaptureHub {
     const lateReply = !this.replyWaiter && this.windowClosedAt > 0 && u.t <= this.windowClosedAt + 500 && this.now() - this.windowClosedAt < 20_000;
     const addressedTo = this.replyWaiter || replyTo || lateReply ? "agent" : "self";
     this.emit({ t: u.tEnd, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "end" } });
+    // redact before the utterance is logged: everything downstream (answer linking, corrections, question picking,
+    // Map, storage) only ever sees the placeholders
+    const r = redactUtterance(u.text, u.words);
     const ev = this.emit({
       t: u.t, tEnd: u.tEnd, type: "utterance", source: "stt",
-      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: u.text, words: u.words, language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
+      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: r.text, words: r.words, language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
     }) as Utterance;
+    this.noteRedaction(ev.id, r);
 
     if (this.replyWaiter) {
       const w = this.replyWaiter;
@@ -498,6 +509,13 @@ export class CaptureHub {
       p.timer = setTimeout(() => void this.linkAnswer(p.questionId, p.replies), PAUSE.replySilenceMs);
     }
     if (this.session.kind === "capture") void this.detectCorrection(ev);
+  }
+
+  /** Log what was redacted from an utterance (types + placeholder spans, never the original text). */
+  private noteRedaction(targetEventId: Id, r: RedactedUtterance) {
+    if (!r.entities.length) return;
+    this.emit({ t: this.now(), type: "redaction.applied", source: "redactor", causedBy: [targetEventId], payload: { targetEventId, entities: r.entities.map((e) => ({ ...e, charSpan: [...e.charSpan] as [number, number] })) } });
+    this.set({ redactedCount: this.state.redactedCount + r.entities.length });
   }
 
   /**
