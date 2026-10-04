@@ -7,7 +7,7 @@
 import puppeteer, { type Page } from "puppeteer";
 import { fileURLToPath } from "node:url";
 
-const EXT = fileURLToPath(new URL("../../extension/dist", import.meta.url));
+const EXT = fileURLToPath(new URL("../../extension/dist/chrome", import.meta.url));
 const HUB = "http://localhost:5173";
 const WORK = "http://[::1]:5173/demo/procurex.html"; // IPv6 literal = a different origin than localhost
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

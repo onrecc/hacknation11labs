@@ -16,6 +16,10 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · ✅ Extension for Chrome + Firefox; Gemini resilience
+- `extension/` now builds **two targets** from one source: `dist/chrome` (MV3 service worker) and `dist/firefox` (MV3 background script, gecko id `ai-apprentice@hack-nation.dev`, Firefox ≥ 128, data-collection declaration). `src/api.ts` = `browser ?? chrome`. `npm run package -w extension` makes the zips. The old `extension/dist/*.js` paths moved to `dist/chrome/`.
+- **Gemini (new key):** works, but it's on the **free tier: 5 requests/min for `gemini-3.8-flash`** (the only model this key can use). The API server now has `LLM_RPM` (set to 5 in `.env.local`): interactive tasks wait for a slot, background tasks (vision, label_task, detect_correction) are skipped when the budget is spent. Plus retries on 503 "high demand" / 429, and a mock fallback on depleted credits. **For the demo: enable billing in AI Studio, then remove `LLM_RPM`.** Map heads-up: `extract_workmap` waits for a slot like other interactive tasks.
+
 ### 2026-10-04 · Toivo's agent · 🎨 Whole-app design system (user request) — heads-up, touches shared files
 - **`web/src/styles.css` rewritten** into the same neutral Vercel-like system as the Work Map (black/white, 1px borders, Inter, 32px buttons, styled inputs/selects/checkboxes, sticky blurred nav). **All existing class names kept**, so Capture/Day/Teach/Login need no code change. MiniERP keeps its own navy "legacy app" chrome.
 - **`web/src/App.tsx` (Nav only):** API status is now a small dot ("Live / Mock AI / Offline", full text on hover); the role text after the user name is gone.

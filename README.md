@@ -58,13 +58,17 @@ Pages:
 - **Capture:** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.
 - **Any other web app:** `/demo/procurex.html` is a plain third-party-style form. With the extension (or the one-line embed it includes) Capture records its field changes and Teach holds a wrong "Submit for approval".
 
-## Browser extension (capture on any site + tutor overlay)
+## Browser extension: Chrome + Firefox (capture on any site + tutor overlay)
 
 ```bash
 npm run build:extension
 ```
 
-In Chrome: `chrome://extensions` → Developer mode → **Load unpacked** → select `extension/dist`. Then start a Capture or Teach session in the web app and work in any other tab:
+- **Chrome / Edge:** `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist/chrome`
+- **Firefox (128+):** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `extension/dist/firefox/manifest.json`
+- Zips for sharing: `npm run package -w extension` → `extension/dist/ai-apprentice-{chrome,firefox}.zip`
+
+Then start a Capture or Teach session in the web app and work in any other tab:
 - **Capture:** records field changes, clicks and navigation (passwords, IBANs and card numbers are masked). Screenshots the active work tab once per second as frames, so no screen-share dialog is needed. The overlay pill shows recording, with off-record and bookmark buttons.
 - **Teach:** the overlay shows Ada's guidance cards with the expert's quote and screen moment. Save/Submit/Approve-like clicks are held until Gemini has checked them against the Work Map's guardrails.
 - For same-origin apps without the extension: `<script src="https://<host>/apprentice-embed.js" defer></script>`.

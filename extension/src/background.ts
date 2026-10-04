@@ -1,15 +1,16 @@
 /**
- * Background service worker: relays bridge messages between tabs (any origin), remembers the hub tab and the
+ * Background (Chrome: service worker, Firefox: background script): relays bridge messages between tabs (any origin), remembers the hub tab and the
  * latest hub status, and — while a capture session is recording — screenshots the active work tab once per
  * second and sends it to the hub as a frame (capture without the screen-share dialog).
  */
+import { ext } from "./api";
 import type { BridgeMsg } from "../../shared/bridge";
 
 let hubTabId: number | null = null;
 let lastStatus: (BridgeMsg & { kind: "status" }) | null = null;
 let shotTimer: ReturnType<typeof setInterval> | null = null;
 
-chrome.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, sender, reply) => {
+ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, sender, reply) => {
   const from = sender.tab?.id;
   if (x?.type === "hub" && from != null) hubTabId = from;
   if (x?.type === "getStatus") {
@@ -27,10 +28,10 @@ chrome.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }, sen
 });
 
 async function broadcast(msg: BridgeMsg, exceptTabId?: number) {
-  const tabs = await chrome.tabs.query({});
+  const tabs = await ext.tabs.query({});
   for (const t of tabs) {
     if (t.id == null || t.id === exceptTabId || !t.url || !/^https?:/.test(t.url)) continue;
-    chrome.tabs.sendMessage(t.id, { type: "relay", msg }).catch(() => {});
+    ext.tabs.sendMessage(t.id, { type: "relay", msg }).catch(() => {});
   }
 }
 
@@ -45,18 +46,18 @@ function updateScreenshots() {
 
 async function shoot() {
   if (hubTabId == null) return;
-  const [active] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+  const [active] = await ext.tabs.query({ active: true, lastFocusedWindow: true });
   if (!active?.id || active.id === hubTabId || !active.url || !/^https?:/.test(active.url)) return; // never the hub itself
   try {
-    const dataUrl = await chrome.tabs.captureVisibleTab(active.windowId, { format: "jpeg", quality: 60 });
+    const dataUrl = await ext.tabs.captureVisibleTab(active.windowId, { format: "jpeg", quality: 60 });
     const msg = { kind: "frame", dataUrl, at: Date.now(), url: active.url, id: crypto.randomUUID() } as BridgeMsg;
-    chrome.tabs.sendMessage(hubTabId, { type: "relay", msg }).catch(() => {});
+    ext.tabs.sendMessage(hubTabId, { type: "relay", msg }).catch(() => {});
   } catch {
     /* tab not capturable (chrome:// pages, devtools) */
   }
 }
 
-chrome.tabs.onRemoved.addListener((id) => {
+ext.tabs.onRemoved.addListener((id) => {
   if (id === hubTabId) {
     hubTabId = null;
     lastStatus = null;

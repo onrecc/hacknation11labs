@@ -148,12 +148,22 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
   if (!(task in schemas)) throw new HttpError(400, `unknown task ${task}`);
   if (process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || geminiDown) return mockOutput(task, input);
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  await takeBudget(task);
   try {
-    return await runGemini(task, input);
+    // transient overload (503 "high demand") / rate limit (429): retry with backoff before giving up
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await runGemini(task, input);
+      } catch (err) {
+        const transient = /\b(503|429)\b|UNAVAILABLE|high demand|overloaded|rate limit/i.test((err as Error).message) && !/credits are depleted/i.test((err as Error).message);
+        if (!transient || attempt >= 2) throw err;
+        await new Promise((r) => setTimeout(r, 1200 * 2 ** attempt + Math.random() * 400));
+      }
+    }
   } catch (err) {
     // a revoked/invalid key must not take the whole demo down: switch to canned answers and say so in /health
-    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED/.test((err as Error).message)) {
-      geminiDown = `Gemini key rejected at ${new Date().toISOString()}: running on mock answers`;
+    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|credits are depleted|billing/i.test((err as Error).message)) {
+      geminiDown = `Gemini unavailable (key or billing) at ${new Date().toISOString()}: running on mock answers`;
       console.error(geminiDown);
       return mockOutput(task, input);
     }
@@ -162,6 +172,25 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
 }
 
 let geminiDown: string | null = null;
+
+/**
+ * Request budget per minute (LLM_RPM, e.g. 5 on Gemini's free tier; unset = unlimited).
+ * Interactive tasks wait up to 20 s for a slot; background tasks are skipped when the budget is spent
+ * (the app already treats a failed vision/label/correction call as "nothing new").
+ */
+const BACKGROUND: ReadonlySet<LlmTask> = new Set<LlmTask>(["vision", "label_task", "detect_correction"]);
+const recent: number[] = [];
+async function takeBudget(task: LlmTask) {
+  const rpm = Number(process.env.LLM_RPM ?? 0);
+  if (!rpm) return;
+  const deadline = Date.now() + (BACKGROUND.has(task) ? 0 : 20_000);
+  for (;;) {
+    while (recent.length && Date.now() - recent[0] > 60_000) recent.shift();
+    if (recent.length < rpm) return void recent.push(Date.now());
+    if (Date.now() >= deadline) throw new HttpError(429, `skipped ${task}: LLM budget of ${rpm}/min spent`);
+    await new Promise((r) => setTimeout(r, Math.min(2000, 60_000 - (Date.now() - recent[0]) + 50)));
+  }
+}
 
 async function runGemini<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -250,7 +279,7 @@ export async function handle(path: string, body: unknown): Promise<unknown> {
   if (path.endsWith("/llm")) return runLlm(b.task as LlmTask, b.input as never);
   if (path.endsWith("/voice-token")) return voiceToken(b.kind as "agent" | "scribe", b.agentId as string | undefined);
   if (path.endsWith("/tts")) return tts(String(b.text ?? ""), b.voiceId as string | undefined);
-  if (path.endsWith("/health")) return { ok: true, provider: "gemini", model: MODEL, mock: process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || !!geminiDown, warning: geminiDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
+  if (path.endsWith("/health")) return { ok: true, provider: "gemini", model: MODEL, rpm: Number(process.env.LLM_RPM ?? 0) || "unlimited", mock: process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || !!geminiDown, warning: geminiDown ?? undefined, voice: !!process.env.ELEVENLABS_API_KEY };
   throw new HttpError(404, `no route ${path}`);
 }
 

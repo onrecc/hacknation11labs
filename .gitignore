@@ -19,3 +19,4 @@ secrets/
 
 # never commit config with keys
 web/src/lib/firebase-config.json
+extension/dist/*.zip

@@ -4,6 +4,7 @@
  *    (MiniERP instruments itself and embeds the overlay.)
  *  - any other site: generic DOM capture + overlay, active while a hub session runs.
  */
+import { ext } from "./api";
 import { Dedupe, newMsgId, type BridgeBody, type BridgeMsg } from "../../shared/bridge";
 import type { Transport } from "./overlay";
 import { startSite } from "./site";
@@ -19,7 +20,7 @@ function deliverLocal(m: BridgeMsg) {
 }
 
 // background → this tab
-chrome.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }) => {
+ext.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }) => {
   if (x?.type !== "relay" || !x.msg) return;
   if (role === "site") deliverLocal(x.msg);
   else window.postMessage({ __apprentice: x.msg, fromExt: true }, "*"); // into the web app's bridge
@@ -28,7 +29,7 @@ chrome.runtime.onMessage.addListener((x: { type?: string; msg?: BridgeMsg }) => 
 // web app page → background (hub / MiniERP pages speak through window.postMessage)
 window.addEventListener("message", (e: MessageEvent<{ __apprentice?: BridgeMsg; fromExt?: boolean }>) => {
   if (e.source !== window || !e.data?.__apprentice || e.data.fromExt) return;
-  void chrome.runtime.sendMessage({ type: "relay", msg: e.data.__apprentice }).catch(() => {});
+  void ext.runtime.sendMessage({ type: "relay", msg: e.data.__apprentice }).catch(() => {});
 });
 
 if (role === "site") {
@@ -37,7 +38,7 @@ if (role === "site") {
     send(body: BridgeBody) {
       const msg = { ...body, id: newMsgId() } as BridgeMsg;
       dedupe.firstTime(msg.id);
-      void chrome.runtime.sendMessage({ type: "relay", msg }).catch(() => {});
+      void ext.runtime.sendMessage({ type: "relay", msg }).catch(() => {});
     },
     listen(fn) {
       listeners.add(fn);
@@ -46,5 +47,5 @@ if (role === "site") {
   };
   // we may have loaded mid-session: ask the background for the current hub status
   startSite(transport, () =>
-    void chrome.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {}));
+    void ext.runtime.sendMessage({ type: "getStatus" }).then((s?: BridgeMsg) => s && deliverLocal({ ...s, id: newMsgId() })).catch(() => {}));
 }
