@@ -350,3 +350,11 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .mi-table { border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 .mi-table .grid tbody tr:last-child td { border-bottom: none; }
 .mi-task { font-weight: 500; margin-right: 8px; }
+
+/* structural buttons (rows, tabs, list items) must not inherit the global 32px nowrap button */
+.wm button:not(.btn), .debrief-panel button:not(.btn), .mi-card { height: auto; white-space: normal; justify-content: flex-start; font-size: inherit; font-weight: inherit; }
+.wm-tabs button { font-size: 14px; }
+.wm .wseg button { font-size: 13px; height: auto; }
+.st > button { min-height: 40px; }
+.decision-q { font-weight: 500 !important; }
+.wm-tabs button:hover:not(:disabled), .wm .st-outcome:hover, .wm .back:hover, .wm .link-quiet:hover { background: none; }
