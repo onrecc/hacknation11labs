@@ -182,9 +182,12 @@ details.devlog > summary, details.diagnostics > summary { cursor: pointer; font-
 details.devlog[open] > summary, details.diagnostics[open] > summary { color: var(--text); margin-bottom: 8px; }
 
 /* ── nav status ── */
-.health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.health-group { display: inline-flex; align-items: center; gap: 10px; }
+.health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: default; }
 .health i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
-.health.off i { background: var(--faint); }
+.health.warn i { background: var(--warn); }
+.health.off i, .health.pending i { background: var(--faint); }
+.health.off { text-decoration: line-through; text-decoration-color: var(--faint); }
 /* compare (two experts, one task) */
 .compare .cmp td { vertical-align: top; }
 .compare tr.k-same { opacity: 0.75; }

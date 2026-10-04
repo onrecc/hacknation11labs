@@ -23,4 +23,4 @@ export async function tts(text: string, voiceId?: string): Promise<Blob> {
   if (!r.ok) throw new Error(`/tts → ${r.status}`);
   return r.blob();
 }
-export const apiHealth = () => fetch(`${BASE}/health`).then((r) => r.json() as Promise<{ ok: boolean; provider: string; model: string; mock: boolean; voice: boolean }>);
+export const apiHealth = () => fetch(`${BASE}/health`).then((r) => r.json() as Promise<{ ok: boolean; provider: string; model: string; mock: boolean; voice: boolean; warning?: string }>);
