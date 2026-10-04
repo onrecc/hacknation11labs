@@ -2,7 +2,7 @@
  * Debrief + teach-back (docs/map.md rules 12–18, MAP-PLAN.md §6–8). Map owns WHAT is said; it runs on the
  * CaptureHub's voice + transcript so every turn lands in the same session log (phase "debrief" / "teachback").
  *
- * Latency: extract_workmap / plan_debrief take ~50 s on Gemini with deep thinking, so nothing slow sits between
+ * Latency: extract_workmap / plan_debrief take ~50 s on Claude with deep thinking, so nothing slow sits between
  * the expert and the next sentence:
  *  - the deferred question (known without an LLM) is asked immediately while plan_debrief runs in the background;
  *  - a first extraction starts at debrief start and runs while questions are asked;

@@ -18,6 +18,8 @@ import { rankModules } from "./modules";
 import { MasteryCard } from "./MasteryCard";
 import type { PracticeCase } from "./mastery";
 import { SEED } from "../erp/data";
+import { toast } from "../components/toast";
+import { Skeleton } from "../components/Feedback";
 import { facts } from "../erp/ErpPage";
 
 /** MiniERP's teach-only invoices: what "Practice next" can open. */
@@ -25,7 +27,6 @@ const PRACTICE: PracticeCase[] = SEED.filter((r) => r.set === "teach").map((r) =
 
 
 export default function TeachPage() {
-  const [maps, setMaps] = useState<WorkMapHead[]>([]);
   const [wm, setWm] = useState<WorkMap | null>(null);
   const [hub, setHub] = useState<CaptureHub | null>(null);
   const [cards, setCards] = useState<TutorCard[]>([]);
@@ -33,8 +34,7 @@ export default function TeachPage() {
   const [report, setReport] = useState<MasteryReport | null>(null);
   const user = useUser()!;
   const learner = user.short;
-  const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }>>([]);
-  const [err, setErr] = useState<string | null>(null);
+  const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }> | null>(null); // null = loading
   const [typed, setTyped] = useState("");
   const [phase, setPhase] = useState<"running" | "finishing" | "closed" | "restarting">("running");
   const finishing = useRef(false); // double-click guard: state updates are async
@@ -42,14 +42,14 @@ export default function TeachPage() {
   const state = useStore(hub, () => hub?.state ?? null);
 
   // modules = confirmed Work Maps; own department first, then featured, then newest (modules.ts), picked automatically
-  useEffect(() => void signedIn.then(async () => {
+  const loadModules = (): void => void signedIn().then(async () => {
     const list = await listWorkMaps();
-    setMaps(list);
     const loaded = rankModules((await Promise.all(list.filter((x) => x.status === "confirmed").map(async (m) => ({ head: m, full: await loadWorkMap(m.id) }))))
       .filter((x): x is { head: WorkMapHead; full: WorkMap } => !!x.full && x.full.guardrails.length > 0), user.department);
     setModules(loaded.map(({ head, full }) => ({ ...head, expert: full.expert.displayName, domain: full.task.domain, steps: full.steps.length, guardrails: full.guardrails.length })));
     if (loaded[0]) setWm(loaded[0].full);
-  }), [user.department]);
+  }).catch((e: unknown) => toast.error(e, loadModules, "Couldn't load training modules"));
+  useEffect(loadModules, [user.department]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!hub) return;
     const t = setInterval(() => setEvents([...hub.events]), 700);
@@ -75,9 +75,9 @@ export default function TeachPage() {
       setCards([]);
       finishing.current = false;
       setPhase("running");
-      await h.startListening(); // one start: session + Ada's voice (also for "Practice next")
+      await h.startListening().catch((e: unknown) => toast.error(e, () => h.startListening(), "Couldn't start Ada's voice")); // also for "Practice next"
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void start(), "Couldn't start the practice session");
       setPhase((p) => (p === "restarting" ? "closed" : p)); // a failed "Practice next" leaves the report usable
     }
   }
@@ -92,7 +92,7 @@ export default function TeachPage() {
       await hub.close();
       setPhase("closed");
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void finish(), "Couldn't finish the session");
       finishing.current = false;
       setPhase("running");
     }
@@ -107,6 +107,10 @@ export default function TeachPage() {
     if (w) w.location.href = url;
     else window.open(url, "minierp");
   }
+  function pickModule(id: string) {
+    if (!id) return setWm(null);
+    loadWorkMap(id).then(setWm).catch((e: unknown) => toast.error(e, () => pickModule(id), "Couldn't load that module"));
+  }
   const live = phase === "running";
 
   if (!hub || !state)
@@ -116,17 +120,17 @@ export default function TeachPage() {
         <p className="muted">{user.title} · {user.departmentLabel}. Ada, your ElevenLabs tutor, watches you work a real case and coaches you with what the experts taught her: their rules, in their own words.</p>
         <div className="card form">
           <label className="wide">Training module
-            <select value={wm?.id ?? ""} onChange={async (e) => setWm(e.target.value ? await loadWorkMap(e.target.value) : null)}>
+            <select value={wm?.id ?? ""} disabled={!modules?.length} onChange={(e) => pickModule(e.target.value)}>
               <option value="">Choose…</option>
-              {modules.map((m) => <option key={m.id} value={m.id}>{m.featured ? "★ " : ""}{m.title ?? m.id} · by {m.expert}{m.domain === user.department ? "" : ` (${m.domain.replace("_", " ")})`}</option>)}
+              {modules?.map((m) => <option key={m.id} value={m.id}>{m.featured ? "★ " : ""}{m.title ?? m.id} · by {m.expert}{m.domain === user.department ? "" : ` (${m.domain.replace("_", " ")})`}</option>)}
             </select>
           </label>
-          {modules.length === 0 && maps.length > 0 && <p className="muted small wide">No confirmed Work Maps with guardrails yet. An expert needs to record and debrief a task first.</p>}
+          {modules === null && <div className="wide"><Skeleton lines={1} /></div>}
+          {modules?.length === 0 && <p className="muted small wide">No training modules yet: there are no confirmed Work Maps with guardrails. An expert needs to record and debrief a task first.</p>}
           {wm && <p className="muted small wide">{wm.steps.length} steps · {wm.guardrails.length} guardrails ({wm.guardrails.filter((g) => g.condition).length} machine-checkable) · expert {wm.expert.displayName} · {wm.status}</p>}
           {wm && wm.status !== "confirmed" && <p className="error small wide">This map isn't confirmed by the expert yet (docs/teach.md rule 1).</p>}
           <button className="primary" disabled={!wm} onClick={start}>Start practising with Ada</button>
         </div>
-        {err && <p className="error">{err}</p>}
       </div>
     );
 
@@ -151,7 +155,6 @@ export default function TeachPage() {
           <MasteryCard report={report} wm={wm} learner={learner} cases={PRACTICE} caughtOn={tutor.current?.caughtOn ?? new Map()}
             {...(phase === "closed" ? { onPractice: (c: PracticeCase) => void practice(c) } : {})} />
         )}
-        {err && <p className="error">{err}</p>}
       </section>
       <section>
         <h3>Teach session log</h3>

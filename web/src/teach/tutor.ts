@@ -301,7 +301,7 @@ export class Tutor {
       predictions: this.predictions,
       practiceNext: this.wm.guardrails.filter((x) => this.caught.has(x.id)).map((x) => x.statement),
     };
-    await setDoc(doc(db, col.report(this.hub.session.id), "mastery"), rep);
+    await setDoc(doc(db(), col.report(this.hub.session.id), "mastery"), rep);
     return rep;
   }
 }

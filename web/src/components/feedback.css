@@ -1,0 +1,18 @@
+/* Toasts, skeletons and the crash screen (Feedback.tsx, ErrorBoundary.tsx). Uses the tokens from styles.css. */
+.toasts { position: fixed; right: 16px; bottom: 16px; z-index: 1000; display: flex; flex-direction: column; gap: 8px; max-width: min(420px, calc(100vw - 32px)); }
+.toast { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border: 1px solid var(--danger); border-left-width: 4px; border-radius: 8px;
+  background: var(--panel); color: var(--text); box-shadow: 0 6px 24px rgba(0, 0, 0, 0.12); font-size: 13px; }
+.toast-msg { flex: 1; overflow-wrap: anywhere; }
+.toast button.small { height: 26px; padding: 0 10px; font-size: 12px; }
+
+.skel { display: flex; flex-direction: column; gap: 8px; padding: 4px 0; }
+.skel-line { height: 14px; border-radius: 4px; background: var(--subtle); border: 1px solid var(--line); }
+.skel-line:nth-child(even) { width: 70%; }
+@media (prefers-reduced-motion: no-preference) {
+  .skel-line { animation: skel-pulse 1.4s ease-in-out infinite; }
+  @keyframes skel-pulse { 50% { opacity: 0.5; } }
+}
+
+.crash .btns { align-items: center; }
+.btn-link { display: inline-flex; align-items: center; height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); text-decoration: none; font-size: 13px; font-weight: 500; }
+.btn-link:hover { background: var(--hover); }

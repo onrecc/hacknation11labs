@@ -6,20 +6,21 @@ import { signedIn } from "../lib/firebase";
 import { listComparisons, listWorkMaps, loadWorkMap } from "../lib/sessions";
 import { useUser } from "../lib/users";
 import { compareMaps } from "./compare";
+import { toast } from "../components/toast";
+import { Skeleton } from "../components/Feedback";
 
 const KIND: Record<string, string> = { same: "Same", different: "Different", only_a: "Only", only_b: "Only" };
 const VERDICT: Record<string, string> = { both_valid: "Both valid", a_is_the_rule: "Team rule", b_is_the_rule: "Team rule", escalate: "Needs a decision" };
 
 export default function ComparePage() {
   const user = useUser()!;
-  const [maps, setMaps] = useState<WorkMap[]>([]);
+  const [maps, setMaps] = useState<WorkMap[] | null>(null); // null = loading
   const [pick, setPick] = useState<[string, string]>(["", ""]);
   const [list, setList] = useState<Comparison[]>([]);
   const [open, setOpen] = useState<Comparison | null>(null);
   const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState<string | null>(null);
 
-  useEffect(() => void signedIn.then(async () => {
+  const load = (): void => void signedIn().then(async () => {
     const heads = (await listWorkMaps()).filter((m) => m.status === "confirmed");
     const full = (await Promise.all(heads.map((h) => loadWorkMap(h.id)))).filter((m): m is WorkMap => !!m && m.steps.length > 0);
     setMaps(full);
@@ -31,22 +32,22 @@ export default function ComparePage() {
     const cs = await listComparisons();
     setList(cs);
     if (cs[0]) setOpen(cs[0]);
-  }), [user.department]);
+  }).catch((e: unknown) => toast.error(e, load, "Couldn't load Work Maps"));
+  useEffect(load, [user.department]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const a = maps.find((m) => m.id === pick[0]);
-  const b = maps.find((m) => m.id === pick[1]);
+  const a = maps?.find((m) => m.id === pick[0]);
+  const b = maps?.find((m) => m.id === pick[1]);
   const valid = a && b && a.expert.displayName !== b.expert.displayName;
 
   async function run() {
     if (!a || !b) return;
     setBusy(true);
-    setErr(null);
     try {
       const c = await compareMaps(a, b);
       setList((l) => [c, ...l]);
       setOpen(c);
     } catch (e) {
-      setErr((e as Error).message);
+      toast.error(e, () => void run(), "Comparison failed");
     } finally {
       setBusy(false);
     }
@@ -59,13 +60,12 @@ export default function ComparePage() {
     <div className="page">
       <h1>Two experts, one task</h1>
       <p className="muted">Ada compares how two experts do the same work, asks each of them why where they differ, and turns the answers into a team rule a new hire can follow.</p>
-      <div className="card form">
+      {maps === null ? <div className="card"><Skeleton lines={3} /></div> : <div className="card form">
         <label>Expert A<select value={pick[0]} onChange={(e) => setPick([e.target.value, pick[1]])}><option value="">Choose…</option>{maps.map((m) => <option key={m.id} value={m.id}>{label(m)}</option>)}</select></label>
         <label>Expert B<select value={pick[1]} onChange={(e) => setPick([pick[0], e.target.value])}><option value="">Choose…</option>{maps.map((m) => <option key={m.id} value={m.id}>{label(m)}</option>)}</select></label>
         {a && b && !valid && <p className="error small wide">Pick maps from two different experts.</p>}
         <button className="primary" disabled={!valid || busy} onClick={run}>{busy ? "Comparing… (about a minute)" : "Compare"}</button>
-      </div>
-      {err && <p className="error">{err}</p>}
+      </div>}
 
       {list.length > 1 && (
         <div className="btns">{list.map((c) => <button key={c.id} className={open?.id === c.id ? "primary" : ""} onClick={() => setOpen(c)}>{c.experts[0].name} vs {c.experts[1].name} · {c.createdAt.slice(0, 16).replace("T", " ")}</button>)}</div>
@@ -76,8 +76,8 @@ export default function ComparePage() {
           <h2>{open.experts[0].name} vs {open.experts[1].name}</h2>
           <p>{open.summary}</p>
           <p className="muted small">
-            <Link to={`/map/${maps.find((m) => m.id === open.workMapIds[0])?.sourceSessionIds[0] ?? ""}`}>{open.experts[0].name}'s Work Map</Link> ·{" "}
-            <Link to={`/map/${maps.find((m) => m.id === open.workMapIds[1])?.sourceSessionIds[0] ?? ""}`}>{open.experts[1].name}'s Work Map</Link>
+            <Link to={`/map/${maps?.find((m) => m.id === open.workMapIds[0])?.sourceSessionIds[0] ?? ""}`}>{open.experts[0].name}'s Work Map</Link> ·{" "}
+            <Link to={`/map/${maps?.find((m) => m.id === open.workMapIds[1])?.sourceSessionIds[0] ?? ""}`}>{open.experts[1].name}'s Work Map</Link>
           </p>
           <table className="grid cmp">
             <thead><tr><th>Topic</th><th>{open.experts[0].name}</th><th>{open.experts[1].name}</th><th>Outcome</th></tr></thead>
@@ -95,7 +95,7 @@ export default function ComparePage() {
           <p className="muted small">Experts see Ada's questions on their <b>My day</b> page and can answer by voice or typing.</p>
         </div>
       )}
-      {!open && maps.length < 2 && <p className="muted">Needs two confirmed Work Maps of the same kind of work from different experts.</p>}
+      {!open && maps !== null && maps.length < 2 && <p className="muted">Needs two confirmed Work Maps of the same kind of work from different experts.</p>}
     </div>
   );
 }
