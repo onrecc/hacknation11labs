@@ -15,6 +15,13 @@ import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
 import { rankModules } from "./modules";
+import { MasteryCard } from "./MasteryCard";
+import type { PracticeCase } from "./mastery";
+import { SEED } from "../erp/data";
+import { facts } from "../erp/ErpPage";
+
+/** MiniERP's teach-only invoices: what "Practice next" can open. */
+const PRACTICE: PracticeCase[] = SEED.filter((r) => r.set === "teach").map((r) => ({ key: r.key, label: r.supplier, facts: facts(r) }));
 
 
 export default function TeachPage() {
@@ -29,6 +36,8 @@ export default function TeachPage() {
   const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }>>([]);
   const [err, setErr] = useState<string | null>(null);
   const [typed, setTyped] = useState("");
+  const [phase, setPhase] = useState<"running" | "finishing" | "closed" | "restarting">("running");
+  const finishing = useRef(false); // double-click guard: state updates are async
   const tutor = useRef<Tutor | null>(null);
   const state = useStore(hub, () => hub?.state ?? null);
 
@@ -62,18 +71,43 @@ export default function TeachPage() {
       t.attach(h);
       tutor.current = t;
       setHub(h);
-      await h.startListening(); // one start: session + Ada's voice
+      setReport(null);
+      setCards([]);
+      finishing.current = false;
+      setPhase("running");
+      await h.startListening(); // one start: session + Ada's voice (also for "Practice next")
     } catch (e) {
       setErr((e as Error).message);
+      setPhase((p) => (p === "restarting" ? "closed" : p)); // a failed "Practice next" leaves the report usable
     }
   }
 
   async function finish() {
-    if (!hub || !tutor.current) return;
-    setReport(await tutor.current.report());
-    tutor.current.detach();
-    await hub.close();
+    if (!hub || !tutor.current || finishing.current) return;
+    finishing.current = true;
+    setPhase("finishing");
+    try {
+      setReport(await tutor.current.report());
+      tutor.current.detach();
+      await hub.close();
+      setPhase("closed");
+    } catch (e) {
+      setErr((e as Error).message);
+      finishing.current = false;
+      setPhase("running");
+    }
   }
+
+  /** "Practice next": a fresh teach session on that case. The tab opens now (user gesture), then navigates. */
+  async function practice(c: PracticeCase) {
+    setPhase("restarting");
+    const w = window.open("", "minierp");
+    await start();
+    const url = `/erp?mode=teach&case=${encodeURIComponent(c.key)}`;
+    if (w) w.location.href = url;
+    else window.open(url, "minierp");
+  }
+  const live = phase === "running";
 
   if (!hub || !state)
     return (
@@ -103,24 +137,19 @@ export default function TeachPage() {
         <h1>Tutor</h1>
         <SessionStatus s={s}><p className="muted small mono">{hub.session.id}</p></SessionStatus>
         <div className="btns">
-          <button onClick={() => window.open("/erp?mode=teach", "minierp")}>Open MiniERP</button>
-          <button onClick={finish}>Finish → mastery report</button>
+          <button disabled={!live} onClick={() => window.open("/erp?mode=teach", "minierp")}>Open MiniERP</button>
+          <button disabled={!live} onClick={() => void finish()}>{phase === "finishing" ? "Finishing…" : phase === "closed" ? "Session closed" : "Finish → mastery report"}</button>
         </div>
         <div className="row">
-          <input placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
-          <button onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
+          <input disabled={!live} placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
+          <button disabled={!live} onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
         {!s.extension && <p className="error">Ada coaches through the browser extension (Chrome or Firefox). Install it from <code>extension/dist</code>, then reload your work tab: without it there is no overlay and no save check.</p>}
         <p className="muted small">Try INV-4490 (€7,200 equipment, new supplier): leave cost center 4711 and press Approve. Then INV-4494 (Brno spare parts): press Approve without a second approver. Works the same on any website: the extension holds Save/Approve-like clicks until Ada has checked them against the expert's guardrails.</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (
-          <div className="card">
-            <h3>Mastery report · {learner}</h3>
-            <ul>{report.perGuardrail.map((g) => <li key={g.guardrailId}>{wm.guardrails.find((x) => x.id === g.guardrailId)?.statement}: <b>{g.status.replaceAll("_", " ")}</b></li>)}</ul>
-            <ul>{report.perStep.filter((x) => x.status !== "not_seen").map((x) => <li key={x.stepId}>{wm.steps.find((s2) => s2.id === x.stepId)?.title}: <b>{x.status}</b></li>)}</ul>
-            <p>Predictions: {report.predictions.correct}/{report.predictions.asked} correct</p>
-            {report.practiceNext.length > 0 && <p>Practice next: {report.practiceNext.join(" · ")}</p>}
-          </div>
+          <MasteryCard report={report} wm={wm} learner={learner} cases={PRACTICE} caughtOn={tutor.current?.caughtOn ?? new Map()}
+            {...(phase === "closed" ? { onPractice: (c: PracticeCase) => void practice(c) } : {})} />
         )}
         {err && <p className="error">{err}</p>}
       </section>

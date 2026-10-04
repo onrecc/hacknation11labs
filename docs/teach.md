@@ -48,7 +48,7 @@
 6. **Don't nag.** At most one prediction prompt per decision and one intervention per field per 30 s. Use the same pause rules as Capture: no talking while the new hire types, unless a block is pending.
 7. Use `commonMistakes` as a watch-list. For example, approving Brno directly gets a pre-emptive hint. *Status:* planned, not yet implemented (Map shows `commonMistakes`; the tutor doesn't use them yet).
 8. Same trust rules as Capture: off-record, redaction (regex on transcripts, masking/blurring on screen; no Presidio), no keys in the browser.
-9. End with a `MasteryReport`: per-step status (`mastered`/`assisted`/`failed`/`not_seen`), per-guardrail status (`respected`/`caught_by_tutor`/`violated`/`not_triggered`), prediction accuracy and what to practice next.
+9. End with a `MasteryReport`: per-step status (`mastered`/`assisted`/`failed`/`not_seen`), per-guardrail status (`respected`/`caught_by_tutor`/`violated`/`not_triggered`), prediction accuracy and what to practice next. A step with rules counts as mastered only when one of its rules was met on a case and followed without help (not after any unrelated save). TeachPage shows it as a card (`MasteryCard.tsx`, logic in `mastery.ts`): rules as chips (✓ Followed / ⚠ Caught before save / – Not practised), the prediction score, and "Practice next" buttons that start a fresh session and open the matching MiniERP case (`/erp?mode=teach&case=4490` resets that invoice to its seed state).
 
 ## Test cases
 
