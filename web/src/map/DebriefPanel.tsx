@@ -5,6 +5,7 @@
  */
 import { Link } from "react-router-dom";
 import type { DebriefStatus } from "./debrief";
+import { JudgeMarker } from "../components/JudgeMarker";
 import "./map.css";
 
 const STAGE: Record<DebriefStatus["stage"], string> = {
@@ -24,7 +25,7 @@ export function DebriefPanel({ s, sessionId }: { s: DebriefStatus; sessionId?: s
         <>
           <div className="meter">
             <div className={`meter-n ${s.gapsOpen === 0 ? "zero" : ""}`}>{s.gapsOpen}</div>
-            <div>open gaps that matter<br /><span className="muted small">ends at 0, when you say you're done, or after 8 questions</span></div>
+            <div>open gaps that matter <JudgeMarker n={3} /><br /><span className="muted small">ends at 0, when you say you're done, or after 8 questions</span></div>
           </div>
           {s.stage === "asking" && <p className="gap-q">“{s.detail}”</p>}
           {s.gaps && (
@@ -41,7 +42,7 @@ export function DebriefPanel({ s, sessionId }: { s: DebriefStatus; sessionId?: s
       )}
       {(s.stage === "teachback" || s.stage === "confirmed") && (
         <>
-          {s.segment && <blockquote className="wq big"><p>{s.segment.text}</p><footer>Is that right?</footer></blockquote>}
+          {s.segment && <blockquote className="wq big"><p>{s.segment.text}</p><footer>Is that right? <JudgeMarker n={3} /></footer></blockquote>}
           {s.segments && (
             <ul className="debrief-gaps">
               {s.segments.map((x, i) => (
@@ -52,7 +53,7 @@ export function DebriefPanel({ s, sessionId }: { s: DebriefStatus; sessionId?: s
               ))}
             </ul>
           )}
-          {s.stage === "confirmed" && <p className="tb-final confirmed">✓ {s.detail}</p>}
+          {s.stage === "confirmed" && <p className="tb-final confirmed">✓ {s.detail} <JudgeMarker n={3} /></p>}
         </>
       )}
       {s.stage === "error" && <p className="error">{s.detail}</p>}

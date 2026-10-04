@@ -1,0 +1,11 @@
+/* Judge mode markers (P0-2): subtle, muted, never a banner. */
+.judge-marker {
+  display: inline-flex; align-items: center; gap: 3px; margin-left: 6px; padding: 0 6px;
+  font-size: 11px; font-weight: 500; line-height: 18px; white-space: nowrap; vertical-align: middle;
+  color: var(--muted); border: 1px dashed var(--line-strong); border-radius: 99px; cursor: help;
+}
+.judge-marker:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+.judge-legend { margin: 0 0 12px; }
+.ada-target { margin: 6px 0 0; }
+.ada-target summary { cursor: pointer; }
+.ada-target ul { margin: 4px 0 0; padding-left: 18px; }
