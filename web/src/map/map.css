@@ -315,3 +315,16 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .try .check input { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--w-border-strong); border-radius: 4px; background: var(--w-surface); display: grid; place-items: center; cursor: pointer; }
 .try .check input:checked { background: var(--w-text); border-color: var(--w-text); }
 .try .check input:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--w-bg); border-bottom: 2px solid var(--w-bg); transform: rotate(-45deg) translate(1px, -1px); }
+
+/* ── full screenshot + cases card ── */
+.wm-side { display: flex; flex-direction: column; gap: 16px; position: sticky; top: 16px; }
+.cases { list-style: none; margin: 0; padding: 4px; }
+.case-row { display: flex; align-items: baseline; gap: 10px; padding: 8px 10px; font-size: 14px; }
+.case-row > button { width: 100%; display: flex; align-items: baseline; gap: 10px; padding: 0; border: none; background: none; text-align: left; cursor: pointer; font: inherit; color: inherit; }
+.case-row.off { margin: 2px 0; padding: 0; }
+.case-row.off > button { padding: 8px 10px; border-radius: 6px; border: 1px dashed var(--w-border-strong); }
+.case-row.off > button:hover { background: var(--w-hover); }
+.case-key { font-weight: 500; font-variant-numeric: tabular-nums; }
+.case-row.off .case-key { font-weight: 500; color: var(--w-muted); }
+.case-out { flex: 1; color: var(--w-muted); text-transform: none; }
+.case-t { color: var(--w-faint); font-size: 12px; font-variant-numeric: tabular-nums; }

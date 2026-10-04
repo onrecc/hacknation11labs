@@ -63,7 +63,10 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
         {tab === "map" && (
           <>
             <div className="wm-main">
-              <StepList wm={wm} sel={sel} onSelect={setSel} />
+              <div className="wm-side">
+                <StepList wm={wm} sel={sel} onSelect={setSel} />
+                <Cases wm={wm} ix={ix} onSelect={setSel} />
+              </div>
               <Detail wm={wm} ix={ix} sel={sel} onSelect={setSel} />
             </div>
           </>
@@ -97,6 +100,41 @@ function MetaLine({ wm, ix, live }: { wm: WorkMap; ix: LogIndex; live?: boolean 
 }
 
 // ───────────────────────── step list (the flow) ─────────────────────────
+
+/** The cases the expert worked through, with outcomes and the off-the-record gap: context for the steps. */
+function Cases({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect: (s: Sel) => void }) {
+  if (!wm.cases.length) return null;
+  const items: Array<{ t: number; node: ReactNode }> = wm.cases.map((c) => ({
+    t: c.t,
+    node: (
+      <li key={c.id} className="case-row">
+        <span className="case-key">{c.kind === "invoice" ? "INV-" : ""}{c.key}</span>
+        <span className="case-out">{(c.outcome ?? "").replace(/_/g, " ")}</span>
+        <span className="case-t">{fmtClock(c.t)}</span>
+      </li>
+    ),
+  }));
+  for (const [a, b] of ix.offRecord) {
+    items.push({
+      t: a,
+      node: (
+        <li key={`off-${a}`} className="case-row off">
+          <button onClick={() => onSelect({ kind: "offrecord", id: String(a) })}>
+            <span className="case-key">Off the record</span>
+            <span className="case-out">{Math.round((b - a) / 1000)} s, nothing kept</span>
+            <span className="case-t">{fmtClock(a)}</span>
+          </button>
+        </li>
+      ),
+    });
+  }
+  return (
+    <section className="panel">
+      <div className="card-head"><h3>Cases</h3><span className="dim">{wm.cases.length} worked through</span></div>
+      <ul className="cases">{items.sort((x, y) => x.t - y.t).map((x) => x.node)}</ul>
+    </section>
+  );
+}
 
 function StepList({ wm, sel, onSelect }: { wm: WorkMap; sel: Sel; onSelect: (s: Sel) => void }) {
   const ordered = [...wm.steps].sort((a, b) => a.order - b.order);
@@ -279,7 +317,7 @@ const caseLabel = (wm: WorkMap, ix: LogIndex, m: ScreenMoment) => {
   return `${fmtClock(m.t)}${c ? ` · ${c.kind === "invoice" ? "INV-" : ""}${c.key}` : ""}`;
 };
 
-export function Frame({ m, caption, zoom: zoomIn = 1.3, crop: cropH = 280 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
+export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
   const { frame } = useContext(Sources);
   const [full, setFull] = useState(false);
   const zoom = m.bbox && !full ? zoomIn : 1;
@@ -303,7 +341,7 @@ export function Frame({ m, caption, zoom: zoomIn = 1.3, crop: cropH = 280 }: { m
           </div>
         ) : <div className="frame-empty">{src === null ? "Screenshot unavailable" : ""}</div>}
       </div>
-      {caption && <figcaption><span>Screen at {caption}</span>{m.bbox && <button className="link-quiet" onClick={() => setFull(!full)}>{full ? "Zoom to field" : "Full screen"}</button>}</figcaption>}
+      {caption && <figcaption><span>Screen at {caption}</span>{m.bbox && zoomIn !== 1 && <button className="link-quiet" onClick={() => setFull(!full)}>{full ? "Zoom to field" : "Full screen"}</button>}</figcaption>}
     </figure>
   );
 }
