@@ -67,6 +67,8 @@ export class Tutor {
     this.hub = hub;
     this.off = listen((m) => void this.onBridge(m));
     for (const g of this.wm.guardrails) if (g.evidence.quotes[0]) void this.meaning(g.evidence.quotes[0].text); // warm the cache before the first intervention
+    // the save hold answers synchronously: translate each rule's banner up front into the learner's language
+    for (const g of this.wm.guardrails) void this.tr(`Hold on: ${g.statement}`).then((t) => this.holdText.set(g.id, t));
   }
 
   /** English meaning of the expert's words when they spoke another language (undefined for English). */
@@ -76,6 +78,11 @@ export class Tutor {
   /** The new hire's language (e.g. Olena: uk-UA). Ada coaches in it; the expert's quotes stay verbatim next to it. */
   private get learnerLang(): string | undefined {
     return this.hub?.session.participant.language;
+  }
+  private readonly holdText = new Map<Id, string>();
+  /** Banner text for a held save, in the learner's language when the translation is ready (English otherwise). */
+  private hold(g: Guardrail): string {
+    return this.holdText.get(g.id) ?? `Hold on: ${g.statement}`;
   }
   private tr(text: string): Promise<string> {
     return inLanguage(text, this.learnerLang);
@@ -118,13 +125,13 @@ export class Tutor {
     if (m.kind === "beforeSave") {
       this.facts = m.facts;
       const block = violations(this.wm, m.facts).filter((g) => g.severity === "block");
-      send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined, fields: fieldsToFix(block[0], m.facts) });
+      send({ kind: "beforeSaveResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? this.hold(block[0]) : undefined, fields: fieldsToFix(block[0], m.facts) });
       if (block[0]) void this.intervene(block[0], true, m.facts.invoice.key);
       else { this.markRespected(m.facts); this.saved.set(m.facts.invoice.key, m.facts); }
     } else if (m.kind === "beforeAction" && m.feed && this.facts) {
       const f = afterAction(this.facts, m.action);
       const block = violations(this.wm, f).filter((g) => g.severity === "block");
-      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? `Hold on: ${block[0].statement}` : undefined, fields: fieldsToFix(block[0], f) });
+      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !block.length, guardrailIds: block.map((g) => g.id), message: block[0] ? this.hold(block[0]) : undefined, fields: fieldsToFix(block[0], f) });
       if (block[0]) void this.intervene(block[0], true, f.invoice.key);
       else { this.markRespected(f); this.saved.set(f.invoice.key, f); }
     } else if (m.kind === "beforeAction") {
@@ -136,7 +143,7 @@ export class Tutor {
         void this.showCard({ tone: "block", title: "Couldn't verify this save", text: `${UNVERIFIED} You can try again in a moment.` });
         return;
       }
-      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !out.length, guardrailIds: out.map((g) => g.id), message: out[0] ? `Hold on: ${out[0].statement}` : undefined });
+      send({ kind: "beforeActionResult", reqId: m.reqId, allow: !out.length, guardrailIds: out.map((g) => g.id), message: out[0] ? this.hold(out[0]) : undefined });
       if (out[0]) void this.intervene(out[0], true, m.page.title);
     } else if (m.kind === "case" && m.state === "start" && m.facts) {
       this.facts = m.facts;
