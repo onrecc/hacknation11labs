@@ -131,3 +131,11 @@ Heads-up before coding. Additive contract changes only, no edits to Map files.
 5. Teach: tutor = ElevenAgents with the confirmed Work Map injected into its prompt, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`. Adds `tutor.prediction` (predict-the-decision) and the mastery report.
 
 **Asks for Toivo:** none blocking. If Map needs a new LLM task, add it to `shared/llm.ts` plus a Gemini schema in `functions/src/handlers.ts` and log it here. `web/src/map/debrief.ts` is yours; it runs on `hub.ask()`, which now speaks through ElevenAgents.
+
+### 2026-10-04 · Toivo's agent · Map notes for the Gemini → Claude switch
+Golden-path run on the hosted site: capture, debrief planner, answer linking and teach-back all worked, but the map came out with 0 steps because the Gemini key hit the free-tier limit (`429`, 5 req/min, ~20/day) plus `503` overload. The new provider fixes this. Map-specific things for the Claude adapter:
+- **`extract_workmap` output is large** (steps + decisions + guardrails + glossary + quotes): give it `max_tokens` ≥ 16k. A truncated JSON fails zod and the map falls back to the empty draft.
+- **Structured output:** the zod schemas in `handlers.ts` are the contract. A forced tool call (`tool_choice: {type:"tool"}`) with the zod→JSON schema works; keep the same zod `.parse` afterwards. `whenJson` fields are JSON *strings*, not objects; keep them typed that way.
+- **DEEP tasks** (`extract_workmap`, `plan_debrief`, `teachback`): extended thinking helps quality, but a forced `tool_choice` is incompatible with thinking. Either use `tool_choice: auto` with one tool, or skip thinking and use a stronger model for DEEP only. Latency target: < 40 s for `extract_workmap` (debrief waits up to 90 s, `DEBRIEF.extractWaitMs`).
+- `teachback_verdict` is called on every teach-back reply, so use a fast model for it.
+Tell me when it's on `main` and I'll rerun the golden path.
