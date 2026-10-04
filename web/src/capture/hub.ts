@@ -386,7 +386,9 @@ export class CaptureHub {
       this.emit({ t, type: "marker.off_record", source: "user", payload: { state: "start", trigger } });
       void this.log.flush();
       this.screenRec?.pause();
-      this.micRec?.pause();
+      // voice trigger: drop the in-progress mic slice, it contains the spoken command (a slice that already
+      // closed before the transcript arrived is not recalled)
+      this.micRec?.pause(trigger === "voice");
       if (this.transcriber) this.transcriber.muted = true;
       this.set({ offRecord: true });
       void this.voice?.say("Okay, not recording.");
