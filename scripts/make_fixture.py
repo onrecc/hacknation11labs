@@ -179,7 +179,7 @@ LABEL = {"supplier": "Supplier", "group": "Supplier group", "date": "Invoice dat
 
 def bbox(field):
     x, y = FIELD_BOX[field]
-    return {"x": x, "y": y, "w": 0.42, "h": 0.055}
+    return {"x": x, "y": y, "w": 0.42, "h": 0.045}
 
 
 def render_svg(st, t):
@@ -215,9 +215,9 @@ def render_svg(st, t):
             px, py = x * W, y * H
             focus = st["focus"] == f
             val = "████████████████" if f == "iban" else (f"{i[f]:,.2f}" if f == "amount" else i[f])
-            o.append(f'<text x="{px}" y="{py-6}" font-size="12" fill="#666">{LABEL[f]}</text>')
-            o.append(f'<rect x="{px}" y="{py}" width="{0.42*W}" height="{0.055*H}" fill="#fff" stroke="{"#4a7bd0" if focus else "#ccd"}" stroke-width="{2 if focus else 1}"/>')
-            o.append(f'<text x="{px+12}" y="{py+26}" font-size="16">{esc(val)}</text>')
+            o.append(f'<text x="{px}" y="{py-5}" font-size="11" fill="#666">{LABEL[f]}</text>')
+            o.append(f'<rect x="{px}" y="{py}" width="{0.42*W}" height="{0.045*H}" rx="3" fill="#fff" stroke="{"#4a7bd0" if focus else "#ccd"}" stroke-width="{2 if focus else 1}"/>')
+            o.append(f'<text x="{px+12}" y="{py+21}" font-size="15">{esc(val)}</text>')
         o.append('<rect x="660" y="600" width="120" height="44" rx="6" fill="#1f3a5f"/><text x="720" y="628" fill="#fff" font-size="16" text-anchor="middle">Save</text>')
         o.append('<rect x="800" y="600" width="140" height="44" rx="6" fill="#2e7d32"/><text x="870" y="628" fill="#fff" font-size="16" text-anchor="middle">Approve</text>')
     o.append("</svg>")

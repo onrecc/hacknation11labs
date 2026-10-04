@@ -26,7 +26,9 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
   const ix = useMemo(() => new LogIndex(wm.sourceSessionIds[0] ?? "", events), [wm.sourceSessionIds, events]);
   const ordered = useMemo(() => [...wm.steps].sort((a, b) => a.order - b.order), [wm.steps]);
   useEffect(() => {
-    const spoken = ordered.find((st) => !!stepQuote(wm, st));
+    // open on the strongest moment: a step whose quote shows the expert correcting herself, else any quoted step
+    const selfCorrected = (st: Step) => { const q = stepQuote(wm, st); return !!q && stepCorrected(wm, st) && quoteParts(q, true).some((p) => p.style === "struck"); };
+    const spoken = ordered.find(selfCorrected) ?? ordered.find((st) => !!stepQuote(wm, st));
     const first = (spoken ?? ordered[0]) ? { kind: "step" as const, id: (spoken ?? ordered[0]).id } : null;
     if (!sel) setSel(first);
     else if (sel.kind === "step" && !wm.steps.some((s) => s.id === sel.id)) setSel(first);
@@ -116,6 +118,7 @@ function StepList({ wm, sel, onSelect }: { wm: WorkMap; sel: Sel; onSelect: (s: 
           </li>
         ))}
       </ol>
+      {ordered.length > 0 && <div className="st-key"><span><span className="mk-quote">“</span>{firstName(wm)} explained why</span><span><span className="mk-corr" />Corrected by {firstName(wm)}</span></div>}
     </section>
   );
 }
@@ -145,7 +148,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
       body = (
         <>
           <div className="detail-head">
-            <Kicker>Step {s.order} of {wm.steps.length}{s.optional && s.whenText ? ` · only if ${lowerFirst(s.whenText)}` : ""}</Kicker>
+            <Kicker>Step {s.order} of {wm.steps.length}{s.optional && s.whenText ? ` · only if: ${s.whenText}` : ""}</Kicker>
             <h2>{s.title}</h2>
             {showDesc && <p className="lead">{s.instructions}</p>}
           </div>
@@ -276,7 +279,7 @@ const caseLabel = (wm: WorkMap, ix: LogIndex, m: ScreenMoment) => {
   return `${fmtClock(m.t)}${c ? ` · ${c.kind === "invoice" ? "INV-" : ""}${c.key}` : ""}`;
 };
 
-export function Frame({ m, caption, zoom: zoomIn = 1.5, crop: cropH = 280 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
+export function Frame({ m, caption, zoom: zoomIn = 1.3, crop: cropH = 280 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
   const { frame } = useContext(Sources);
   const [full, setFull] = useState(false);
   const zoom = m.bbox && !full ? zoomIn : 1;
@@ -291,7 +294,7 @@ export function Frame({ m, caption, zoom: zoomIn = 1.5, crop: cropH = 280 }: { m
   }, [m.sessionId, m.frameId, frame]);
   return (
     <figure className="wframe">
-      <div className={`frame-img ${crop ? "cropped" : ""}`} style={crop ? { height: crop } : undefined}>
+      <div className={`frame-img ${crop ? "cropped" : ""} ${zoom !== 1 ? "zoomed" : ""}`} style={crop ? { height: crop } : undefined}>
         {src ? (
           // zoom gently toward the highlighted field so the step's context reads at a glance
           <div className="frame-zoom" style={frameStyle(m, zoom, crop)}>
@@ -492,7 +495,7 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
             {tb.segments.map((s, i) => (
               <li key={s.id} className="list-row static">
                 <span className="tb-n">{i + 1}</span>
-                <span className="grow">{s.text}{s.verdict === "corrected" && <span className="badge warnish">Corrected</span>}</span>
+                <span className="grow">{s.verdict === "corrected" ? <TbCorrected wm={wm} text={s.text} stepIds={s.stepIds} /> : s.text}</span>
               </li>
             ))}
             {!tb.segments.length && <li className="dim pad">Not done yet.</li>}
@@ -502,6 +505,18 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
       </div>
       <Timeline wm={wm} ix={ix} onSelect={onSelect} />
     </div>
+  );
+}
+
+/** A corrected teach-back part: what the apprentice said, struck through, then what the expert corrected it to. */
+function TbCorrected({ wm, text, stepIds }: { wm: WorkMap; text: string; stepIds: Id[] }) {
+  const claims = [...wm.steps.filter((x) => stepIds.includes(x.id)), ...wm.decisions.filter((d) => stepIds.includes(d.stepId)), ...wm.guardrails.filter((g) => g.stepIds.some((x) => stepIds.includes(x)))];
+  const h = claims.flatMap((c) => c.history).find((x) => x.phase === "teachback");
+  return (
+    <>
+      <span className="tb-old">{text}</span>
+      {h && <span className="tb-new"><span className="badge warnish">Corrected</span>{h.after}</span>}
+    </>
   );
 }
 

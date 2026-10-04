@@ -146,6 +146,9 @@ export const fmtClock = (ms: number) => {
 
 // ───────────── agent-ready export (brief stretch goal) ─────────────
 
+/** "Everything else" → "everything else", but keep names and acronyms ("Hofmann", "EUR"). */
+const lowerFirstWord = (t: string) => (/^[A-Z][a-z]+\b/.test(t) && !/^(Hofmann|Schreiber|Brno|Weber|Jonas|Any intercompany)/.test(t) ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+
 export function agentInstructions(wm: WorkMap): string {
   const L: string[] = [];
   L.push(`# ${wm.task.title}: operating procedure`, "");
@@ -157,8 +160,9 @@ export function agentInstructions(wm: WorkMap): string {
     L.push(`   ${s.instructions}`);
     for (const d of wm.decisions.filter((x) => s.decisionIds.includes(x.id) && x.stepId === s.id)) {
       L.push(`   - Decide: ${d.question}`);
-      for (const o of d.options) L.push(`     - ${o.option}${o.whenText ? `: when ${o.whenText}` : o.when ? `: when ${conditionText(o.when)}` : ""}`);
-      L.push(`     - Why (in ${wm.expert.displayName}'s words): "${d.reason.text}"`);
+      for (const o of d.options) L.push(`     - ${o.option}${o.whenText ? `: when ${lowerFirstWord(o.whenText)}` : o.when ? `: when ${conditionText(o.when)}` : ""}`);
+      const fix = d.history.at(-1);
+      L.push(`     - Why (in ${wm.expert.displayName}'s words): "${d.reason.text}"${fix ? ` [corrected: ${fix.after}]` : ""}`);
     }
   }
   L.push("", "## STOP rules (check before every save)", "");

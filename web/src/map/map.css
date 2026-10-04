@@ -299,3 +299,19 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .card-head > .wseg { flex-direction: row; padding: 2px; gap: 0; }
 .wm-main { grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); }
 .mk-quote { font-size: 20px; height: 10px; line-height: 0.9; }
+
+/* ── pass 5 ── */
+.frame-img::after { content: ""; position: absolute; inset: 0; border-radius: inherit; box-shadow: inset 0 0 0 1px var(--w-border); pointer-events: none; }
+.mk-quote { font-size: 22px; height: 12px; line-height: 0.95; color: var(--w-text); opacity: 0.7; }
+.st-key { display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--w-border); font-size: 12px; color: var(--w-muted); }
+.st-key > span { display: inline-flex; align-items: center; gap: 6px; }
+.st-key .mk-quote { font-size: 18px; height: 9px; }
+.tb-old { display: block; color: var(--w-muted); text-decoration: line-through; text-decoration-color: var(--w-red); }
+.tb-new { display: flex; gap: 8px; align-items: baseline; margin-top: 6px; color: var(--w-text); }
+.tb-new .badge { margin-left: 0; }
+
+.frame-img.zoomed::before { content: ""; position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background: linear-gradient(90deg, #f4f5f7 0, rgba(244,245,247,0) 36px, rgba(244,245,247,0) calc(100% - 36px), #f4f5f7 100%); }
+.try .check input { appearance: none; -webkit-appearance: none; width: 16px; height: 16px; margin: 0; border: 1px solid var(--w-border-strong); border-radius: 4px; background: var(--w-surface); display: grid; place-items: center; cursor: pointer; }
+.try .check input:checked { background: var(--w-text); border-color: var(--w-text); }
+.try .check input:checked::after { content: ""; width: 8px; height: 4px; border-left: 2px solid var(--w-bg); border-bottom: 2px solid var(--w-bg); transform: rotate(-45deg) translate(1px, -1px); }
