@@ -12,6 +12,7 @@ import { PROV, agentInstructions, claimsByEvent, conditionText, flowModel, fmtCl
 import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_BEFORE, useMediaUrl, type MediaSource } from "./Replay";
 import { languageName } from "@shared/i18n";
 import { useQuoteTranslation } from "../lib/translate";
+import { JudgeMarker } from "../components/JudgeMarker";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
@@ -543,7 +544,7 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
     <div className="stack">
       <div className="wm-cols even">
         <section className="panel">
-          <div className="card-head"><h3>Debrief questions</h3><span className="dim">{open === 0 ? "All answered" : `${open} open`}</span></div>
+          <div className="card-head"><h3>Debrief questions</h3><span className="dim">{open === 0 ? "All answered" : `${open} open`}<JudgeMarker n={3} /></span></div>
           <ul className="list qa">
             {wm.gaps.map((g) => <QA key={g.id} g={g} asked={asked.find((q) => q.payload.gapId === g.id)} answers={answers} />)}
             {!wm.gaps.length && <li className="dim pad">No debrief yet.</li>}
@@ -551,7 +552,7 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
           <p className="card-foot dim">Asked most important first. The debrief ends when no important question is open, when the expert is done, or after eight questions.</p>
         </section>
         <section className="panel">
-          <div className="card-head"><h3>Teach-back</h3><span className="dim">{confirmedParts} of {tb.segments.length} confirmed</span></div>
+          <div className="card-head"><h3>Teach-back</h3><span className="dim">{confirmedParts} of {tb.segments.length} confirmed<JudgeMarker n={3} /></span></div>
           <ol className="list tb">
             {tb.segments.map((s, i) => (
               <li key={s.id} className="list-row static">

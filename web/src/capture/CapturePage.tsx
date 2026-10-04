@@ -13,6 +13,7 @@ import { AdaPanel } from "./AdaPanel";
 import { SessionStatus } from "./SessionStatus";
 import { personOf, useUser } from "../lib/users";
 import { REDACTION_CONFIG } from "./redaction";
+import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
 
 export default function CapturePage() {
   const user = useUser()!;
@@ -99,7 +100,8 @@ export default function CapturePage() {
           <p className="muted small mono">{hub.session.id}</p>
           <p className="muted small">Written: {hub.log.stats.written}/{hub.log.stats.emitted} events · {hub.log.stats.blobs} blobs · {hub.log.pendingUploads} uploading</p>
         </SessionStatus>
-        <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />
+        <JudgeLegend />
+        <AdaPanel s={s} budget={PAUSE.budgetPer10Min} whyMarker={<JudgeMarker n={1} />} onOffRecord={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />
         {s.phase === "capture" && (
           <div className="btns">
             <button onClick={() => window.open("/erp?mode=capture", "minierp")}>Open MiniERP</button>

@@ -16,6 +16,7 @@ import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
 import { rankModules } from "./modules";
 import { MasteryCard } from "./MasteryCard";
+import { JudgeLegend } from "../components/JudgeMarker";
 import type { PracticeCase } from "./mastery";
 import { SEED } from "../erp/data";
 import { facts } from "../erp/ErpPage";
@@ -113,6 +114,7 @@ export default function TeachPage() {
     return (
       <div className="page narrow">
         <h1>Hi {learner}, ready to practice?</h1>
+        <JudgeLegend />
         <p className="muted">{user.title} · {user.departmentLabel}. Ada, your ElevenLabs tutor, watches you work a real case and coaches you with what the experts taught her: their rules, in their own words.</p>
         <div className="card form">
           <label className="wide">Training module
@@ -135,6 +137,7 @@ export default function TeachPage() {
     <div className="page split">
       <section>
         <h1>Tutor</h1>
+        <JudgeLegend />
         <SessionStatus s={s}><p className="muted small mono">{hub.session.id}</p></SessionStatus>
         <div className="btns">
           <button disabled={!live} onClick={() => window.open("/erp?mode=teach", "minierp")}>Open MiniERP</button>

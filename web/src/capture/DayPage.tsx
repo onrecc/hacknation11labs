@@ -16,6 +16,7 @@ import { AdaPanel } from "./AdaPanel";
 import { PAUSE } from "./hub";
 import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
+import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const fmtDur = (a: string, b?: string) => {
@@ -114,10 +115,11 @@ export default function DayPage() {
     return (
       <div className="page narrow">
         <h1>Good {new Date().getHours() < 12 ? "morning" : "day"}, {user.short}</h1>
+        <JudgeLegend />
         <p className="muted">{user.title} · {user.departmentLabel}. Start your day and work as usual in {user.app.name} or any web app. Ada stays quiet, asks <i>why</i> at natural pauses, and splits your day into tasks. You'll debrief each task afterwards.</p>
         <div className="card">
           <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> Let Ada look at changed screens (Claude vision)</label>
-          <p className="muted small">Recording only runs while you're on the record. Say "off the record" (or press the button) any time. Passwords, IBANs and card numbers are masked.</p>
+          <p className="muted small">Recording only runs while you're on the record. Say "off the record" (or press the button) any time. Passwords, IBANs and card numbers are masked. <JudgeMarker n={5} /></p>
           <div className="btns">
             {active ? (
               <>
@@ -160,9 +162,10 @@ export default function DayPage() {
     <div className="page split">
       <section>
         <h1>{user.short}'s day <span className="muted small">{day.date}</span></h1>
+        <JudgeLegend />
         <SessionStatus s={s} ended={ended}><p className="muted small mono">{rec.hub.session.id}</p></SessionStatus>
 
-        {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
+        {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} whyMarker={<JudgeMarker n={1} />} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
 
         {!ended && cur && (
           <div className="card current-task">
