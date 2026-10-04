@@ -327,9 +327,11 @@ export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: Sc
   useEffect(() => {
     let ok = true;
     setSrc(undefined);
+    if (!m.frameId) return;
     frame(m.sessionId, m.frameId).then((u) => ok && setSrc(u), () => ok && setSrc(null));
     return () => void (ok = false);
   }, [m.sessionId, m.frameId, frame]);
+  if (!m.frameId) return null; // action recorded without a screenshot (no screen share)
   return (
     <figure className="wframe">
       <div className={`frame-img ${crop ? "cropped" : ""} ${zoom !== 1 ? "zoomed" : ""}`} style={crop ? { height: crop } : undefined}>

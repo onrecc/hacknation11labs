@@ -238,7 +238,7 @@ export class Tutor {
   // ───────────── overlay ─────────────
   private async showCard(c: TutorCard, moment?: { sessionId: Id; frameId: Id; t: number; bbox?: TutorCard["bbox"] }) {
     let imageUrl: string | undefined;
-    if (moment) {
+    if (moment?.frameId) {
       imageUrl = await blobUrl(moment.sessionId, `frames/${moment.frameId}.webp`).catch(() => blobUrl(moment.sessionId, `frames/${moment.frameId}.svg`)).catch(() => undefined);
     }
     const q = c.guardrail?.evidence.quotes[0];

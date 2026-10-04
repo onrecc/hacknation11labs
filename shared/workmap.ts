@@ -116,7 +116,9 @@ export function buildDraft(session: Session, events: Event[], workMapId: Id = se
 export function momentAt(ix: LogIndex, t: number, eventIds: Id[], bbox?: ScreenMoment["bbox"]): ScreenMoment | null {
   let f = ix.frameAt(t + 1000) ?? ix.frameAt(t);
   while (f && ix.inOffRecord(f.t)) f = ix.frameAt(f.t - 1);
-  if (!f) return null;
+  // No screenshots (no screen share, vision off: the MiniERP bridge still gives exact actions): keep the
+  // moment as a timestamped action without a thumbnail rather than dropping every step that cites it.
+  if (!f) return ix.inOffRecord(t) ? null : { sessionId: ix.sessionId, t, frameId: "", eventIds, ...(bbox ? { bbox } : {}) };
   return { sessionId: ix.sessionId, t: f.t, frameId: f.payload.frameId, eventIds, ...(bbox ? { bbox } : {}) };
 }
 
