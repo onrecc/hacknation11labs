@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · My day is one guided path; overlay only while recording; Try an action on any site
+- **Rene's call:** the expert path was too convoluted. `/day` is now *Start my work day → open your work (work app, or install the extension: download from `/protege-{chrome,firefox}.zip` + 3 steps) → End task / End my day → go over it with Ada*. A 3-step indicator shows where you are.
+- **End task** (big button on the page, and on the overlay pill) ends the task and starts the debrief right away (`WorkdayRecorder.endTask()` → `runDebrief`), then **Back to work** starts the next task (`resume()`). **End my day** goes over every task of the day in turn. Tasks not gone over yet are listed on the start page; "Single task" left the nav.
+- **Overlay only while work is recorded:** `CaptureHub.setStandby()` + status `mode: "off"` whenever the hub isn't recording (End task, End my day, during the debrief, earlier-day debriefs, hub page/tab closed). Work done after End my day is no longer filed into the last task. Overlay End buttons send `end_task` / `end_day` markers (bridge contract, additive); the extension then focuses the Protégé tab. A capture hub never acts on them for a teach session.
+- **Map (Toivo):** "Try a case" (MiniERP invoice fields) only shows when a rule has a machine condition; Work Maps from any other site get **Try an action** (Claude `check_guardrails`, the same check Teach runs before a Save/Submit). The meta line says "N steps" instead of "0 cases" when an app reports no cases.
+- e2e:workday + golden follow the new labels ("Start my work day", "Open MiniERP"; End my day starts the go-over itself).
+
 ### 2026-10-04 · Rene's agent · Debrief felt slow / re-asked answers; "Detecting the task…" stuck
 - Measured on Rene's real Scalefusion debrief: Ada took 2.5–22 s from the hub's [ASK] to speaking (ElevenAgents LLM was Claude Sonnet 5.5), and long answers were cut off: the reply window closed 20 s after speech START, before Scribe committed the transcript, so Ada re-asked ("Sorry, I didn't quite get that") and then said "Got it" when the late transcript arrived. "Hold on a second" was taken as the answer.
 - Fixes: both agents now run on **claude-haiku-4-5** (they only voice lines the hub writes; measured 1.1–2.9 s interviewer, 2.2–5.1 s tutor). Reply windows stay open while Scribe partials keep coming (12 s grace after the last partial), for asks and live questions. Bare stall phrases ("hold on", "one sec", "let me think") are logged but not taken as the answer (30 s more).

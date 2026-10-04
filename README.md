@@ -53,7 +53,7 @@ ln -s ../../scripts/check-secrets.sh .git/hooks/pre-commit
 ```
 
 Open http://localhost:5173 and pick a person on the demo login (no passwords):
-- **Experts** (Sabine, Ilse, Jürgen) → **My day**: "Start my day", then work as usual. Ada asks *why* at natural pauses, and the day is split into tasks automatically (app switch, "New task", a break, or Claude noticing a different kind of work). Each task gets its own Work Map; "Debrief now" per task.
+- **Experts** (Sabine, Ilse, Jürgen) → **My day**, one guided path: **Start my work day** → open the work app (nothing to install) or install the extension (any website) → work as usual while Ada asks *why* at natural pauses → **End task** (on the page or the overlay) and Ada goes over that task right away, then **Back to work**; or **End my day** and she goes over each task in turn. Each task gets its own Work Map. The overlay only shows while work is being recorded. The day still splits into tasks by itself (app switch, a break, or Claude noticing a different kind of work).
 - **Practicers** (Lena, Aylin, Tim) → **Training**: their department's confirmed Work Map is preselected.
 
 - **Compare** (`/compare`): two experts, one task. Where Sabine and Ilse differ, Ada asks each of them why and turns the answers into a team rule.
@@ -62,7 +62,7 @@ Open http://localhost:5173 and pick a person on the demo login (no passwords):
 Pages:
 - **Map:** `/map/ses_demo_sabine_01` is the seeded demo session with its confirmed Work Map (live from Firestore).
 - **Teach:** `/teach` → pick the Work Map → start. MiniERP opens in teach mode. Open INV-4490 (€7,200 equipment) and press Approve on cost center 4711. The tutor holds the save and quotes Sabine.
-- **Capture:** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.
+- **Capture (single task, for tests and debugging; not in the nav):** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.
 - **Any other web app:** `/demo/procurex.html` is a plain third-party-style form. With the extension (or the one-line embed it includes) Capture records its field changes and Teach holds a wrong "Submit for approval".
 
 ## Browser extension: Chrome + Firefox (coaching and capture on any site + tutor overlay)
