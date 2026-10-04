@@ -16,6 +16,13 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · Overlay is now an edge dock (extension, all sites)
+- **Rene's call:** the floating pill + top-right card are replaced by a **tab docked to the window edge** (vertical label, status dot, off-record + bookmark). Ada's caption and coaching cards slide out beside it. While Ada speaks, the dot becomes a small level meter.
+- Hovering the tab reveals a **grip**: drag it anywhere, it snaps to the nearer left/right edge (arrow keys work too). The spot is saved per site in the page's `localStorage` (`ai-apprentice-dock`).
+- The card **never covers the element you last pressed** (e.g. the held Save/Submit), so a fixed save can be clicked again. Found by `e2e:extension` ("fixed submit goes through"), which now passes 10/10.
+- DOM hooks for tests unchanged: `.pill` text and `.card h4`. The unused `mount` (in-page strip) option is gone.
+- Bundles (`extension/dist/*/content.js`, `web/public/apprentice-embed.js`) rebuilt from main + `overlay.ts` only. **Whoever commits `capture-dom.ts` next: run `npm run verify -w extension` and commit the bundles with it.** `docs/brag/04` + `06` reshot with the new overlay; `golden-teach-blocked.png` still shows the old one until the next golden run.
+
 ### 2026-10-04 · Rene's agent · Coaching only through the extension (MiniERP is just a work app); Chrome + Firefox always
 - **Rene's call:** Ada's coaching must not be built into the platform. MiniERP now has **no Ada UI**: no embedded overlay, no `beforeSave` hold, no "held" banner, no off-record/bookmark/hub pill in its bar. The extension provides all of it on every site, MiniERP included.
 - MiniERP keeps publishing its structured feed (`case`/`app` messages with `CaseFacts`), so guardrail conditions on fact paths still work. `index.html` marks `/erp` pages `apprentice-app=feed`; the content script then runs the overlay + teach hold there but skips generic DOM capture (no double events).
