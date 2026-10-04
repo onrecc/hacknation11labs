@@ -14,12 +14,8 @@ import { SessionStatus } from "../capture/SessionStatus";
 import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
+import { rankModules } from "./modules";
 
-/** Newest first; the bundled demo map is dated in the future (fixture), so real recordings rank above it. */
-const recency = (h: WorkMapHead) => {
-  const t = Date.parse(h.updatedAt);
-  return t > Date.now() ? 0 : t;
-};
 
 export default function TeachPage() {
   const [maps, setMaps] = useState<WorkMapHead[]>([]);
@@ -36,13 +32,12 @@ export default function TeachPage() {
   const tutor = useRef<Tutor | null>(null);
   const state = useStore(hub, () => hub?.state ?? null);
 
-  // modules = confirmed Work Maps; the practicer's own department first, picked automatically
+  // modules = confirmed Work Maps; own department first, then featured, then newest (modules.ts), picked automatically
   useEffect(() => void signedIn.then(async () => {
     const list = await listWorkMaps();
     setMaps(list);
-    const loaded = (await Promise.all(list.filter((x) => x.status === "confirmed").map(async (m) => ({ head: m, full: await loadWorkMap(m.id) }))))
-      .filter((x): x is { head: WorkMapHead; full: WorkMap } => !!x.full && x.full.guardrails.length > 0)
-      .sort((a, b) => Number(b.full.task.domain === user.department) - Number(a.full.task.domain === user.department) || recency(b.head) - recency(a.head));
+    const loaded = rankModules((await Promise.all(list.filter((x) => x.status === "confirmed").map(async (m) => ({ head: m, full: await loadWorkMap(m.id) }))))
+      .filter((x): x is { head: WorkMapHead; full: WorkMap } => !!x.full && x.full.guardrails.length > 0), user.department);
     setModules(loaded.map(({ head, full }) => ({ ...head, expert: full.expert.displayName, domain: full.task.domain, steps: full.steps.length, guardrails: full.guardrails.length })));
     if (loaded[0]) setWm(loaded[0].full);
   }), [user.department]);
@@ -89,7 +84,7 @@ export default function TeachPage() {
           <label className="wide">Training module
             <select value={wm?.id ?? ""} onChange={async (e) => setWm(e.target.value ? await loadWorkMap(e.target.value) : null)}>
               <option value="">Choose…</option>
-              {modules.map((m) => <option key={m.id} value={m.id}>{m.title ?? m.id} · by {m.expert}{m.domain === user.department ? "" : ` (${m.domain.replace("_", " ")})`}</option>)}
+              {modules.map((m) => <option key={m.id} value={m.id}>{m.featured ? "★ " : ""}{m.title ?? m.id} · by {m.expert}{m.domain === user.department ? "" : ` (${m.domain.replace("_", " ")})`}</option>)}
             </select>
           </label>
           {modules.length === 0 && maps.length > 0 && <p className="muted small wide">No confirmed Work Maps with guardrails yet. An expert needs to record and debrief a task first.</p>}

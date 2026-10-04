@@ -10,7 +10,8 @@ import { LogIndex } from "@shared/logindex";
 import { buildDraft, buildWorkMap, condenseLog, existingIds } from "@shared/workmap";
 import { FACT_PATHS } from "@shared/llm";
 import { col } from "@shared/paths";
-import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
+import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, setWorkMapFeatured, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
+import { useUser } from "../lib/users";
 import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
@@ -128,6 +129,8 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [problems, setProblems] = useState<string[]>([]);
   const [autoDraft, setAutoDraft] = useState(true);
+  const [featured, setFeatured] = useState(false);
+  const user = useUser();
   const busyRef = useRef(false);
   const builtFor = useRef(0);
 
@@ -145,7 +148,10 @@ function SessionMap({ sessionId }: { sessionId: string }) {
         if (s.workMapId && s.workMapId !== headFor) {
           headFor = s.workMapId;
           offHead();
-          offHead = onSnapshot(doc(db, col.workmaps, s.workMapId), () => void loadWorkMap(s.workMapId!).then((w) => w && setWm(w)));
+          offHead = onSnapshot(doc(db, col.workmaps, s.workMapId), (h) => {
+            setFeatured(h.get("featured") === true);
+            void loadWorkMap(s.workMapId!).then((w) => w && setWm(w));
+          });
         }
       });
     });
@@ -199,9 +205,26 @@ function SessionMap({ sessionId }: { sessionId: string }) {
     void rebuild(true);
   }, [casesDone, session?.status, autoDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  async function toggleFeatured() {
+    if (!wm) return;
+    const next = !featured;
+    setFeatured(next); // optimistic; the head snapshot confirms it
+    try {
+      await setWorkMapFeatured(wm.id, next);
+    } catch (e) {
+      setFeatured(!next);
+      setProblems([`Couldn't change the training module: ${(e as Error).message}`]);
+    }
+  }
+
   if (!session) return <div className="page">Loading session…</div>;
   const actions = (
     <>
+      {user?.role === "expert" && wm?.status === "confirmed" && (
+        <label title="New hires in this department get this map as their default training module">
+          <input type="checkbox" checked={featured} onChange={() => void toggleFeatured()} /> Featured for training
+        </label>
+      )}
       {session.status === "live" && <label><input type="checkbox" checked={autoDraft} onChange={(e) => setAutoDraft(e.target.checked)} /> Live draft</label>}
       <button onClick={() => void rebuild(false)} disabled={!!busy}>{busy ?? "Rebuild"}</button>
     </>
