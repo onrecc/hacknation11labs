@@ -79,10 +79,8 @@ function DemoMap() {
   }, []);
   if (!demo) return <div className="page">Loading demo…</div>;
   return (
-    <>
-      <WorkMapView wm={demo.workmap} events={demo.events} frameSource={demo.frame} />
-      <div className="page"><details className="card"><summary>Raw event feed ({demo.events.length} events)</summary><EventFeed events={demo.events} max={400} /></details></div>
-    </>
+    <WorkMapView wm={demo.workmap} events={demo.events} frameSource={demo.frame}
+      footer={<details><summary>Raw session log · {demo.events.length} events</summary><EventFeed events={demo.events} max={400} /></details>} />
   );
 }
 
@@ -180,19 +178,19 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   }, [casesDone, session?.status, autoDraft]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!session) return <div className="page">Loading session…</div>;
-  return (
+  const actions = (
     <>
-      {shown && <WorkMapView wm={shown} events={events} frameSource={frameSource} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} />}
-      <div className="page">
-        <div className="btns">
-          <button onClick={() => void rebuild(false)} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
-          {session.status === "live" && <label className="small"><input type="checkbox" checked={autoDraft} onChange={(e) => setAutoDraft(e.target.checked)} /> live draft after each case</label>}
-          <span className="muted small">{session.participant.displayName} · {session.kind} · {session.status} · {events.length} events · {ix.frames.length} frames · {wm ? `v${wm.version} ${wm.status}` : "draft (not saved)"}</span>
-          <Link to="/map">← all sessions</Link>
-        </div>
-        {problems.length > 0 && <details className="card"><summary>{problems.length} evidence problems (claims dropped or downgraded)</summary><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></details>}
-        <details className="card"><summary>Raw event feed</summary><EventFeed events={events} max={300} /></details>
-      </div>
+      {session.status === "live" && <label><input type="checkbox" checked={autoDraft} onChange={(e) => setAutoDraft(e.target.checked)} /> Live draft</label>}
+      <button onClick={() => void rebuild(false)} disabled={!!busy}>{busy ?? "Rebuild"}</button>
     </>
   );
+  const footer = (
+    <>
+      <p>{session.participant.displayName} · {session.kind} · {session.status} · {events.length} events · {ix.frames.length} frames · <Link to="/map">All sessions</Link></p>
+      {problems.length > 0 && <details><summary>{problems.length} evidence notes (claims dropped or downgraded)</summary><ul>{problems.map((p) => <li key={p}>{p}</li>)}</ul></details>}
+      <details><summary>Raw session log</summary><EventFeed events={events} max={300} /></details>
+    </>
+  );
+  if (!shown) return <div className="page">Loading Work Map…</div>;
+  return <WorkMapView wm={shown} events={events} frameSource={frameSource} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} actions={actions} footer={footer} />;
 }
