@@ -21,6 +21,8 @@ import { listen, send, type BridgeMsg, type PageSnapshot } from "../lib/bridge";
 import type { CaptureHub } from "../capture/hub";
 import type { AgentOptions } from "../voice/voice";
 import { workMapForPrompt } from "./tutor-prompt";
+import { spokenQuote } from "@shared/i18n";
+import { translateQuote } from "../lib/translate";
 
 export { workMapForPrompt };
 
@@ -29,7 +31,7 @@ export interface TutorCard {
   title: string;
   text: string;
   guardrail?: Guardrail;
-  quote?: { text: string; who: string; when: string };
+  quote?: { text: string; who: string; when: string; translation?: string };
   imageUrl?: string;
   bbox?: { x: number; y: number; w: number; h: number };
 }
@@ -56,6 +58,12 @@ export class Tutor {
   attach(hub: CaptureHub) {
     this.hub = hub;
     this.off = listen((m) => void this.onBridge(m));
+    for (const g of this.wm.guardrails) if (g.evidence.quotes[0]) void this.meaning(g.evidence.quotes[0].text); // warm the cache before the first intervention
+  }
+
+  /** English meaning of the expert's words when they spoke another language (undefined for English). */
+  private meaning(quote: string): Promise<string | undefined> {
+    return translateQuote(quote, this.wm.expert.language);
   }
   detach() {
     this.off?.();
@@ -174,20 +182,25 @@ export class Tutor {
     const first = this.logIntervention(g, beforeSave, socratic, moment, caseLabel, t, false);
     try {
       await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: socratic, guardrail: g }, moment);
+      // the expert may have spoken another language: the quote stays verbatim, the English meaning goes with it
+      const lang = this.wm.expert.language;
+      const meaning = await this.meaning(quote);
+      const said = spokenQuote(this.expert, quote, meaning, lang);
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
-      const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}` });
+      const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}${meaning ? ` | meaning: ${meaning}` : ""}` });
       let spoken = socratic;
       if (agentVoice && !replies.length) {
         // no answer: don't leave them hanging, say it in the expert's words
-        spoken = `${this.expert} says: "${quote}" ${g.requiredAction}.`;
+        spoken = `${said} ${g.requiredAction}.`;
         await this.hub.agentSay(spoken, "intervention");
       } else if (!agentVoice) {
-        const ex = await llm("tutor_explain", { expertName: this.expert, guardrail: g, quote, facts: this.facts ?? emptyFacts(caseLabel), socratic: false }).catch(() => ({ spoken: `${this.expert} says: "${quote}". ${g.requiredAction}.` }));
+        const ex = await llm("tutor_explain", { expertName: this.expert, guardrail: g, quote, facts: this.facts ?? emptyFacts(caseLabel), socratic: false, ...(meaning ? { quoteTranslation: meaning, quoteLanguage: lang } : {}) })
+          .catch(() => ({ spoken: `${said}. ${g.requiredAction}.` }));
         spoken = ex.spoken;
         await this.hub.agentSay(spoken, "intervention");
       }
-      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${this.expert}: "${quote}". ${g.requiredAction}.` : spoken, guardrail: g }, moment);
+      await this.showCard({ tone: "block", title: `Save held: ${g.statement}`, text: spoken === socratic ? `${said}. ${g.requiredAction}.` : spoken, guardrail: g }, moment);
       this.logIntervention(g, beforeSave, spoken, moment, caseLabel, t, replies.length > 0, first.id);
     } finally {
       this.intervening = false;
@@ -250,9 +263,10 @@ export class Tutor {
       imageUrl = await blobUrl(moment.sessionId, `frames/${moment.frameId}.webp`).catch(() => blobUrl(moment.sessionId, `frames/${moment.frameId}.svg`)).catch(() => undefined);
     }
     const q = c.guardrail?.evidence.quotes[0];
+    const translation = q ? await this.meaning(q.text) : undefined;
     const card: TutorCard = {
       ...c,
-      ...(q ? { quote: { text: q.text, who: this.wm.expert.displayName, when: fmtT(q.t) } } : {}),
+      ...(q ? { quote: { text: q.text, who: this.wm.expert.displayName, when: fmtT(q.t), ...(translation ? { translation } : {}) } } : {}),
       ...(imageUrl ? { imageUrl } : {}),
       ...(moment?.bbox ? { bbox: moment.bbox } : {}),
     };

@@ -33,7 +33,7 @@ export type BridgeBody =
   | { kind: "frame"; dataUrl: string; at: number; url: string }
   /** Overlay content on the work tab. */
   | { kind: "tutorSay"; text: string }
-  | { kind: "tutorCard"; tone: "block" | "nudge" | "info" | "predict"; title: string; text: string; quote?: { text: string; who: string; when: string }; imageUrl?: string; bbox?: { x: number; y: number; w: number; h: number } }
+  | { kind: "tutorCard"; tone: "block" | "nudge" | "info" | "predict"; title: string; text: string; quote?: { text: string; who: string; when: string; translation?: string }; imageUrl?: string; bbox?: { x: number; y: number; w: number; h: number } }
   | { kind: "agentState"; speaking: boolean; listening: boolean; caption?: string };
 
 export type BridgeMsg = BridgeBody & { id: string };
