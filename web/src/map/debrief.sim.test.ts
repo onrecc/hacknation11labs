@@ -132,7 +132,7 @@ class FakeHub {
     if (opts.category) this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
     await this.agentSay(text);
     let reply: string;
-    if (this.state.phase === "debrief") reply = sc.debriefReply?.(text) ?? ANSWERS.find(([re]) => re.test(text))?.[1] ?? "I'm not sure.";
+    if (this.state.phase === "debrief" || opts.gapId) reply = sc.debriefReply?.(text) ?? ANSWERS.find(([re]) => re.test(text))?.[1] ?? "I'm not sure.";
     else if (sc.teachbackReply?.(text)) reply = sc.teachbackReply(text)!;
     else if (text.includes("AP lead")) reply = "Not the AP lead, the controller, Weber. The AP lead is only for releasing the big held invoices.";
     else if (text.startsWith("So that's the whole process")) reply = "Yes. That's how it works.";
@@ -151,11 +151,13 @@ async function run(scenario: Partial<Scenario> = {}, opts?: Partial<typeof impor
   saved.length = 0;
   const hub = new FakeHub();
   const statuses: string[] = [];
-  const wm = await runDebrief(hub as never, (s) => statuses.push(`${s.stage}:${s.gapsOpen}`), { ...DEBRIEF, ...opts });
+  let last: import("./debrief").DebriefStatus | null = null;
+  const wm = await runDebrief(hub as never, (s) => { last = s; statuses.push(`${s.stage}:${s.gapsOpen}`); }, { ...DEBRIEF, ...opts });
   assert.ok(wm, `runner returned null; statuses: ${statuses.join(" ")}`);
   assert.equal(statuses.some((s) => s.startsWith("error")), false, statuses.join(" "));
   const debriefQs = hub.events.flatMap((e) => (e.type === "agent.question" && e.phase === "debrief" ? [e.payload] : []));
-  return { hub, wm, debriefQs };
+  const gapQs = (gapId: string) => hub.events.filter((e) => e.type === "agent.question" && e.payload.gapId === gapId);
+  return { hub, wm, debriefQs, gapQs, last: last as import("./debrief").DebriefStatus | null };
 }
 
 test("debrief + teach-back simulation passes the validator", async () => {
@@ -236,10 +238,28 @@ test("fewer than 3 gaps still yields 3 debrief questions", async () => {
   assert.equal(new Set(texts).size, texts.length);
 });
 
-test("the question cap leaves high-priority gaps open (not wont_fix), which blocks confirmation", async () => {
-  const { wm, debriefQs } = await run({}, { maxQuestions: 4 });
+test("gaps the question cap left open are asked once more before the final question; answered, the map is confirmed", async () => {
+  const { wm, debriefQs, gapQs, last } = await run({}, { maxQuestions: 4 });
   assert.equal(debriefQs.length, 4);
-  assert.ok(wm.gaps.some((g) => g.priority >= 0.5 && g.status === "open"));
+  const late = wm.gaps.filter((g) => g.priority >= 0.5 && !debriefQs.some((q) => q.gapId === g.id));
+  assert.ok(late.length > 0, "the cap left high-priority gaps for later");
+  for (const g of late) {
+    assert.equal(gapQs(g.id).length, 1, `asked exactly once before the final question: ${g.proposedQuestion}`);
+    assert.equal(gapQs(g.id)[0].phase, "teachback");
+    assert.equal(g.status, "resolved");
+  }
   assert.equal(wm.gaps.find((g) => g.priority < 0.5)!.status, "wont_fix", "leftover low-priority gaps may be dropped (with a reason)");
-  assert.notEqual(wm.status, "confirmed");
+  assert.equal(wm.status, "confirmed");
+  assert.equal(last?.stage, "confirmed");
+});
+
+test("a gap still unanswered after the last chance blocks confirmation, and Ada says what is missing", async () => {
+  const { hub, wm, gapQs, last } = await run({ debriefReply: (q) => (/release/i.test(q) ? "I'm not sure." : undefined) });
+  const gap = wm.gaps.find((g) => /release/i.test(g.proposedQuestion))!;
+  assert.equal(gapQs(gap.id).length, 3, "asked, re-asked, and asked once more before the final question");
+  assert.equal(gap.status, "asked");
+  assert.equal(wm.status, "teachback_pending");
+  assert.ok(hub.spoken.some((s) => s.includes(gap.proposedQuestion) && /can't mark this as confirmed yet/.test(s)), hub.spoken.slice(-3).join(" | "));
+  assert.equal(last?.stage, "not_confirmed");
+  assert.equal(last?.detail, "Not confirmed: 1 open question");
 });
