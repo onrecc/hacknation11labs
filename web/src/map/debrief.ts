@@ -10,11 +10,11 @@
  *
  * Order matters (MAP-PLAN F3/F4): every gap is written into a Work Map version before its gap.status event.
  */
-import type { Gap, Id, QuestionCategory, Session, Utterance, WorkMap } from "@shared/schema";
-import { LogIndex } from "@shared/logindex";
-import { buildDraft, buildWorkMap, condenseLog, existingIds, nextVersion, proposalFromWorkMap } from "@shared/workmap";
-import { FACT_PATHS, type ExtractionProposal } from "@shared/llm";
-import { newId } from "@shared/ids";
+import type { Gap, Id, QuestionCategory, Session, Utterance, WorkMap } from "../../../shared/schema";
+import { LogIndex } from "../../../shared/logindex";
+import { buildDraft, buildWorkMap, condenseLog, existingIds, nextVersion, proposalFromWorkMap } from "../../../shared/workmap";
+import { FACT_PATHS, type ExtractionProposal } from "../../../shared/llm";
+import { newId } from "../../../shared/ids";
 import { llm } from "../lib/api";
 import { loadWorkMap, saveWorkMapVersion, updateSession } from "../lib/sessions";
 import type { CaptureHub } from "../capture/hub";
