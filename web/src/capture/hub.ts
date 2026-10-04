@@ -19,6 +19,7 @@ import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../
 import { redactUtterance, type RedactedUtterance } from "./redaction";
 import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
 import { questionTarget } from "./questionTarget";
+import { looksLikeEcho, speechWords } from "./echo";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 /** Bridge messages that describe work in the work tab (filed into the session that owns that tab). */
@@ -551,12 +552,10 @@ export class CaptureHub {
 
   /** The mic hears the agent's own voice; drop utterances that are just an echo of what the agent said. */
   private isEcho(u: TranscribedUtterance) {
-    const words = u.text.toLowerCase().match(/[a-z0-9']+/g) ?? [];
-    if (!words.length) return true;
+    if (!speechWords(u.text).length) return true;
     return this.agentSpokeAt.some((a) => {
       if (u.t - a.t > 15_000 || a.t - u.tEnd > 2000) return false;
-      const hit = words.filter((w) => a.text.includes(w)).length;
-      return hit / words.length > 0.7;
+      return looksLikeEcho(u.text, a.text);
     });
   }
 
