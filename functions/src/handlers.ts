@@ -94,6 +94,10 @@ const schemas = {
   check_guardrails: z.object({ violations: z.array(z.object({ guardrailId: z.string(), reason: z.string(), confidence: z.number() })) }),
   grade_prediction: z.object({ correct: z.boolean(), feedback: z.string() }),
   teachback_verdict: z.object({ verdict: z.enum(["confirmed", "corrected", "unclear"]), correction: z.string(), correctedText: z.string() }),
+  patch_claim: z.object({
+    patches: z.array(z.object({ id: z.string(), field: z.string(), value: z.string() })),
+    quotes: z.array(z.object({ utteranceId: z.string(), quote: z.string() })),
+  }),
   tutor_explain: z.object({ spoken: z.string() }),
   translate: z.object({ text: z.string() }),
 } satisfies Record<LlmTask, z.ZodType>;
@@ -136,6 +140,10 @@ Use ONLY facts from the Work Map you are given, with the expert's thresholds, co
   teachback_verdict: `The apprentice just read one part of its explanation back to the expert and asked "is that right?". Classify the expert's reply.
 confirmed: they agree (yes, right, exactly, mm-hm) with no change. corrected: they change or add something (even after a "yes, but…"); write the corrected version of the segment in correctedText, keeping everything else the same. unclear: no answer or off-topic.
 correction: the expert's own words that carry the change, copied verbatim from the reply ("" if none).`,
+  patch_claim: `The expert corrected one part of the apprentice's explanation (segment) of their Work Map. Rewrite the Work Map claims behind that part so they say what the expert now says.
+patches: one entry per field that must change: id (from claims), field (one of the field names listed for that claim), value = the complete new text of that field. Change only what the correction changes; keep the expert's numbers, codes and names exactly. Leave everything else out.
+conditionJson / whenJson: a JSON Condition over the given fact paths only (same shape as in the Work Map; a guardrail condition is a VIOLATION predicate), or leave the field out.
+quotes: the expert's words that carry the change, copied CHARACTER FOR CHARACTER from one of replyUtterances (with its id). If the reply does not say clearly what is different, return empty patches.`,
   label_task: `You watch an expert's workday and keep a list of the TASKS they do (a task = one kind of work with one goal, e.g. "Process supplier invoices", "Approve purchase requests", "Answer supplier emails"). Several cases of the same kind of work (invoice after invoice) are ONE task.
 Given the current task title (may be empty), the app, the department and the recent actions/utterances:
 - title: short verb phrase for the work in these actions (max 6 words), domain: snake_case business domain (e.g. accounts_payable, procurement), summary: one sentence.

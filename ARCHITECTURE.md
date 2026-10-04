@@ -107,7 +107,7 @@ Firestore
 Cloud Storage  (bucket in us-east1 → Always Free tier)
   sessions/{sessionId}/{uri}                   uri exactly as in events: frames/frm_0012.webp, media/screen-003.webm (model_calls/*.json planned, not written yet)
 Cloud Functions (2nd gen; secrets in Secret Manager)
-  api (europe-west1)  POST /llm {task,input} (tasks in shared/llm.ts: vision | pick_question | detect_correction | link_answer | label_task | extract_workmap | plan_debrief | teachback | teachback_verdict | compare_workmaps | resolve_difference | check_guardrails | grade_prediction | tutor_explain)
+  api (europe-west1)  POST /llm {task,input} (tasks in shared/llm.ts: vision | pick_question | detect_correction | link_answer | label_task | extract_workmap | plan_debrief | teachback | teachback_verdict | patch_claim | compare_workmaps | resolve_difference | check_guardrails | grade_prediction | tutor_explain)
                       Claude: claude-sonnet-5-5 (LLM_MODEL), extract_workmap on claude-opus-5-5 (LLM_MODEL_MAP)
                       POST /voice-token (ElevenLabs signed agent URL / Scribe token) · POST /tts · GET /health
   redact (TODO: planned, not implemented)   Python + Presidio: PERSON, PHONE_NUMBER, EMAIL_ADDRESS, IBAN
