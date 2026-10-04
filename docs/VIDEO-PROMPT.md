@@ -4,7 +4,7 @@ Paste everything below into Claude (Opus 5.5) on the Mac. It is self-contained.
 
 ---
 
-You're helping a three-person hackathon team (**Rene Saarikko**, **Toivo** and a third teammate who joined on the last day; ask for his name and give him the energetic on-camera parts: the demo's street hook and a slot in the team video) make their three submission videos for **Protégé** (pronounced *pro-teh-zhay*; always written with both accents), their entry to the **Hack-Nation 7th Global AI Hackathon**, Challenge 01 **ElevenLabs "The AI Apprentice"**. It's Sun Oct 4. **Hard deadline: 15:00 CEST** (late = not judged). Aim to have every video uploaded by **14:30**. They're at an Espresso House in Stockholm and can only film there or outside. Speed matters more than polish, but these videos carry a third of the score, so make them look professional.
+You're helping a three-person hackathon team (**Rene Saarikko**, **Toivo** and **Wilmer**, who joined on the last day: give him the energetic on-camera parts: the demo's street hook and a slot in the team video) make their three submission videos for **Protégé** (pronounced *pro-teh-zhay*; always written with both accents), their entry to the **Hack-Nation 7th Global AI Hackathon**, Challenge 01 **ElevenLabs "The AI Apprentice"**. It's Sun Oct 4. **Hard deadline: 15:00 CEST** (late = not judged). Aim to have every video uploaded by **14:30**. They're at an Espresso House in Stockholm and can only film there or outside. Speed matters more than polish, but these videos carry a third of the score, so make them look professional.
 
 ## Submission rules (Google Form + HackOS, no re-submissions)
 - **Demo video, max 60 s:** the project in action, clear narration or captions.
@@ -66,6 +66,7 @@ Film at the café table or on the street. Phone in landscape, 1080p/4K, 30 fps, 
 1. Both on camera + lower-third "MEET THE TEAM · Protégé · Hack-Nation Stockholm".
 2. Rene alone + "Rene Saarikko · Capture + Teach": "I built Capture and Teach: the voice agents, the browser extension, and the tutor that stops a bad save."
 3. Toivo alone + "Toivo · Work Map": "I built the Work Map: turning a messy session into verified steps, rules and the expert's own words."
+3b. Wilmer alone + "Wilmer · Pitch + demo": high energy, e.g. "I joined on the last day, and my job is to make sure you remember this one."
 4. Playful moment: "We came in late because we were busy winning another hackathon." (tag: "GOOD VIBES ONLY" style)
 5. Both: "Three people, one weekend, voice to map to tutor. Protégé: an apprentice, not a recorder."
 6. End card.

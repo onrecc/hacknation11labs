@@ -48,7 +48,7 @@ Optional scene: **Two experts, one task**: `/compare` shows where Sabine and Ils
 - Tone: calm, respectful of senior expertise. Ada is the apprentice, never the boss.
 
 ## Project facts
-- Team: Rene (Capture + Teach), Toivo (Map). ElevenLabs × Hack-Nation, 7th Global AI Hackathon, Challenge 01 "The AI Apprentice".
+- Team: Rene (Capture + Teach), Wilmer (pitch + demo), Toivo (Map). ElevenLabs × Hack-Nation, 7th Global AI Hackathon, Challenge 01 "The AI Apprentice".
 - Repo: `onrecc/hacknation11labs` (React + Vite, Firebase, Chrome/Firefox MV3 extension).
 - Run locally: `npm run api` + `npm run dev`, open http://localhost:5173. `/map/demo` works without any backend.
 

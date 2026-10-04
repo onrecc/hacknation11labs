@@ -4,7 +4,7 @@ An apprentice, not a recorder. It watches an expert do real screen work and asks
 
 **▶ Live demo: https://hacknation11labs.web.app** (no install, no passwords). Pick **Sabine** to teach Ada, or **Lena** to train. **`/map/demo`** shows a finished Work Map instantly. In Training, open MiniERP, code invoice INV-4490 (€7,200 equipment) as opex and press Save: Ada holds it and explains with Sabine's own words. The browser extension is optional; it brings the same coaching to any website.
 
-Team: Rene Saarikko (Capture + Teach), Toivo (Work Map). Challenge 01, ElevenLabs "The AI Apprentice".
+Team: Rene Saarikko (Capture + Teach), Wilmer (pitch + demo), Toivo (Work Map). Challenge 01, ElevenLabs "The AI Apprentice".
 
 | Part | What | Guide | Code |
 |---|---|---|---|

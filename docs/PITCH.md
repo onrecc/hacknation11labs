@@ -110,7 +110,7 @@ Both on camera, Stockholm hub in the background. Loose, not read.
 
 ## 5. Submission checklist (both HackOS **and** the Google Form)
 
-- [ ] Team name, all members' name + email + affiliation (Rene Saarikko, Toivo)
+- [ ] Team name, all members' name + email + affiliation (Rene Saarikko, Wilmer, Toivo)
 - [ ] Challenge: 01 ElevenLabs
 - [ ] Demo / tech / team video links, **open access** (YouTube unlisted or Drive "anyone with link"), each ≤ 60 s
 - [ ] Repo public, with README setup + description: `github.com/onrecc/hacknation11labs`
