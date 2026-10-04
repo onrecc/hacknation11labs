@@ -17,6 +17,7 @@ import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
 import { redactUtterance, type RedactedUtterance } from "./redaction";
 import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
+import { questionTarget } from "./questionTarget";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
@@ -681,7 +682,7 @@ export class CaptureHub {
     const aboutScreen = aboutAction?.type === "screen.action" ? aboutAction.payload.description : undefined;
     this.set({
       liveQuestions: this.state.liveQuestions + 1, questionBudgetLeft: this.budgetNow(),
-      currentQuestion: { questionId, text, category, t: qe.t, ...(aboutScreen ? { aboutScreen } : {}), why: this.lastAskWhy || "You paused.", answered: false },
+      currentQuestion: { questionId, text, category, t: qe.t, ...(aboutScreen ? { aboutScreen } : {}), why: this.lastAskWhy || "You paused.", answered: false, target: questionTarget({ category, scores, rejectedCandidates: rejected }) },
     });
     this.pending = { questionId, endedAt: this.now(), replies: [] }; // answers may start before the agent has finished
     this.agentListen(true);
@@ -712,7 +713,7 @@ export class CaptureHub {
     const questionId = newId("q");
     if (opts.category) {
       const qe = this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
-      this.set({ currentQuestion: { questionId, text, category: opts.category, t: qe.t, why: scriptedWhy(this.state.phase, !!opts.gapId), answered: false } });
+      this.set({ currentQuestion: { questionId, text, category: opts.category, t: qe.t, why: scriptedWhy(this.state.phase, !!opts.gapId), answered: false, target: questionTarget({ category: opts.category, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [], scored: false }) } });
     }
     // open the reply window BEFORE the agent speaks: answers can start while it's still finishing its turn
     const prev = this.replyWaiter; // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)

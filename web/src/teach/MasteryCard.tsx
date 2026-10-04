@@ -1,5 +1,6 @@
 /** The learner's mastery report as a card: rules as labelled chips, steps, prediction score, "Practice next" buttons. Logic: mastery.ts. */
 import type { MasteryReport, WorkMap } from "@shared/schema";
+import { JudgeMarker } from "../components/JudgeMarker";
 import { masteryRows, predictionScore, stepChip, type Chip, type PracticeCase } from "./mastery";
 
 interface Props {
@@ -18,7 +19,7 @@ export function MasteryCard({ report, wm, learner, cases, caughtOn, onPractice }
   const mapUrl = wm.sourceSessionIds[0] ? `/map/${wm.sourceSessionIds[0]}` : null;
   return (
     <div className="card" aria-live="polite">
-      <h3>Mastery report · {learner}</h3>
+      <h3>Mastery report · {learner} <JudgeMarker n={4} /></h3>
       <p className="mastery-score">Predictions: <b>{predictionScore(report.predictions)}</b></p>
       <h4>{wm.expert.displayName.split(" ")[0]}'s rules</h4>
       <ul className="mastery-list">
