@@ -69,7 +69,11 @@ export function DebriefPanel({ s, sessionId }: { s: DebriefStatus; sessionId?: s
       )}
       {s.stage === "error" && <p className="error">{s.detail}</p>}
       {sessionId && (s.stage === "teachback" || ended) && <p><Link to={`/map/${sessionId}`}>Open the Work Map →</Link></p>}
-      {s.problems?.length ? <details><summary className="muted small">{s.problems.length} evidence notes (claims dropped or downgraded)</summary><ul className="small">{s.problems.map((p) => <li key={p}>{p}</li>)}</ul></details> : null}
+      {/* the same note can come from several extractions/patches: list it once (it is also the React key) */}
+      {s.problems?.length ? (() => {
+        const notes = [...new Set(s.problems)];
+        return <details><summary className="muted small">{notes.length} evidence notes (claims dropped or downgraded)</summary><ul className="small">{notes.map((p) => <li key={p}>{p}</li>)}</ul></details>;
+      })() : null}
     </div>
   );
 }

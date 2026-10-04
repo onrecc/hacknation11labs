@@ -65,13 +65,14 @@ export function AdaPanel({ s, onOffRecord, budget, whyMarker }: AdaPanelProps) {
 function TargetLine({ q }: { q: CurrentQuestion }) {
   if (!q.target) return null;
   const d = describeTarget(q.target);
+  const also = [...new Set(d.alsoConsidered)]; // listed once each (also the React key)
   return (
     <div className="ada-target muted small">
       <b>Target:</b> {d.target}. {d.whyNotScreen} <JudgeMarker n={2} />
-      {d.alsoConsidered.length > 0 && (
+      {also.length > 0 && (
         <details>
-          <summary>Also considered ({d.alsoConsidered.length}), not asked</summary>
-          <ul>{d.alsoConsidered.map((x) => <li key={x}>{x}</li>)}</ul>
+          <summary>Also considered ({also.length}), not asked</summary>
+          <ul>{also.map((x) => <li key={x}>{x}</li>)}</ul>
         </details>
       )}
     </div>

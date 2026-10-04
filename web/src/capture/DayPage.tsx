@@ -21,6 +21,7 @@ import { AdaPanel } from "./AdaPanel";
 import { PAUSE } from "./hub";
 import { SessionStatus } from "./SessionStatus";
 import { WorkSetup, useExtensionPresent } from "./WorkSetup";
+import { setDay, stopRunningDay, useDay, type DayState, type GoOver, type Result } from "./dayStore";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
 import { dayLabel, localDate } from "../lib/dates";
 import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
@@ -28,10 +29,6 @@ import { toast } from "../components/toast";
 import { Skeleton } from "../components/Feedback";
 
 type Task = Workday["tasks"][number];
-/** How going over a task ended: Work Map confirmed, gone over but not every part confirmed, or it broke off. */
-type Result = "confirmed" | "incomplete" | "failed";
-/** What is being gone over: one task mid-day, the day's tasks in turn, or one task of an earlier day. */
-interface GoOver { mode: "task" | "day" | "earlier"; queue: Id[]; at: number }
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const fmtDur = (a: string, b?: string) => {
@@ -47,36 +44,6 @@ const RESULT: Record<Result, string> = {
 
 /** Real work only: no detours, no empty stubs from reopened pages. */
 const worked = (t: Task) => t.status !== "interruption" && t.actions > 0;
-
-// ───────────── the running day outlives the page ─────────────
-/**
- * Kept outside the component: opening a Work Map (or any other page) mid-day and coming back finds the same
- * recorder and the same go-over with its progress, instead of a second recorder on top of the first.
- */
-interface DayState {
-  rec: WorkdayRecorder | null;
-  debrief: DebriefStatus | null;
-  debriefing: Id | null;
-  goOver: GoOver | null;
-  results: Record<Id, Result>;
-  /** Has the expert gone to their work (and come back)? Drives step 2's prompt and the "Welcome back". */
-  away: "never" | "away" | "back";
-}
-const EMPTY_DAY: DayState = { rec: null, debrief: null, debriefing: null, goOver: null, results: {}, away: "never" };
-let day: DayState = EMPTY_DAY;
-const dayListeners = new Set<() => void>();
-function setDay(patch: Partial<DayState> | ((d: DayState) => Partial<DayState>)) {
-  day = { ...day, ...(typeof patch === "function" ? patch(day) : patch) };
-  dayListeners.forEach((l) => l());
-}
-const useDay = () => useSyncExternalStore((fn) => (dayListeners.add(fn), () => void dayListeners.delete(fn)), () => day);
-
-/** "Switch user": the running day (mic, recording, overlay) ends with the person. */
-export async function stopRunningDay(): Promise<void> {
-  const r = day.rec;
-  setDay(EMPTY_DAY);
-  await r?.close().catch(() => {});
-}
 
 export default function DayPage() {
   const user = useUser()!;

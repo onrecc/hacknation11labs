@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CapturePage from "./capture/CapturePage";
-import DayPage, { stopRunningDay } from "./capture/DayPage";
+import DayPage from "./capture/DayPage";
+import { stopRunningDay } from "./capture/dayStore";
 import MapPage from "./map/MapPage";
 import TeachPage from "./teach/TeachPage";
 import ErpPage from "./erp/ErpPage";
