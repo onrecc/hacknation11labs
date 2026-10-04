@@ -1,5 +1,5 @@
 /**
- * Replaying the expert's moment: a few seconds of her screen recording around a step, and her own words from the mic.
+ * Replaying the expert's moment: a few seconds of the expert's screen recording around a step, and their own words from the mic.
  * Both come from the 10 s `media.chunk` recordings (each a self-contained WebM). Anything missing or unplayable
  * (demo fixture, workday sessions without video, codec trouble) silently leaves the still frame / plain quote in place.
  */
@@ -66,7 +66,7 @@ export function ClipVideo({ url, clip, poster, label, onFail, onPlayingChange }:
   );
 }
 
-/** "Play her words": the mic recording from the quote's first to last word. Hidden when there is no recording. */
+/** "Play the expert's words": the mic recording from the quote's first to last word. Hidden when there is no recording. */
 export function PlayWords({ url, clip, who }: { url: string | null; clip: MediaClip | null; who?: string }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,7 +101,7 @@ export function PlayWords({ url, clip, who }: { url: string | null; clip: MediaC
   return (
     <button type="button" className="link-quiet play-words" onClick={play} aria-pressed={playing}>
       {playing ? <StopIcon /> : <PlayIcon />}
-      {playing ? "Stop" : `Play ${who ? `${who}'s` : "her"} words`}
+      {playing ? "Stop" : `Play ${who ? `${who}'s` : "the expert's"} words`}
     </button>
   );
 }
