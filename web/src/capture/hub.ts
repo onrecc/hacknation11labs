@@ -753,11 +753,13 @@ export class CaptureHub {
       });
       this.modelCall("question_pick", [pauseId, ...actions.map((a) => a.id)], Math.round(performance.now() - t0), undefined, out);
       const about = out.aboutActionIds.filter((id) => actions.some((a) => a.id === id));
-      if (out.ask && out.question && about.length && out.scores.screenAlreadyAnswers < 0.5 && this.now() - this.lastKeyAt >= PAUSE.keyMs && !this.state.expertSpeaking) {
+      // the budget is enforced here, not just in the prompt: at budget, a question the model wants to ask is deferred
+      const overBudget = this.budgetNow() <= 0;
+      if (out.ask && !overBudget && out.question && about.length && out.scores.screenAlreadyAnswers < 0.5 && this.now() - this.lastKeyAt >= PAUSE.keyMs && !this.state.expertSpeaking) {
         this.unasked = [];
         await this.askLive(out.question, out.category, about, pauseId, out.scores, out.rejected);
-      } else if (out.deferInstead && out.question) {
-        const reason = inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
+      } else if ((out.deferInstead || (out.ask && overBudget)) && out.question) {
+        const reason = overBudget || inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
         this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason } });
         this.unasked = [];
         this.set({ lastPauseInfo: describeDeferral(reason), deferredQuestions: this.state.deferredQuestions + 1 });
