@@ -15,12 +15,16 @@ async function converse(agentId: string, dynamic: Record<string, string>, steps:
   const { signed_url } = (await r.json()) as { signed_url: string };
   const ws = new WebSocket(signed_url);
   const log: string[] = [];
+  let sentAt = 0; // latency = user message sent → first agent response (what the expert waits for)
   await new Promise<void>((res, rej) => ((ws.onopen = () => res()), (ws.onerror = (e) => rej(e))));
   ws.send(JSON.stringify({ type: "conversation_initiation_client_data", dynamic_variables: dynamic }));
   ws.onmessage = (ev) => {
     const m = JSON.parse(String(ev.data)) as Record<string, any>;
     if (m.type === "ping") ws.send(JSON.stringify({ type: "pong", event_id: m.ping_event.event_id }));
-    else if (m.type === "agent_response") log.push(`  AGENT: ${m.agent_response_event.agent_response}`);
+    else if (m.type === "agent_response") {
+      log.push(`  AGENT${sentAt ? ` (+${((Date.now() - sentAt) / 1000).toFixed(1)}s)` : ""}: ${m.agent_response_event.agent_response}`);
+      sentAt = 0;
+    }
     else if (m.type === "client_tool_call") {
       const c = m.client_tool_call;
       const out = toolResults[c.tool_name]?.(c.parameters) ?? "ok";
@@ -32,6 +36,7 @@ async function converse(agentId: string, dynamic: Record<string, string>, steps:
     if (s.context) ws.send(JSON.stringify({ type: "contextual_update", text: s.context }));
     if (s.send) {
       log.push(`USER: ${s.send}`);
+      sentAt = Date.now();
       ws.send(JSON.stringify({ type: "user_message", text: s.send }));
     }
     await new Promise((r2) => setTimeout(r2, s.waitMs));

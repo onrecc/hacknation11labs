@@ -117,7 +117,7 @@ try {
   // ── practicer ──
   await hub.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Switch user"))?.click());
   await sleep(1000);
-  await hub.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>("button.person")].find((b) => b.textContent?.includes("Lena Vogt"))?.click());
+  await hub.evaluate(() => [...document.querySelectorAll<HTMLButtonElement>("button.person")].find((b) => b.textContent?.includes("Olena"))?.click());
   await sleep(4000);
   check("practicer lands on Training", hub.url().endsWith("/learn"), hub.url());
   const mod = await hub.$eval("select", (s) => (s as HTMLSelectElement).selectedOptions[0]?.textContent ?? "").catch(() => "");
@@ -125,6 +125,9 @@ try {
   await hub.goto(`${HUB}/day`, { waitUntil: "networkidle2" });
   check("practicer can't open My day", hub.url().endsWith("/learn"), hub.url());
 } finally {
+  // ids for cleanup by id (this test records a real day for Sabine)
+  await hub.evaluate(() => { const r = (window as any).__rec; return r ? `workday: ${r.workday.id} · tasks: ${r.workday.tasks.map((t: any) => t.sessionId).join(", ")}` : ""; })
+    .then((x) => x && console.log(x)).catch(() => {});
   await browser.close();
 }
 console.log(failures ? `\n${failures} check(s) failed` : "\nall checks passed");

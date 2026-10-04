@@ -212,6 +212,10 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .try label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--w-muted); }
 .try input, .try select { height: 36px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--w-border); background: var(--w-surface); color: var(--w-text); font: inherit; font-size: 14px; width: 100%; }
 .try input:focus, .try select:focus { outline: none; border-color: var(--w-text); }
+.try .wide { grid-column: 1 / -1; }
+.try textarea { padding: 8px 10px; border-radius: 6px; border: 1px solid var(--w-border); background: var(--w-surface); color: var(--w-text); font: inherit; font-size: 14px; width: 100%; resize: vertical; }
+.try textarea:focus { outline: none; border-color: var(--w-text); }
+.try-note { margin: 0; padding: 0 16px 16px; }
 .checks { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 16px; }
 .try .check { flex-direction: row; align-items: center; gap: 8px; color: var(--w-text); }
 .try .check input { width: 16px; height: 16px; accent-color: var(--w-text); }

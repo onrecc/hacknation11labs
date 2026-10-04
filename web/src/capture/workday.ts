@@ -23,6 +23,10 @@ import { CaptureHub, PAUSE } from "./hub";
 import { REDACTION_CONFIG } from "./redaction";
 import agents from "../lib/elevenlabs.json";
 
+/** What to show for a task that has no name yet: never the "Detecting the task…" placeholder. */
+export const taskTitle = (t: { title: string; status: string; app: string }) =>
+  !t.title.startsWith("Detecting") ? t.title : t.status === "active" ? `Working in ${t.app}…` : `Work in ${t.app}`;
+
 export const WORKDAY = { idleMs: 3 * 60_000, interruptionMs: 45_000, labelEveryActions: 6, labelEveryMs: 90_000, newWorkConfidence: 0.7 };
 /** Break that splits tasks; demos/tests can shorten it: localStorage["apprentice.idleMs"] = "20000" (read on every check). */
 function idleMs() {
@@ -56,6 +60,8 @@ export class WorkdayRecorder {
   private lastLabelAt = 0;
   private labeling = false;
   private rotating = false;
+  /** Between tasks (the expert ended one and is going over it): no recording, no automatic boundaries. */
+  private paused = false;
   private pendingBoundary: { kind: Boundary; ctx: string | null; app: string } | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
 
@@ -112,6 +118,7 @@ export class WorkdayRecorder {
     if (import.meta.env.DEV) (window as unknown as { __rec?: WorkdayRecorder }).__rec = this; // tests + debugging
     await saveWorkday(this.workday);
     this.changed();
+    void this.nameUnnamed();
   }
 
   /**
@@ -130,6 +137,7 @@ export class WorkdayRecorder {
     if (import.meta.env.DEV) (window as unknown as { __rec?: WorkdayRecorder }).__rec = this;
     await saveWorkday(this.workday);
     this.changed();
+    void this.nameUnnamed();
   }
 
   /** Synchronous: builds the session locally; the caller persists it (in the background). */
@@ -168,7 +176,7 @@ export class WorkdayRecorder {
 
   // ───────────── signals ─────────────
   private onBridge(m: BridgeMsg) {
-    if (this.hub.state.offRecord || this.workday.status !== "active") return;
+    if (this.paused || this.hub.state.offRecord || this.workday.status !== "active") return;
     if (m.kind === "activity" || m.kind === "app" || m.kind === "case") {
       const wasIdle = this.idleClosed;
       this.lastActivityAt = Date.now();
@@ -204,12 +212,13 @@ export class WorkdayRecorder {
     if (!t || e.type !== "screen.action" || e.sessionId !== t.sessionId) return;
     t.actions++;
     this.actionsSinceLabel++;
-    if (this.actionsSinceLabel >= WORKDAY.labelEveryActions) void this.label();
+    // an unnamed task gets its first name after 3 actions, not 6 (nobody should look at a placeholder for long)
+    if (this.actionsSinceLabel >= (t.title.startsWith("Detecting") ? 3 : WORKDAY.labelEveryActions)) void this.label();
     this.changed();
   }
 
   private async tick() {
-    if (this.workday.status !== "active") return;
+    if (this.paused || this.workday.status !== "active") return;
     if (this.pendingBoundary && !this.hub.answering) {
       const b = this.pendingBoundary;
       this.pendingBoundary = null;
@@ -292,11 +301,23 @@ export class WorkdayRecorder {
     })().catch((err) => console.warn("task rotation persistence failed", err));
   }
 
+  /** Name every finished task that is still unnamed (e.g. its naming call failed earlier): never leave a placeholder. */
+  private async nameUnnamed() {
+    for (const t of this.workday.tasks) if (t.status === "done" && t.title.startsWith("Detecting")) await this.labelFinished(t);
+  }
+
   private async labelFinished(t: Task) {
+    const fallback = async () => {
+      if (!t.title.startsWith("Detecting")) return;
+      t.title = `Work in ${t.app}`;
+      await updateSession(t.sessionId, { task: { title: t.title, domain: t.domain, description: t.summary } }).catch(() => {});
+      await saveWorkday(this.workday).catch(() => {});
+      this.changed();
+    };
     try {
       const events = await loadEvents(t.sessionId);
       const actions = events.filter((e) => e.type === "screen.action");
-      if (!actions.length) return;
+      if (!actions.length) return await fallback();
       const out = await llm("label_task", {
         currentTitle: "", app: t.app, department: this.user.department,
         actions: actions.slice(-15).map((a) => ({ id: a.id, t: a.t, description: a.type === "screen.action" ? a.payload.description : "" })),
@@ -308,16 +329,44 @@ export class WorkdayRecorder {
       this.changed();
     } catch (err) {
       console.warn("label_task (finished) failed", err);
+      await fallback();
     }
   }
 
-  // ───────────── end of day + per-task debrief ─────────────
+  // ───────────── end of task / day + per-task debrief ─────────────
+  /**
+   * "End task": the current task is over but the day goes on. Nothing is recorded and no new task starts until
+   * resume(), so the expert can go over this one with Ada first. Returns the task (null if none was running).
+   */
+  async endTask(): Promise<Task | null> {
+    const t = this.current;
+    if (!t) return null;
+    this.paused = true;
+    this.pendingBoundary = null;
+    this.finishTask(t);
+    if (t.actions > 0) t.status = "done"; // ended on purpose: never hidden as a detour
+    this.changed();
+    await updateSession(t.sessionId, { status: "ended", endedAt: t.endedAt });
+    await saveWorkday(this.workday);
+    if (t.title.startsWith("Detecting")) await this.labelFinished(t);
+    return t;
+  }
+
+  /** Back to work after endTask (and its debrief): a fresh task, recording again. */
+  resume() {
+    if (this.workday.status !== "active") return;
+    this.paused = false;
+    this.lastActivityAt = Date.now();
+    this.boundary("manual", this.ctx, this.ctxApp);
+  }
+
   async endDay() {
     const t = this.current;
     if (t) {
       this.finishTask(t);
       await updateSession(t.sessionId, { status: "ended", endedAt: new Date().toISOString() });
       if (t.title.startsWith("Detecting")) await this.labelFinished(t);
+      void this.nameUnnamed(); // earlier tasks whose naming failed
     }
     this.workday.status = "ended";
     this.workday.endedAt = new Date().toISOString();
@@ -332,6 +381,15 @@ export class WorkdayRecorder {
    * `runDebrief(recorder.hub, …)` right after this resolves.
    */
   async openTaskForDebrief(sessionId: Id): Promise<Session> {
+    if (this.hub.session.id === sessionId) {
+      // the task that just ended: its events are all in memory (Firestore may not have the last chunk yet)
+      const t = this.workday.tasks.find((x) => x.sessionId === sessionId);
+      if (t) this.hub.session.task = { ...this.hub.session.task, title: t.title, domain: t.domain, description: t.summary };
+      this.hub.setPhase("debrief");
+      this.changed();
+      return this.hub.session;
+    }
+    await this.hub.log.flush();
     const [session, events] = await Promise.all([getSession(sessionId), loadEvents(sessionId)]);
     if (!session) throw new Error(`no session ${sessionId}`);
     await this.hub.switchSession(session, { preload: events, phase: "debrief" });

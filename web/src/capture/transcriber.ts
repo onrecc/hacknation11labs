@@ -17,6 +17,8 @@ export interface TranscribedUtterance {
 
 export interface TranscriberEvents {
   onSpeechStart: (t: number) => void;
+  /** Every partial result while someone is still talking (keeps reply windows open for long answers). */
+  onSpeechActivity?: (t: number) => void;
   onUtterance: (u: TranscribedUtterance) => void;
   onError: (e: unknown) => void;
 }
@@ -60,10 +62,12 @@ class ScribeTranscriber implements Transcriber {
       microphone: { echoCancellation: true, noiseSuppression: true },
     });
     this.conn.on(RealtimeEvents.PARTIAL_TRANSCRIPT, () => {
-      if (!this.speaking && !this.muted) {
+      if (this.muted) return;
+      if (!this.speaking) {
         this.speaking = true;
         this.ev.onSpeechStart(this.now());
       }
+      this.ev.onSpeechActivity?.(this.now());
     });
     this.conn.on(RealtimeEvents.COMMITTED_TRANSCRIPT_WITH_TIMESTAMPS, (m) => {
       this.speaking = false;
@@ -109,6 +113,7 @@ class WebSpeechTranscriber implements Transcriber {
           this.segStart = this.now();
           if (!this.muted) this.ev.onSpeechStart(this.segStart);
         }
+        if (!this.muted) this.ev.onSpeechActivity?.(this.now());
         if (r.isFinal) {
           const text = String(r[0].transcript).trim();
           const t = this.segStart, tEnd = this.now();

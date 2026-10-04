@@ -20,7 +20,10 @@ import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, t
 import { questionTarget } from "./questionTarget";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
-export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
+export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500, speechGraceMs: 12_000, stallMs: 30_000 };
+
+/** "Hold on", "one second", "let me think": the answer is still coming, not the answer itself. */
+const STALL = /^(ok(ay)?,?\s+)?(hold on|wait|one (sec|second|moment)|just a (sec|second|moment)|give me a (sec|second|moment|minute)|let me (think|check|see|look)|hm+|uh+|um+)( a (sec|second|moment|minute))?( please)?[\s.!?…,]*$/i;
 
 export interface HubState {
   phase: Phase;
@@ -245,6 +248,10 @@ export class CaptureHub {
           this.set({ expertSpeaking: true });
           this.holdReplyWindow();
           this.emit({ t, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "start" } });
+        },
+        onSpeechActivity: (t) => {
+          this.lastSpeechAt = t;
+          this.holdReplyWindow();
         },
         onUtterance: (u) => this.onExpertUtterance(u),
         onError: (e) => console.warn("stt", e),
@@ -574,7 +581,18 @@ export class CaptureHub {
     }) as Utterance;
     this.noteRedaction(ev.id, r);
 
-    if (this.replyWaiter) {
+    const stall = STALL.test(u.text.trim()) && u.text.trim().split(/\s+/).length <= 6;
+    if (stall && (this.replyWaiter || (replyTo && this.pending))) {
+      // logged as said, but not taken as the answer: keep listening a while longer
+      const w = this.replyWaiter;
+      if (w?.timer) {
+        clearTimeout(w.timer);
+        w.timer = setTimeout(() => {
+          if (this.replyWaiter === w) this.replyWaiter = null;
+          w.resolve(w.replies);
+        }, PAUSE.stallMs);
+      }
+    } else if (this.replyWaiter) {
       const w = this.replyWaiter;
       w.replies.push(ev);
       clearTimeout(w.timer);
@@ -599,17 +617,25 @@ export class CaptureHub {
   }
 
   /**
-   * Someone started speaking while we wait for an answer: keep the window open until the transcript arrives
-   * (Scribe commits only after the speaker stops, which can be after the nominal timeout).
+   * Someone is (still) speaking while we wait for an answer: keep the window open until they stop and the
+   * transcript arrives. Every partial result restarts the grace period, so a long answer (or Scribe committing
+   * several seconds after the speaker stops) is never cut off and re-asked.
    */
   private holdReplyWindow() {
     const w = this.replyWaiter;
-    if (!w || w.replies.length || !w.timer) return;
-    clearTimeout(w.timer);
-    w.timer = setTimeout(() => {
-      if (this.replyWaiter === w) this.replyWaiter = null;
-      w.resolve(w.replies);
-    }, 20_000);
+    if (w?.timer) {
+      clearTimeout(w.timer);
+      w.timer = setTimeout(() => {
+        if (this.replyWaiter === w) this.replyWaiter = null;
+        w.resolve(w.replies);
+      }, PAUSE.speechGraceMs);
+    }
+    // live question: don't link the answer while it's still being spoken
+    const p = this.pending;
+    if (p?.replies.length && p.timer) {
+      clearTimeout(p.timer);
+      p.timer = setTimeout(() => void this.linkAnswer(p.questionId, p.replies), PAUSE.speechGraceMs);
+    }
   }
 
   /** Typed fallback for when the mic/STT fails: becomes an utterance like any other. */

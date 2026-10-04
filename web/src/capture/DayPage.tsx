@@ -9,7 +9,7 @@ import { signedIn } from "../lib/firebase";
 import { listWorkdays } from "../lib/sessions";
 import { useUser } from "../lib/users";
 import { appUrl } from "../lib/workApp";
-import { WorkdayRecorder, WORKDAY } from "./workday";
+import { WorkdayRecorder, WORKDAY, taskTitle } from "./workday";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { DebriefPanel } from "../map/DebriefPanel";
 import { EventFeed } from "../components/ui";
@@ -146,7 +146,7 @@ export default function DayPage() {
                 <b>{dayLabel(d.date)}</b> <span className="muted small">{d.status} · {d.tasks.filter(worked).length} tasks</span>
                 <ul>{d.tasks.filter(worked).map((t) => (
                   <li key={t.sessionId}>
-                    <Link to={`/map/${t.sessionId}`}>{t.title}</Link> <span className="muted small">{fmtTime(t.startedAt)}–{fmtTime(t.endedAt)} · {t.actions} actions</span>{" "}
+                    <Link to={`/map/${t.sessionId}`}>{taskTitle(t)}</Link> <span className="muted small">{fmtTime(t.startedAt)}–{fmtTime(t.endedAt)} · {t.actions} actions</span>{" "}
                     <button className="small" title="Ada asks what she couldn't work out, builds the Work Map, then explains it back to you" onClick={() => void debriefEarlier(d, t.sessionId)}>Debrief → Work Map</button>
                   </li>
                 ))}</ul>
@@ -216,7 +216,7 @@ export default function DayPage() {
             {visible.map((t) => (
               <li key={t.sessionId} className={t.status}>
                 <div>
-                  <b>{t.title}</b> {t.sameAs && <span className="badge">resumed</span>}
+                  <b>{taskTitle(t)}</b> {t.sameAs && <span className="badge">resumed</span>}
                   <div className="muted small">{t.app} · {fmtTime(t.startedAt)}–{t.endedAt ? fmtTime(t.endedAt) : "now"} ({fmtDur(t.startedAt, t.endedAt)}) · {t.actions} actions · {BOUNDARY[t.boundary]}</div>
                   {t.summary && <div className="small">{t.summary}</div>}
                 </div>

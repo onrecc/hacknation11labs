@@ -16,6 +16,7 @@ import { WmTabs, type Tab } from "./WmTabs";
 import { JudgeMarker } from "../components/JudgeMarker";
 import { useUser } from "../lib/users";
 import { teachEntry } from "../lib/teachEntry";
+import { llm } from "../lib/api";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
@@ -96,7 +97,8 @@ function MetaLine({ wm, ix, live }: { wm: WorkMap; ix: LogIndex; live?: boolean 
     <p className="wm-metaline">
       <span className="status"><span className={`wdot ${tone}`} />{status}</span>
       <span>{wm.expert.displayName}, {wm.expert.role}</span>
-      <span>{n} {wm.cases[0]?.kind ?? "case"}{n === 1 ? "" : "s"} in a {Math.max(1, Math.round(duration / 60000))} min session</span>
+      {/* cases only exist where an app reports them (MiniERP); any other site is counted in steps */}
+      <span>{n ? `${n} ${wm.cases[0].kind}${n === 1 ? "" : "s"}` : `${wm.steps.length} step${wm.steps.length === 1 ? "" : "s"}`} in a {Math.max(1, Math.round(duration / 60000))} min session</span>
       <span>{corrections} corrections</span>
       <span>v{wm.version}</span>
     </p>
@@ -490,12 +492,68 @@ function RulesTab({ wm, onSelect }: { wm: WorkMap; onSelect: (s: Sel) => void })
           </section>
         )}
       </div>
-      <TryCase wm={wm} />
+      {wm.guardrails.some((g) => g.condition) ? <TryCase wm={wm} /> : wm.guardrails.length > 0 && <TryAction wm={wm} />}
     </div>
   );
 }
 
-/** "Try a case": the same deterministic engine Teach uses to hold a save. */
+/**
+ * "Try an action", for Work Maps from any website (no CaseFacts, so no machine conditions): describe what a new
+ * hire does and Claude checks it against the rules, the same `check_guardrails` call Teach makes before a Save/Submit.
+ */
+function TryAction({ wm }: { wm: WorkMap }) {
+  const [action, setAction] = useState(wm.commonMistakes[0]?.description ?? "");
+  const [fieldText, setFieldText] = useState("");
+  const [state, setState] = useState<"idle" | "checking" | { hits: Array<{ g: Guardrail; reason: string }> } | { error: string }>("idle");
+  async function check() {
+    setState("checking");
+    try {
+      const fields = Object.fromEntries(fieldText.split("\n").map((l) => l.split(/:(.*)/s)).filter(([k, v]) => k.trim() && v !== undefined).map(([k, v]) => [k.trim(), v.trim()]));
+      const out = await llm("check_guardrails", {
+        guardrails: wm.guardrails.map((g) => ({ id: g.id, statement: g.statement, requiredAction: g.requiredAction, scope: g.scope })),
+        page: { url: "", title: wm.task.title }, fields, action,
+      });
+      const hits = out.violations.filter((v) => v.confidence >= 0.7).flatMap((v) => {
+        const g = wm.guardrails.find((x) => x.id === v.guardrailId);
+        return g ? [{ g, reason: v.reason }] : [];
+      });
+      setState({ hits });
+    } catch (e) {
+      setState({ error: (e as Error).message });
+    }
+  }
+  const held = typeof state === "object" && "hits" in state ? state.hits.filter((h) => h.g.severity === "block") : [];
+  const warned = typeof state === "object" && "hits" in state ? state.hits.filter((h) => h.g.severity !== "block") : [];
+  return (
+    <section className="panel sticky">
+      <div className="card-head"><h3>Try an action</h3></div>
+      <div className="try">
+        <label className="wide">What does the new hire do?<textarea rows={3} value={action} onChange={(e) => (setAction(e.target.value), setState("idle"))} placeholder="e.g. Presses Publish without refreshing the version first" /></label>
+        <label className="wide">On screen (optional, one field per line)<textarea rows={3} value={fieldText} onChange={(e) => (setFieldText(e.target.value), setState("idle"))} placeholder={"Version: 4.16.9.4\nPublish to: Device profiles"} /></label>
+        <div className="wide"><button className="primary" disabled={!action.trim() || state === "checking"} onClick={() => void check()}>{state === "checking" ? "Checking…" : "Check against the rules"}</button></div>
+      </div>
+      {typeof state === "object" && (
+        <div className="verdict-wrap">
+          {"error" in state ? (
+            <div className="verdict held"><b>Couldn't check</b><div className="v-line">{state.error}</div></div>
+          ) : (
+            <div className={`verdict ${held.length ? "held" : "ok"}`}>
+              {held.length === 0 && warned.length === 0 ? <b>Allowed</b> : (
+                <div>
+                  <b>{held.length ? "Held" : "Allowed, with a reminder"}</b>
+                  {[...held, ...warned].map(({ g, reason }) => <div key={g.id} className="v-line">{g.requiredAction}. <span className="dim">{reason || g.statement}</span></div>)}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      <p className="dim small try-note">Ada makes this check on any website before a Save, Submit or Approve goes through.</p>
+    </section>
+  );
+}
+
+/** "Try a case" (apps that report CaseFacts, like MiniERP): the same deterministic engine Teach uses to hold a save. */
 function TryCase({ wm }: { wm: WorkMap }) {
   const [f, setF] = useState({ supplier: "Gerätebau Schmidt KG", group: "External", isNew: true, amount: 7200, category: "equipment", costCenter: "4711", assetNo: "", status: "approved", approver: "", month: 12, duplicate: false });
   const facts: CaseFacts = {
