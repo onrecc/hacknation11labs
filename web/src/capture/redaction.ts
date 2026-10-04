@@ -19,8 +19,10 @@ export interface RedactedUtterance {
   readonly entities: readonly RedactedEntity[];
 }
 
-export function redactUtterance(text: string, words: readonly Word[]): RedactedUtterance {
-  const opts = { names: REDACTION_NAMES };
+/** `keepNames`: for Ada's own lines (agent/tutor), which address the user by name on purpose; IBAN, email, phone
+ * and card numbers are still redacted. */
+export function redactUtterance(text: string, words: readonly Word[], keepNames = false): RedactedUtterance {
+  const opts = keepNames ? {} : { names: REDACTION_NAMES };
   const r = redact(text, opts);
   return { text: r.text, words: redactWords(words, opts), entities: r.entities };
 }
