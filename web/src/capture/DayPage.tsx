@@ -48,18 +48,50 @@ const RESULT: Record<Result, string> = {
 /** Real work only: no detours, no empty stubs from reopened pages. */
 const worked = (t: Task) => t.status !== "interruption" && t.actions > 0;
 
+// ───────────── the running day outlives the page ─────────────
+/**
+ * Kept outside the component: opening a Work Map (or any other page) mid-day and coming back finds the same
+ * recorder and the same go-over with its progress, instead of a second recorder on top of the first.
+ */
+interface DayState {
+  rec: WorkdayRecorder | null;
+  debrief: DebriefStatus | null;
+  debriefing: Id | null;
+  goOver: GoOver | null;
+  results: Record<Id, Result>;
+  /** Has the expert gone to their work (and come back)? Drives step 2's prompt and the "Welcome back". */
+  away: "never" | "away" | "back";
+}
+const EMPTY_DAY: DayState = { rec: null, debrief: null, debriefing: null, goOver: null, results: {}, away: "never" };
+let day: DayState = EMPTY_DAY;
+const dayListeners = new Set<() => void>();
+function setDay(patch: Partial<DayState> | ((d: DayState) => Partial<DayState>)) {
+  day = { ...day, ...(typeof patch === "function" ? patch(day) : patch) };
+  dayListeners.forEach((l) => l());
+}
+const useDay = () => useSyncExternalStore((fn) => (dayListeners.add(fn), () => void dayListeners.delete(fn)), () => day);
+
+/** "Switch user": the running day (mic, recording, overlay) ends with the person. */
+export async function stopRunningDay(): Promise<void> {
+  const r = day.rec;
+  setDay(EMPTY_DAY);
+  await r?.close().catch(() => {});
+}
+
 export default function DayPage() {
   const user = useUser()!;
-  const [rec, setRec] = useState<WorkdayRecorder | null>(null);
+  const d = useDay();
+  const rec = d.rec?.user.id === user.id ? d.rec : null; // someone else's day is never shown (or continued)
+  const { debrief, debriefing, goOver, results, away } = d;
+  const setRec = (r: WorkdayRecorder | null) => setDay({ rec: r });
+  const setDebrief = (s: DebriefStatus | null) => setDay({ debrief: s });
+  const setDebriefing = (sid: Id | null) => setDay({ debriefing: sid });
+  const setGoOver = (g: GoOver | null) => setDay({ goOver: g });
+  const setResults = (fn: (x: Record<Id, Result>) => Record<Id, Result>) => setDay((x) => ({ results: fn(x.results) }));
+  const setAway = (a: DayState["away"] | ((a: DayState["away"]) => DayState["away"])) => setDay((x) => ({ away: typeof a === "function" ? a(x.away) : a }));
   const [past, setPast] = useState<Workday[] | null>(null); // null = loading
   const [heads, setHeads] = useState<WorkMapHead[]>([]);
   const [vision, setVision] = useState(true);
-  const [debrief, setDebrief] = useState<DebriefStatus | null>(null);
-  const [debriefing, setDebriefing] = useState<Id | null>(null);
-  const [goOver, setGoOver] = useState<GoOver | null>(null);
-  const [results, setResults] = useState<Record<Id, Result>>({});
-  /** Has the expert gone to their work (and come back)? Drives step 2's prompt and the "Welcome back". */
-  const [away, setAway] = useState<"never" | "away" | "back">("never");
   const [notice, setNotice] = useState("");
   const [events, setEvents] = useState<Event[]>([]);
   const [typed, setTyped] = useState("");
@@ -77,6 +109,9 @@ export default function DayPage() {
     setHeads(maps);
   }).catch((e: unknown) => toast.error(e, loadPast, "Couldn't load your earlier days"));
   useEffect(loadPast, [user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (d.rec && d.rec.user.id !== user.id) void stopRunningDay(); // left running by the previous person
+  }, [d.rec, user.id]);
   useEffect(() => {
     const t = setInterval(() => {
       tick((x) => x + 1); // durations

@@ -458,7 +458,7 @@ export class CaptureHub {
     if (m.kind === "hello" && (m.from === "erp" || m.from === "ext")) {
       send({ kind: "hello", from: "hub", mode: this.session.kind === "teach" ? "teach" : "capture" });
       this.broadcastStatus();
-      if (m.from === "ext") this.set({ extension: true });
+      // no `extension: true` here: MiniERP's embedded overlay says hello as "ext" too; the real extension marks this page
     }
     if (m.kind === "frame") return void this.onExtensionFrame(m.dataUrl, m.pii);
     if (m.kind === "marker") return this.onMarker(m.marker, "button");

@@ -150,6 +150,7 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .erp .grid th, .erp .grid td { border-color: #dde1e6; } .erp .grid tbody tr.row-link:hover, .erp .grid tbody tr.row-link:focus-visible { background: #eef2f7; }
 .banner { padding: 10px 16px; font-weight: 500; font-size: 14px; }
 .banner.block { background: var(--danger); color: #fff; } .banner.info { background: var(--soft); }
+.erp .banner.info { background: #e3eaf3; color: #1f3a5f; } /* MiniERP stays light in dark mode */
 .banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 .banner .banner-go { height: 26px; font-size: 12px; }
 .erp-bar .row span { font-size: 13px; }
