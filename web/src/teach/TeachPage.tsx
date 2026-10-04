@@ -162,7 +162,7 @@ export default function TeachPage() {
           <input disabled={!live} placeholder={`Type as ${learner} (fallback when there's no mic)`} value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (hub.typeUtterance(typed), setTyped(""))} />
           <button disabled={!live} onClick={() => typed && (hub.typeUtterance(typed), setTyped(""))}>Send</button>
         </div>
-        {!s.extension && <p className="error">Ada coaches through the browser extension (Chrome or Firefox). Install it from <code>extension/dist</code>, then reload your work tab: without it there is no overlay and no save check.</p>}
+        {!s.extension && <p className="error">MiniERP works without any install. To get Ada's coaching on any other website, add the browser extension from <code>extension/dist</code> (Chrome or Firefox).</p>}
         <p className="muted small">{practiceHint(domain)}</p>
         {cards.map((c, i) => <Card key={i} c={c} />)}
         {report && wm && (

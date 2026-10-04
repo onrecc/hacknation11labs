@@ -522,7 +522,7 @@ export class CaptureHub {
     if (!turn.spontaneous) this.turnMeta = null;
     const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
     const utteranceId = newId("utt");
-    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd)); // the agent may repeat a name or number back
+    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd), true); // the agent may repeat a number back; its own greeting names stay
     const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: r.text, words: r.words, language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
     this.noteRedaction(u.id, r);
     this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: r.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
