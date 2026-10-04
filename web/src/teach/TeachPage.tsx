@@ -38,7 +38,7 @@ export default function TeachPage() {
   const user = useUser()!;
   const learner = user.short;
   const [params] = useSearchParams();
-  const wanted = params.get("map"); // "Open in Teach" / "Preview as new hire" from a Work Map
+  const wanted = params.get("map"); // "Open in Training" / "Preview as new hire" from a Work Map
   const preview = user.role === "expert"; // the route guard only lets experts in with ?preview=1
   const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }> | null>(null); // null = loading
   const [typed, setTyped] = useState("");

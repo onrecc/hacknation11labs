@@ -28,7 +28,7 @@ export function teachEntry({ role, status, workMapId }: TeachEntryInput): TeachE
       ? { label: "Preview as new hire", to: `${learn}&preview=1`, primary: false, title: "See the training module exactly as a new hire gets it" }
       : { label: "Debrief", to: "/day", primary: true, title: "Not confirmed yet: debrief the task from My day so Ada can explain it back to you" };
   }
-  return confirmed ? { label: "Open in Teach", to: learn, primary: true } : null;
+  return confirmed ? { label: "Open in Training", to: learn, primary: true } : null;
 }
 
 /** Route guard: the page's role, or an expert previewing the training page (`?preview=1`). */
