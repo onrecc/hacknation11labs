@@ -27,7 +27,7 @@ Tagline options: "An apprentice, not a recorder." · "Before 24 years of judgmen
 Optional scene: **Two experts, one task**: `/compare` shows where Sabine and Ilse differ ("hold duplicates" vs "send to Jonas") and the team rule after both explain why.
 
 ## Verified claims (safe to say)
-- **3 live questions per task at natural pauses, at least one about a guardrail** (pause detector: no typing for 1.5 s, no speech for 1.2 s, after a save or a finished case; max 5 per 10 min).
+- **Asks *why* live at natural pauses** (pause detector: no typing for 1.5 s, no speech for 1.2 s, then a save, a finished case or a longer pause; max 5 per 10 min). The question picker is prompted to prefer questions that reveal a guardrail; that's a preference, not enforced. The golden-path run on Claude checks ≥3 live questions with ≥1 in a guardrail category, and it passed.
 - **Talks with ElevenLabs:** two ElevenAgents (interviewer "Ada" + tutor), expressive v3 voices, Scribe v2 Realtime transcription with word timestamps. Verified live in a real browser.
 - **Self-corrections become part of the map** ("no wait, five thousand" → rule updated, old version kept in its history).
 - **Blocks a wrong decision before it's saved** and explains it with the expert's quote and screen moment (brief's own test case).
@@ -39,6 +39,8 @@ Optional scene: **Two experts, one task**: `/compare` shows where Sabine and Ils
 - Firefox: lint-verified (0 errors, 0 warnings), not run end-to-end here. Chrome is e2e-verified.
 - Voice was tested with a synthetic microphone; real-room rehearsal pending.
 - No personal-data scrubbing of transcripts yet (masking and blurring only).
+- Video replay of screen moments: Map and Teach show the still frame today.
+- A guaranteed guardrail question in every task (it's a prompt preference).
 
 ## Brand
 - App UI: neutral black/white system (Inter, 1px borders, Vercel-like), accent green status dot. Dark background in the app shots.

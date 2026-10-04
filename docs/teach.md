@@ -11,8 +11,8 @@
 | `/teach` route | MiniERP in teach mode + tutor side panel. Runs the Capture pipeline with `Session.kind = "teach"` |
 | **Guardrail engine** | Port of `evaluate()` from `scripts/eval_guardrails.py` to TS, applied to `CaseFacts`. Deterministic, no LLM |
 | Save hold | The extension holds Save/Approve-like clicks on any site (`beforeAction`); MiniERP no longer holds its own saves |
-| Tutor agent (ElevenAgents) | Confirmed WorkMap in its knowledge base. Client tools: `lookup_guardrail`, `replay_moment`, `get_case_facts` |
-| Moment replay | Shows the expert's frame/clip at `screenMoment` in the panel |
+| Tutor agent (ElevenAgents) | Confirmed WorkMap as the `{{work_map}}` prompt variable. Client tools: `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` |
+| Moment replay | Shows the expert's frame at `screenMoment` (video clip planned, not yet implemented) |
 | Mastery report | `MasteryReport` at `sessions/{id}/report/mastery` + an end screen |
 
 ## Input → Output
@@ -32,7 +32,7 @@
 | What | File | Status |
 |---|---|---|
 | Guardrail engine | `shared/conditions.ts` (+ `conditions.test.ts` = T1–T4) | ✅ |
-| Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser with real Gemini; `validate_bundle --part teach` → 0 errors |
+| Tutor engine: predict on case open, nudge on change, block before save, Socratic `[INTERVENE]` → expert quote + screen moment, mastery report | `web/src/teach/tutor.ts` | ✅ T1 verified in the browser (first on Gemini; the golden path on Claude also holds the wrong save); `validate_bundle --part teach` → 0 errors |
 | Generic web apps | Claude `check_guardrails` on the visible form before Save/Submit (extension or embed) | ✅ ProcureX demo: held on opex, allowed once fixed |
 | Tutor voice | ElevenAgents Tutor with the Work Map as `{{work_map}}`, client tools `lookup_guardrail`, `replay_moment`, `get_case_facts`, `grade_prediction` | ✅ protocol verified (`npm run agent-test -w tools`) |
 | Overlay | `extension/src/overlay.ts`, always from the extension (Chrome + Firefox), on every site incl. MiniERP | ✅ e2e (extension + teach-voice) |
@@ -40,14 +40,14 @@
 
 ## Hard constraints
 
-1. **Teach only from the Work Map.** Never invent rules. If the case hits a situation the map doesn't cover, say so ("Sabine didn't cover this; ask the controller") and log it as a new open `Gap`. That gap feeds back to Map: the "living company memory" moonshot.
+1. **Teach only from the Work Map.** Never invent rules. If the case hits a situation the map doesn't cover, say so ("Sabine didn't cover this; ask the controller") and log it as a new open `Gap`. That gap feeds back to Map: the "living company memory" moonshot. *Status:* logging Gaps from Teach is planned, not yet implemented.
 2. **Guardrail checks are code, not LLM.** Evaluate `Guardrail.condition` (a violation predicate) on `CaseFacts`. The LLM only phrases the explanation.
 3. **Catch it before it's saved** (brief requirement). On Save or Approve, `beforeSave` evaluates all guardrails within ≤ 500 ms. Any `severity: "block"` violation means `{allow: false}`, the save is held, and the tutor speaks.
 4. **Nudge early, block late.** When a field change *would* violate a guardrail (e.g. cost center left on 4711 for €7,200 equipment), nudge once. Block only on save.
 5. **Socratic first.** "Sabine would stop here. Why do you think?" Wait for the answer, then explain with the expert's **verbatim** `reason` quote and offer `replay_moment(screenMoment)`.
 6. **Don't nag.** At most one prediction prompt per decision and one intervention per field per 30 s. Use the same pause rules as Capture: no talking while the new hire types, unless a block is pending.
-7. Use `commonMistakes` as a watch-list. For example, approving Brno directly gets a pre-emptive hint.
-8. Same trust rules as Capture: off-record, redaction, no keys in the browser.
+7. Use `commonMistakes` as a watch-list. For example, approving Brno directly gets a pre-emptive hint. *Status:* planned, not yet implemented (Map shows `commonMistakes`; the tutor doesn't use them yet).
+8. Same trust rules as Capture: off-record, redaction (masking/blurring only; Presidio not implemented), no keys in the browser.
 9. End with a `MasteryReport`: per-step status (`mastered`/`assisted`/`failed`/`not_seen`), per-guardrail status (`respected`/`caught_by_tutor`/`violated`/`not_triggered`), prediction accuracy and what to practice next.
 
 ## Test cases

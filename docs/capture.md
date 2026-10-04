@@ -14,7 +14,7 @@
 | Pipelines | frames → vision → `screen.observed` → `screen.action`; mic → Scribe → `utterance`; pause detector; question picker; answer linker; correction detector; redaction; off-record |
 | Interviewer agent | ElevenAgents config + prompt (curious, patient, brief; Expressive Mode) |
 | `scripts/pull_session` | Exports Firestore + Storage to the fixture folder layout |
-| Functions `llm`, `voiceToken`, `redact` | Shared with Map/Teach; you set them up first |
+| Function `api` (`/llm`, `/voice-token`, `/tts`) | Shared with Map/Teach; you set them up first. `redact` (Presidio) is planned, not yet implemented |
 
 ## Input → Output
 
@@ -28,7 +28,7 @@
 
 | What | File | Status |
 |---|---|---|
-| Session orchestration: pause detector, question picker, answer linking, corrections, off-record, echo filter | `web/src/capture/hub.ts` (`CaptureHub`, tunables in `PAUSE`) | ✅ full MiniERP run on real Gemini: 3 live questions at save/case-end pauses (1 guardrail), verbatim answers, `action_was_mistake` correction |
+| Session orchestration: pause detector, question picker, answer linking, corrections, off-record, echo filter | `web/src/capture/hub.ts` (`CaptureHub`, tunables in `PAUSE`) | ✅ golden path on Claude all green (`npm run golden -w tools`): ≥3 live questions at pauses, ≥1 in a guardrail category, debrief, confirmed Work Map. Verbatim answers and an `action_was_mistake` correction were verified in an earlier full MiniERP run on Gemini, before the switch to Claude |
 | Voice | `web/src/voice/voice.ts`: ElevenAgents Interviewer (`[ASK]`/`[SAY]`, mic muted while working) → ElevenLabs TTS → browser | ✅ protocol verified (`npm run agent-test -w tools`); TTS verified in browser |
 | Always-on STT | `web/src/capture/transcriber.ts`: Scribe v2 Realtime (word timestamps verified with `npm run scribe-test -w tools`) → Web Speech; typed fallback | ✅ |
 | Frames | screen share (`screen.ts`) **or** extension tab screenshots (`frame` bridge messages) → Claude vision (was Gemini until 2026-10-04) | ✅ both |
@@ -43,8 +43,8 @@
 1. Emit only event types from `shared/schema.ts`. A new type or field means a schema PR first (see ground rules in ARCHITECTURE §6a).
 2. Store a frame **every second**, even when it isn't sent to vision. WebP, ≤1280 px wide, quality ≈0.7. Also keep continuous screen video and mic as 10 s chunks (`media.chunk`).
 3. Every `screen.action` links its evidence: `appEventIds` (ground truth) and/or `observedIds` (vision). Set `sourceAgreement`.
-4. Log every model call as `model.call`: prompt version, input refs, and the full request/response saved to `model_calls/{id}.json`.
-5. **Record the negative space.** Emit `pause.detected` for *every* pause decision (`ask`/`hold`/`skip` with a reason), plus `agent.skipped_turn`, `rejectedCandidates` and `question.deferred`. This is how we answer the brief's "when to ask / what to ask".
+4. Log every model call as `model.call`: prompt version, input refs, and the full request/response saved to `model_calls/{id}.json`. *Today:* `model.call` has purpose, input refs, latency and errors; saving `model_calls/*.json` is planned, not yet implemented.
+5. **Record the negative space.** Emit `pause.detected` for *every* pause decision (`ask`/`hold`/`skip` with a reason), plus `rejectedCandidates` and `question.deferred` (all emitted today). `agent.skipped_turn` is planned, not emitted yet. This is how we answer the brief's "when to ask / what to ask".
 
 **Listening**
 
@@ -66,7 +66,7 @@
 **Trust & privacy**
 
 13. **Off the record** (voice "off the record" or hotkey) immediately stops frames, video and mic chunks, vision calls and transcript persistence. Only the two `marker.off_record` events are stored. The agent confirms ("Okay, not recording") and resumes on "back on the record" or the hotkey.
-14. **Redact before upload.** Text goes through the `redact` function (Presidio). Frames get a blur over vision's `piiRegions` plus known MiniERP PII fields (IBAN). Unredacted data never leaves the browser.
+14. **Redact before upload.** Text goes through the `redact` function (Presidio): **planned, not yet implemented**; transcripts are uploaded unredacted today. Frames get a blur over vision's `piiRegions` (implemented); MiniERP masks IBAN in its UI and the extension masks passwords, IBANs and card numbers.
 15. No API keys in the browser.
 
 **Performance**
@@ -77,7 +77,7 @@
 
 - **System prompt essentials:** "You are an apprentice learning this job. Stay silent unless told to ask. Ask short, concrete *why / limit / exception / when-would-you-stop* questions about what just happened on screen. Never ask what the screen already shows."
 - **Screen context:** push a one-line contextual update per `screen.action` (`agent.context_pushed`).
-- **Client tools:** `get_recent_screen_events`, `mark_question_asked`.
+- **Client tools:** `get_recent_screen_events` (`mark_question_asked` was planned; not implemented).
 - **System tool:** `skip_turn`, so the agent stays quiet on thinking-aloud speech.
 - **Our question picker decides *when* and *what*; the agent only voices it.** ⚠️ Check in the ElevenAgents docs how best to make the agent speak a chosen question immediately (contextual update + user-message nudge, or dynamic variables). Do this on day 1.
 - **Debrief:** when the task ends, emit `phase.changed capture→debrief` and switch the side panel to Map's debrief agent and plan (see [map.md](map.md)). Capture owns the panel; Map owns what is said.
