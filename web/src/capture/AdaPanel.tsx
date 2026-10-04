@@ -4,7 +4,9 @@
  */
 import type { ReactNode } from "react";
 import type { HubState } from "./hub";
-import { categoryLabel, listenLabel, listenState } from "./adaState";
+import { categoryLabel, listenLabel, listenState, type CurrentQuestion } from "./adaState";
+import { describeTarget } from "./questionTarget";
+import { JudgeMarker, useJudge } from "../components/JudgeMarker";
 
 interface AdaPanelProps {
   s: HubState;
@@ -20,6 +22,7 @@ const DECISION_LABEL = { ask: "Asked", wait: "Waiting", defer: "Saved for debrie
 
 export function AdaPanel({ s, onOffRecord, budget, whyMarker }: AdaPanelProps) {
   const ls = listenState(s);
+  const judge = useJudge();
   const q = s.currentQuestion;
   const pause = s.lastPauseInfo;
   const showPause = pause && !(q && pause.decision === "ask" && pause.reason === q.why);
@@ -27,7 +30,10 @@ export function AdaPanel({ s, onOffRecord, budget, whyMarker }: AdaPanelProps) {
     <section className={`card ada ${s.offRecord ? "off" : ""}`} aria-label="Ada">
       <div className="ada-head">
         <span className={`ada-state ${ls}`}><i aria-hidden="true" />{listenLabel(ls)}</span>
-        <button className={s.offRecord ? "danger" : ""} aria-pressed={s.offRecord} onClick={onOffRecord}>{s.offRecord ? "Back on the record" : "Off the record"}</button>
+        <span>
+          <JudgeMarker n={5} />{" "}
+          <button className={s.offRecord ? "danger" : ""} aria-pressed={s.offRecord} onClick={onOffRecord}>{s.offRecord ? "Back on the record" : "Off the record"}</button>
+        </span>
       </div>
       <div className="ada-question" aria-live="polite">
         {q ? (
@@ -36,6 +42,7 @@ export function AdaPanel({ s, onOffRecord, budget, whyMarker }: AdaPanelProps) {
             <p className="ada-q">{q.text}</p>
             <p className="ada-why"><b>Why now:</b> {q.why} {whyMarker}</p>
             {q.aboutScreen && <p className="muted small">About: {q.aboutScreen}</p>}
+            {q.target && <TargetLine q={q} />}
           </>
         ) : s.offRecord ? (
           <p className="muted">Nothing is recorded and Ada won't ask until you're back on the record.</p>
@@ -48,8 +55,25 @@ export function AdaPanel({ s, onOffRecord, budget, whyMarker }: AdaPanelProps) {
       )}
       <p className="ada-stats muted small">
         {s.liveQuestions} asked this task · {s.questionBudgetLeft} of {budget} left in 10 min · {s.deferredQuestions} saved for the debrief
-        {s.redactedCount > 0 && <> · {s.redactedCount} items redacted</>}
+        {(s.redactedCount > 0 || judge) && <> · {s.redactedCount} items redacted</>}
       </p>
     </section>
+  );
+}
+
+/** ② What to ask: the question's target and why the screen alone doesn't answer it, plus what Ada chose not to ask. */
+function TargetLine({ q }: { q: CurrentQuestion }) {
+  if (!q.target) return null;
+  const d = describeTarget(q.target);
+  return (
+    <div className="ada-target muted small">
+      <b>Target:</b> {d.target}. {d.whyNotScreen} <JudgeMarker n={2} />
+      {d.alsoConsidered.length > 0 && (
+        <details>
+          <summary>Also considered ({d.alsoConsidered.length}), not asked</summary>
+          <ul>{d.alsoConsidered.map((x) => <li key={x}>{x}</li>)}</ul>
+        </details>
+      )}
+    </div>
   );
 }
