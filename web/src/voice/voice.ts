@@ -70,6 +70,8 @@ class AgentVoice implements Voice {
   private lastText = "";
   /** Turns we asked for, resolved in order: a turn ends when the agent started speaking and then stopped. */
   private turns: Array<{ started: boolean; resolve: (t: string) => void }> = [];
+  /** The agent connection dropped (network): Ada keeps talking through ElevenLabs TTS instead of stalling. */
+  private fallback: TtsVoice | null = null;
 
   private constructor(private ev: VoiceEvents) {}
 
@@ -91,6 +93,14 @@ class AgentVoice implements Voice {
       },
       onModeChange: ({ mode }) => v.onMode(mode === "speaking"),
       onStatusChange: ({ status }) => ev.onStatus?.(status),
+      onDisconnect: (d) => {
+        if (d.reason === "user") return;
+        // never wait out a 25 s turn timeout per line on a dead socket: finish pending turns, speak via TTS from now on
+        v.fallback ??= new TtsVoice(ev);
+        for (const t of v.turns.splice(0)) t.resolve(v.lastText);
+        if (v.speaking) v.onMode(false);
+        ev.onStatus?.("voice: TTS (agent connection dropped)");
+      },
       onError: (message) => console.warn("agent error", message),
     });
     v.conv.setMicMuted(true);
@@ -110,7 +120,8 @@ class AgentVoice implements Voice {
     }
   }
 
-  private send(message: string): Promise<string> {
+  private send(message: string, fallbackText = message.replace(/^\[[A-Z]+\]\s*/, "").split(" | ")[0]): Promise<string> {
+    if (this.fallback) return this.fallback.say(fallbackText);
     // the agent answers the latest control message; older pending turns are superseded
     for (const old of this.turns.splice(0)) old.resolve(this.lastText);
     this.expecting = 1;
@@ -131,14 +142,14 @@ class AgentVoice implements Voice {
   say(text: string) {
     return this.send(`[SAY] ${text}`);
   }
-  control(message: string) {
-    return this.send(message);
+  control(message: string, fallbackText?: string) {
+    return this.send(message, fallbackText);
   }
   context(text: string) {
-    this.conv.sendContextualUpdate(text);
+    if (!this.fallback) this.conv.sendContextualUpdate(text);
   }
   listen(on: boolean) {
-    this.conv.setMicMuted(!on);
+    if (!this.fallback) this.conv.setMicMuted(!on);
   }
   async stop() {
     await this.conv.endSession();
