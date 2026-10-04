@@ -11,6 +11,7 @@
  */
 import puppeteer, { type Page } from "puppeteer";
 import { writeFileSync } from "node:fs";
+import { db } from "./admin";
 
 const HUB = "http://localhost:5173";
 const EXPERT = (process.env.EXPERT ?? "sabine") as "sabine" | "ilse";
@@ -88,7 +89,13 @@ function autoAnswer(hub: Page, until: () => boolean) {
   })();
 }
 
-const browser = await puppeteer.launch({ headless: !process.env.HEADFUL, args: ["--autoplay-policy=no-user-gesture-required"], defaultViewport: { width: 1280, height: 900 } });
+// the Chrome extension screenshots the work tab (frames → screen moments: every Work Map step needs one)
+const EXT = new URL("../../extension/dist/chrome", import.meta.url).pathname;
+const browser = await puppeteer.launch({
+  headless: !process.env.HEADFUL, defaultViewport: { width: 1280, height: 900 },
+  args: ["--autoplay-policy=no-user-gesture-required", `--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
+  ignoreDefaultArgs: ["--disable-extensions"],
+});
 // silent synthetic mic: lets ElevenAgents + Scribe start in a test browser (answers are typed)
 const silentMic = (p: Page) => p.evaluateOnNewDocument(() => {
   navigator.mediaDevices.getUserMedia = async () => {
@@ -127,6 +134,7 @@ try {
   await work.goto(`${HUB}/erp?mode=capture`, { waitUntil: "networkidle2" });
   await work.evaluate(() => localStorage.removeItem("minierp.v1"));
   await work.reload({ waitUntil: "networkidle2" });
+  await work.bringToFront(); // the extension captures the active tab
   await sleep(1500);
   const openInv = async (key: string) => {
     await work.evaluate((k) => [...document.querySelectorAll("tr")].find((r) => r.textContent?.includes(`INV-${k}`))?.dispatchEvent(new MouseEvent("click", { bubbles: true })), key);
@@ -177,6 +185,9 @@ try {
   check("≥3 live questions at pauses", live.length >= 3, `${live.length}: ${live.join(" | ").slice(0, 300)}`);
   check("≥1 live guardrail question", live.some((q: string) => /guardrail_limit|exception|stop_and_ask|never_do/.test(q)));
 
+  const frames = await hub.evaluate(() => `${(window as any).__hub.state.frames} frames from ${(window as any).__hub.state.frameSource}`);
+  check("screen frames captured by the extension", /^[1-9]\d* frames from extension/.test(frames), frames);
+
   // ── 2. end of day → debrief task 1 ──
   await click(hub, "End my day");
   await sleep(4000);
@@ -204,6 +215,10 @@ try {
   }, task.id);
   result.workMapId = wm.workMapId;
   check("debrief ended with a confirmed Work Map", /confirmed/i.test(stage), stage);
+  const head = (await db.doc(`workmaps/${wm.workMapId}`).get()).data();
+  const map = head && JSON.parse((await db.doc(`workmaps/${wm.workMapId}/versions/${String(head.latestVersion).padStart(4, "0")}`).get()).get("json"));
+  check("the Work Map has steps and guardrails in Sabine's words", map?.steps.length >= 3 && map?.guardrails.length >= 2,
+    `${map?.steps.length} steps, ${map?.guardrails.length} guardrails: ${map?.guardrails.map((g: any) => g.statement).join(" / ").slice(0, 300)}`);
   const debriefQs = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "debrief").length);
   check("≥3 debrief questions", debriefQs >= 3, String(debriefQs));
   await hub.screenshot({ path: `../docs/brag/golden-${EXPERT}-debrief.png` }).catch(() => {});

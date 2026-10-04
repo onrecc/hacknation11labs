@@ -24,7 +24,7 @@ Tagline options: "An apprentice, not a recorder." · "Before 24 years of judgmen
 | 7 | Any web app | Browser extension (Chrome + Firefox) puts Ada on any tool, e.g. a procurement form | `/demo/procurex.html` · `06-any-web-app-overlay.png` | "Works where the work happens." |
 | ⭐ | Moonshot | A living company memory: every expert's workday becomes a Work Map that stays current; Ada only asks about what's new | (closing card) | "Turn every retirement party into a Work Map." |
 
-Optional scene (when Gemini billing is on, see "Retakes"): **Two experts, one task**: `/compare` shows where Sabine and Ilse differ ("hold duplicates" vs "send to Jonas") and the team rule after both explain why.
+Optional scene: **Two experts, one task**: `/compare` shows where Sabine and Ilse differ ("hold duplicates" vs "send to Jonas") and the team rule after both explain why.
 
 ## Verified claims (safe to say)
 - **3 live questions per task at natural pauses, at least one about a guardrail** (pause detector: no typing for 1.5 s, no speech for 1.2 s, after a save or a finished case; max 5 per 10 min).
@@ -33,12 +33,11 @@ Optional scene (when Gemini billing is on, see "Retakes"): **Two experts, one ta
 - **Blocks a wrong decision before it's saved** and explains it with the expert's quote and screen moment (brief's own test case).
 - **Whole workday → tasks automatically** (app switch, a break, a new kind of work, or "New task").
 - **Any web app** via the browser extension; **off the record** by voice or button; passwords, IBANs and card numbers masked.
-- AI: Google Gemini (`gemini-3.8-flash`) for vision, question picking, extraction, guardrail checks.
+- AI: Anthropic Claude: Sonnet 5.5 for vision, question picking, corrections, task labels and guardrail checks; Opus 5.5 builds the Work Map. Both ElevenAgents also think with Claude Sonnet 5.5.
 
 ## Don't claim (yet)
 - Firefox: lint-verified (0 errors, 0 warnings), not run end-to-end here. Chrome is e2e-verified.
 - Voice was tested with a synthetic microphone; real-room rehearsal pending.
-- Comparisons and task names need live Gemini (the free tier ran out today; screens show "Mock AI" until billing is on).
 - No personal-data scrubbing of transcripts yet (masking and blurring only).
 
 ## Brand
@@ -53,12 +52,12 @@ Optional scene (when Gemini billing is on, see "Retakes"): **Two experts, one ta
 - Repo: `onrecc/hacknation11labs` (React + Vite, Firebase, Chrome/Firefox MV3 extension).
 - Run locally: `npm run api` + `npm run dev`, open http://localhost:5173. `/map/demo` works without any backend.
 
-## Retakes when Gemini billing is on
-Run the golden path; it writes real screenshots into `docs/brag/`:
+## Retakes
+Run the golden path (real Claude + ElevenLabs + the Chrome extension); it writes real screenshots into `docs/brag/`:
 ```bash
 EXPERT=sabine npm run golden -w tools
 ```
 ```bash
 EXPERT=ilse SKIP_TEACH=1 npm run golden -w tools
 ```
-Then compare Sabine vs Ilse on `/compare` and retake `npm run brag:shots -w tools` (the nav then shows "Live" instead of "Mock AI").
+Then compare Sabine vs Ilse on `/compare` and retake `npm run brag:shots -w tools`.

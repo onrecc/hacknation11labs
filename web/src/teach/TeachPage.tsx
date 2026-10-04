@@ -13,6 +13,12 @@ import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
 
+/** Newest first; the bundled demo map is dated in the future (fixture), so real recordings rank above it. */
+const recency = (h: WorkMapHead) => {
+  const t = Date.parse(h.updatedAt);
+  return t > Date.now() ? 0 : t;
+};
+
 export default function TeachPage() {
   const [maps, setMaps] = useState<WorkMapHead[]>([]);
   const [wm, setWm] = useState<WorkMap | null>(null);
@@ -34,7 +40,7 @@ export default function TeachPage() {
     setMaps(list);
     const loaded = (await Promise.all(list.filter((x) => x.status === "confirmed").map(async (m) => ({ head: m, full: await loadWorkMap(m.id) }))))
       .filter((x): x is { head: WorkMapHead; full: WorkMap } => !!x.full && x.full.guardrails.length > 0)
-      .sort((a, b) => Number(b.full.task.domain === user.department) - Number(a.full.task.domain === user.department) || b.head.updatedAt.localeCompare(a.head.updatedAt));
+      .sort((a, b) => Number(b.full.task.domain === user.department) - Number(a.full.task.domain === user.department) || recency(b.head) - recency(a.head));
     setModules(loaded.map(({ head, full }) => ({ ...head, expert: full.expert.displayName, domain: full.task.domain, steps: full.steps.length, guardrails: full.guardrails.length })));
     if (loaded[0]) setWm(loaded[0].full);
   }), [user.department]);
