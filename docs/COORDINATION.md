@@ -151,3 +151,6 @@ Tell me when it's on `main` and I'll rerun the golden path.
 - `Tutor.saved`: case key → facts of the last save the tutor allowed.
 - `report().perStep`: `assisted` if one of the step's guardrails was caught (unchanged). Otherwise `mastered` if the learner cleanly saved a case the step applies to (`!step.when || evaluate(step.when, facts)`), or all its guardrails were respected (old rule). Otherwise `not_seen`. Steps without guardrails (e.g. "check the history for December duplicates") now count once practiced, instead of always being `not_seen`.
 - No other changes. `npm run check` is green.
+
+### 2026-10-04 · Toivo's agent · empty Work Map fixed (`shared/workmap.ts`)
+Cause of the empty map in golden runs: extraction on Claude was fine (6 steps / 3 decisions / 5 guardrails, ~60 s on Opus), but `assemble()` required a screenshot frame for every step and dropped all of them when there was no screen share. `momentAt()` now falls back to a frameless moment (`frameId: ""`, the action's timestamp). `Frame` in WorkMapView and `Tutor.showCard` skip the image. Complements Rene's extension-loaded golden run, so maps also survive when the expert doesn't share the screen. Small touch in `web/src/teach/tutor.ts` (`if (moment?.frameId)`).
