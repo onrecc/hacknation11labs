@@ -3,17 +3,17 @@
  * Cached per text; undefined when the quote is already English or translation failed.
  */
 import { useEffect, useState } from "react";
-import { needsTranslation } from "@shared/i18n";
+import { needsTranslation, sttLanguage } from "@shared/i18n";
 import { llm } from "./api";
 
 const cache = new Map<string, Promise<string | undefined>>();
 
-export function translateQuote(text: string, lang?: string): Promise<string | undefined> {
-  if (!text || !needsTranslation(lang)) return Promise.resolve(undefined);
-  const key = `${lang}\u0000${text}`;
+export function translateQuote(text: string, lang?: string, to = "en"): Promise<string | undefined> {
+  if (!text || sttLanguage(lang) === sttLanguage(to)) return Promise.resolve(undefined);
+  const key = `${lang}\u0000${to}\u0000${text}`;
   let p = cache.get(key);
   if (!p) {
-    p = llm("translate", { text, from: lang ?? "", to: "en" }).then((o) => o.text.trim() || undefined, () => {
+    p = llm("translate", { text, from: lang ?? "en", to }).then((o) => o.text.trim() || undefined, () => {
       cache.delete(key); // retry next time; the original quote still shows
       return undefined;
     });
@@ -31,4 +31,10 @@ export function useQuoteTranslation(text: string, lang?: string): string | undef
     return () => { live = false; };
   }, [text, lang]);
   return out;
+}
+
+/** UI/tutor text (written in English) in the learner's language; the English text when that fails or isn't needed. */
+export async function inLanguage(text: string, to?: string): Promise<string> {
+  if (!text || !needsTranslation(to)) return text;
+  return (await translateQuote(text, "en", to)) ?? text;
 }

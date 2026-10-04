@@ -199,7 +199,7 @@
       if (c.provenance) el.append(h("p", { class: "prov" }, c.provenance));
       if (c.quote) {
         const q = h("div", { class: "quote" }, `\u201C${c.quote.text}\u201D`, h("span", {}, `${c.quote.who} \xB7 ${c.quote.when}`));
-        if (c.quote.translation) q.append(h("div", { class: "meaning" }, `In English: \u201C${c.quote.translation}\u201D`));
+        if (c.quote.translation) q.append(h("div", { class: "meaning" }, `Meaning: \u201C${c.quote.translation}\u201D`));
         el.append(q);
       }
       const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";

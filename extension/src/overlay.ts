@@ -211,7 +211,7 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
     if (c.provenance) el.append(h("p", { class: "prov" }, c.provenance));
     if (c.quote) {
       const q = h("div", { class: "quote" }, `“${c.quote.text}”`, h("span", {}, `${c.quote.who} · ${c.quote.when}`));
-      if (c.quote.translation) q.append(h("div", { class: "meaning" }, `In English: “${c.quote.translation}”`));
+      if (c.quote.translation) q.append(h("div", { class: "meaning" }, `Meaning: “${c.quote.translation}”`));
       el.append(q);
     }
     const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";

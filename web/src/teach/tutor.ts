@@ -22,7 +22,8 @@ import type { CaptureHub } from "../capture/hub";
 import type { AgentOptions } from "../voice/voice";
 import { workMapForPrompt } from "./tutor-prompt";
 import { spokenQuote } from "@shared/i18n";
-import { translateQuote } from "../lib/translate";
+import { inLanguage, translateQuote } from "../lib/translate";
+import { languageName, needsTranslation } from "@shared/i18n";
 import { cardMeta } from "./provenance";
 import { stepStatus } from "./mastery";
 
@@ -70,7 +71,14 @@ export class Tutor {
 
   /** English meaning of the expert's words when they spoke another language (undefined for English). */
   private meaning(quote: string): Promise<string | undefined> {
-    return translateQuote(quote, this.wm.expert.language);
+    return translateQuote(quote, this.wm.expert.language, this.learnerLang ?? "en");
+  }
+  /** The new hire's language (e.g. Olena: uk-UA). Ada coaches in it; the expert's quotes stay verbatim next to it. */
+  private get learnerLang(): string | undefined {
+    return this.hub?.session.participant.language;
+  }
+  private tr(text: string): Promise<string> {
+    return inLanguage(text, this.learnerLang);
   }
   detach() {
     this.off?.();
@@ -212,7 +220,8 @@ export class Tutor {
       const said = spokenQuote(this.expert, quote, meaning, lang);
       // Agent voice: one control message; the agent asks, listens and explains. Other voices: we do it in two steps.
       const agentVoice = this.hub.voice?.name === "elevenagents";
-      const { replies } = await this.hub.ask(socratic, { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}${meaning ? ` | meaning: ${meaning}` : ""}` });
+      const speakIn = needsTranslation(this.learnerLang) ? ` | speak ${languageName(this.learnerLang)} only (the new hire's language); keep the expert's quote verbatim, then its meaning` : "";
+      const { replies } = await this.hub.ask(await this.tr(socratic), { intent: "intervention", timeoutMs: 20_000, control: `[INTERVENE] ${g.statement} | ${quote}${meaning ? ` | meaning: ${meaning}` : ""}${speakIn}` });
       if (this.next) {
         // superseded while waiting: no stale explanation (the newer card and voice flow come next)
         this.logIntervention(g, beforeSave, socratic, moment, at, t, replies.length > 0, first.id);
@@ -222,12 +231,12 @@ export class Tutor {
       if (agentVoice && !replies.length) {
         // no answer: don't leave them hanging, say it in the expert's words
         spoken = `${said} ${g.requiredAction}.`;
-        await this.hub.agentSay(spoken, "intervention");
+        await this.hub.agentSay(await this.tr(spoken), "intervention");
       } else if (!agentVoice) {
         const ex = await llm("tutor_explain", { expertName: this.expert, guardrail: g, quote, facts: this.facts ?? emptyFacts(caseLabel), socratic: false, ...(meaning ? { quoteTranslation: meaning, quoteLanguage: lang } : {}) })
           .catch(() => ({ spoken: `${said}. ${g.requiredAction}.` }));
         spoken = ex.spoken;
-        await this.hub.agentSay(spoken, "intervention");
+        await this.hub.agentSay(await this.tr(spoken), "intervention");
       }
       if (!this.next) await this.showCard({ tone: "block", title: g.statement, caseKey, text: spoken === socratic ? `${said}. ${g.requiredAction}.` : spoken, guardrail: g }, moment);
       this.logIntervention(g, beforeSave, spoken, moment, at, t, replies.length > 0, first.id);
@@ -266,7 +275,7 @@ export class Tutor {
       // agent voice grades through its grade_prediction tool; other voices: grade here
       if (this.pendingPrediction && replies.length && this.hub.voice?.name !== "elevenagents") {
         const feedback = await this.gradePrediction(replies.map((r) => r.payload.text).join(" "));
-        await this.hub.agentSay(feedback, "other");
+        await this.hub.agentSay(await this.tr(feedback), "other");
       }
     }
   }
@@ -297,8 +306,9 @@ export class Tutor {
     }
     const q = c.guardrail?.evidence.quotes[0];
     const translation = q ? await this.meaning(q.text) : undefined;
+    const [lTitle, lText] = await Promise.all([this.tr(c.title), this.tr(c.text)]);
     const card: TutorCard = {
-      ...c,
+      ...c, title: lTitle, text: lText,
       ...(q ? { quote: { text: q.text, who: this.wm.expert.displayName, when: fmtT(q.t), ...(translation ? { translation } : {}) } } : {}),
       ...(imageUrl ? { imageUrl } : {}),
       ...(moment?.bbox ? { bbox: moment.bbox } : {}),

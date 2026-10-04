@@ -29,7 +29,7 @@ export const USERS: User[] = [
   { id: "u_sabine", name: "Sabine Keller", short: "Sabine", role: "expert", title: "Senior accounts payable specialist", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 24, color: "#1f3a5f", app: MINIERP },
   { id: "u_ilse", name: "Ilse Wagner", short: "Ilse", role: "expert", title: "AP team lead", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 17, color: "#5b3a7a", app: MINIERP },
   { id: "u_juergen", name: "Jürgen Brandt", short: "Jürgen", role: "expert", title: "Senior buyer", department: "procurement", departmentLabel: "Procurement", yearsInRole: 21, color: "#7a3e1d", language: "de-DE", app: PROCUREX },
-  { id: "u_lena", name: "Lena Vogt", short: "Lena", role: "practicer", title: "AP clerk (new)", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 0, color: "#2e6b5e", app: MINIERP },
+  { id: "u_lena", name: "Olena Kovalenko", short: "Olena", role: "practicer", title: "AP clerk (new), qualified accountant from Kharkiv", language: "uk-UA", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 0, color: "#2e6b5e", app: MINIERP },
   { id: "u_aylin", name: "Aylin Demir", short: "Aylin", role: "practicer", title: "AP trainee", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 0, color: "#a0522d", app: MINIERP },
   { id: "u_tim", name: "Tim Berger", short: "Tim", role: "practicer", title: "Junior buyer (new)", department: "procurement", departmentLabel: "Procurement", yearsInRole: 0, color: "#3b6fb6", app: PROCUREX },
 ];

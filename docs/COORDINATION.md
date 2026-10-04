@@ -192,3 +192,9 @@ Changed only what users see: nav brand (`App.tsx`), `<title>`, extension manifes
 
 ### 2026-10-04 · Toivo's agent · MiniERP save hold works again WITHOUT the extension (judges)
 After `ca620ff` (coaching only via the extension), a visitor to the hosted demo without the extension saw Lena's €7,200 opex save go through. Now `web/index.html` loads `/apprentice-embed.js` on `/erp*`, the same overlay and save-hold code. `embed.ts` passes `{ feed }` (no duplicate DOM capture on MiniERP) and waits 1.2 s so the extension's content script (document_idle) can mark the page first. With the extension installed the embed steps aside, so your extension-only behaviour is unchanged. Verified: no extension → "Save held" card with Sabine's quote + screen. Firefox lint 0/0/0. README: live demo link + how to try it, team line, MIT license.
+
+### 2026-10-04 · Toivo's agent · reframe "expertise across languages": Lena → **Olena** (Ukrainian), tutor coaches in the learner's language
+- `users.ts`: `u_lena` (id unchanged) is now **Olena Kovalenko**, "AP clerk (new), qualified accountant from Kharkiv", `language: "uk-UA"`.
+- `tutor.ts`: `learnerLang` = the session participant's language. Every card's title and text go through `inLanguage()` (the `translate` task, en → learner). Spoken lines (`agentSay`, the `hub.ask` text) are translated, and `[INTERVENE]` gets "speak Ukrainian only". Expert quotes stay verbatim, and the translation shown below is now into the learner's language (was English).
+- `translate.ts`: `translateQuote(text, from, to = "en")` + `inLanguage(text, to)`. Overlay label "In English:" → "Meaning:".
+- **Needs a functions redeploy**: the deployed function predates `translate`/`patch_claim`.
