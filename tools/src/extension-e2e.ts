@@ -54,7 +54,7 @@ try {
   await hub.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
   await hub.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 20_000 });
   await hub.evaluate(() => (window.open = () => null));
-  await clickButton(hub, "Start teach session");
+  await clickButton(hub, "Start practising with Ada");
   await sleep(2500);
   console.log(`teach session: ${await hub.evaluate(() => (window as any).__hub?.session.id)}`);
 
@@ -70,7 +70,7 @@ try {
   const toast = await work.$eval("#toast", (e) => e.textContent ?? "");
   o = await overlay(work);
   check("wrong submit is held (not submitted)", toast === "", `toast="${toast}"`);
-  check("guardrail card shown on the work tab", /held/i.test(o.card), o.card);
+  check("guardrail card shown on the work tab", /held|blocked/i.test(o.card), o.card);
   check("hub logged tutor.intervention", (await feed(hub)).some((r) => r.includes("tutor.intervention")));
 
   await work.select("#gl", "0400");
@@ -102,7 +102,7 @@ try {
   await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_sabine")); // fake login (expert)
   await hub.goto(`${HUB}/capture`, { waitUntil: "networkidle2" });
   await hub.evaluate(() => (window.open = () => null));
-  await clickButton(hub, "Start session");
+  await clickButton(hub, "Start recording with Ada");
   await sleep(3000);
   await work.bringToFront();
   await work.goto(WORK, { waitUntil: "networkidle2" });
@@ -124,7 +124,7 @@ try {
   await sleep(1500);
   await clickButton(hub, "Close session");
   await sleep(3000);
-  const sid = await hub.$eval("h1 .mono", (e) => e.textContent ?? "");
+  const sid = await hub.evaluate(() => (window as any).__hub?.session.id);
   console.log(`capture session: ${sid}`);
 
   // ── no answer from the hub (tab gone): the save stays held, never waved through ──
@@ -135,7 +135,7 @@ try {
   await hub2.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
   await hub2.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 30_000 });
   await hub2.evaluate(() => (window.open = () => null));
-  await clickButton(hub2, "Start teach session");
+  await clickButton(hub2, "Start practising with Ada");
   await sleep(2500);
   console.log(`teach session (timeout test): ${await hub2.evaluate(() => (window as any).__hub?.session.id)}`);
   await work.bringToFront();

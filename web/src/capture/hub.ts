@@ -3,7 +3,7 @@
  * pause detector, question picker, answer linking, correction detection and off-record into the EventLog.
  * React only renders hub.state; all logic lives here so it can be tested and reused by Teach/debrief.
  */
-import type { BBox, Event, Id, Phase, QuestionCategory, Session, Utterance } from "@shared/schema";
+import type { BBox, Event, Id, Phase, QuestionCategory, ScreenEntity, Session, Utterance } from "@shared/schema";
 import { EventLog, type EventInput } from "@shared/eventlog";
 import { SessionClock } from "@shared/clock";
 import { newId } from "@shared/ids";
@@ -12,9 +12,11 @@ import { updateSession } from "../lib/sessions";
 import { llm, servedBy } from "../lib/api";
 import { listen, send, type BridgeMsg } from "../lib/bridge";
 import { ChunkRecorder, FrameSampler, type SampledFrame } from "./screen";
-import { maskPii, maskWords } from "./pii";
 import { createTranscriber, interpolateWords, type Transcriber, type TranscribedUtterance } from "./transcriber";
+import { sttLanguage } from "@shared/i18n";
 import { createVoice, type AgentOptions, type SpokenTurn, type Voice } from "../voice/voice";
+import { redactUtterance, type RedactedUtterance } from "./redaction";
+import { budgetLeft, describeDeferral, describePause, QUIET_INFO, scriptedWhy, type CurrentQuestion, type PauseInfo } from "./adaState";
 
 /** Tunables (docs/capture.md hard constraints 9–12). */
 export const PAUSE = { keyMs: 1500, speechMs: 1200, staticMs: 1000, saveWindowMs: 3000, longStaticMs: 8000, budgetPer10Min: 5, replySilenceMs: 3500 };
@@ -34,7 +36,17 @@ export interface HubState {
   lastPause: string;
   liveQuestions: number;
   frames: number;
+  /** PII items replaced in transcripts so far (shared/redact via ./redaction). */
+  redactedCount: number;
   error: string | null;
+  /** Ada panel: the question Ada asked last and why (null until she asks). */
+  currentQuestion: CurrentQuestion | null;
+  /** Ada panel: the pause detector's / picker's latest decision, in words. */
+  lastPauseInfo: PauseInfo | null;
+  /** live questions still allowed in the rolling 10-minute window */
+  questionBudgetLeft: number;
+  /** questions held back for the debrief in this task */
+  deferredQuestions: number;
 }
 
 type Listener = () => void;
@@ -73,7 +85,10 @@ export class CaptureHub {
   private lastFrameId: Id | null = null;
   private lastVisionAt = -1e9;
   private visionBusy = false;
-  private lastObserved: { summary: string; frameId: Id } | null = null;
+  private lastObserved: { summary: string; frameId: Id; entities: ScreenEntity[] } | null = null;
+  /** Ada panel: the app field touched last, and the plain-language reason of the pause that led to an ask */
+  private lastField: string | undefined;
+  private lastAskWhy = "";
   private pending: { questionId: Id; endedAt: number; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
   private replyWaiter: { resolve: (u: Utterance[]) => void; replies: Utterance[]; timer?: ReturnType<typeof setTimeout> } | null = null;
 
@@ -88,7 +103,8 @@ export class CaptureHub {
     this.clock = SessionClock.fromWall(session.clock.wallAtT0);
     this.state = {
       phase: session.kind === "teach" ? "teach" : "capture", offRecord: false, sharing: false, listening: false, agentSpeaking: false,
-      expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, error: null,
+      expertSpeaking: false, voice: "-", voiceStatus: "", stt: "-", extension: false, frameSource: "none", lastPause: "", liveQuestions: 0, frames: 0, redactedCount: 0, error: null,
+      currentQuestion: null, lastPauseInfo: null, questionBudgetLeft: PAUSE.budgetPer10Min, deferredQuestions: 0,
     };
     this.log = this.makeLog(session);
     this.unlisten = listen((m) => this.onBridge(m));
@@ -164,10 +180,14 @@ export class CaptureHub {
     this.unasked = [];
     this.lastObserved = null;
     this.lastFrameId = null;
+    this.lastField = undefined;
+    this.lastAskWhy = "";
     this.set({
       phase: o.phase ?? (next.kind === "teach" ? "teach" : "capture"),
       liveQuestions: this.events.filter((e) => e.type === "agent.question" && e.phase === "capture").length,
       frames: this.events.filter((e) => e.type === "frame.captured").length,
+      currentQuestion: null, lastPauseInfo: null, questionBudgetLeft: this.budgetNow(),
+      deferredQuestions: this.events.filter((e) => e.type === "question.deferred").length,
     });
     this.broadcastStatus();
     // ── async cleanup of the previous session ──
@@ -227,7 +247,7 @@ export class CaptureHub {
         },
         onUtterance: (u) => this.onExpertUtterance(u),
         onError: (e) => console.warn("stt", e),
-      });
+      }, sttLanguage(this.session.participant.language));
       this.set({ voiceStatus: "stt…" });
       await this.transcriber.start();
     } catch (e) {
@@ -326,8 +346,9 @@ export class CaptureHub {
           activityGuess: out.activityGuess, piiRegions: out.piiRegions, confidence: out.confidence,
         },
       });
-      this.lastObserved = { summary: out.summary, frameId };
-      if (oe.type === "screen.observed") this.actionsFromVision(oe, t);
+      const prevEntities = this.lastObserved?.entities ?? [];
+      this.lastObserved = { summary: out.summary, frameId, entities: out.visibleEntities };
+      if (oe.type === "screen.observed") this.actionsFromVision(oe, t, prevEntities);
     } catch (err) {
       this.modelCall("vision", [frameEventId], Math.round(performance.now() - t0), (err as Error).message);
     } finally {
@@ -340,12 +361,27 @@ export class CaptureHub {
    * desktop apps, screen share) this is the only signal, so the question picker and the agent get it too.
    * A change the app/extension already reported (same field or value, last 10 s) is skipped: no double counting.
    */
-  private actionsFromVision(oe: Extract<Event, { type: "screen.observed" }>, frameT: number) {
+  private actionsFromVision(oe: Extract<Event, { type: "screen.observed" }>, frameT: number, prevEntities: ScreenEntity[]) {
     if (this.state.offRecord) return;
     const norm = (x: unknown) => String(x ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    // the model's own change list is unreliable (it only gets the previous SUMMARY): also diff the field values it
+    // read on this frame against the previous frame's, entity by entity (formatting differences don't count)
+    const changes = [...oe.payload.changes];
+    for (const e of oe.payload.visibleEntities) {
+      const p = prevEntities.find((x) => norm(x.kind) === norm(e.kind) && (norm(x.key) === norm(e.key) || (!!x.label && norm(x.label) === norm(e.label))));
+      if (!p) continue;
+      for (const [field, to] of Object.entries(e.fields)) {
+        const prevField = Object.keys(p.fields).find((f) => norm(f) === norm(field));
+        const from = prevField ? p.fields[prevField] : undefined;
+        // blurred/masked fields and empty reads are OCR noise, not edits
+        const unreadable = (v: unknown) => !norm(v) || /blur|mask|redact|•|\*{3}/i.test(String(v));
+        if (from === undefined || unreadable(from) || unreadable(to) || norm(from) === norm(to) || changes.some((c) => norm(c.field) === norm(field))) continue;
+        changes.push({ kind: "field_changed", entity: { kind: e.kind, ...(e.key ? { key: e.key } : {}) }, field, from, to, confidence: 0.75 });
+      }
+    }
     const fromApp = this.events.filter((e): e is Extract<Event, { type: "screen.action" }> => e.type === "screen.action" && e.source === "app" && e.t >= frameT - 10_000);
     const VERB: Record<string, Extract<Event, { type: "screen.action" }>["payload"]["verb"]> = { opened: "open", field_changed: "edit", navigated: "navigate", selected: "other", closed: "other", other: "other" };
-    for (const c of oe.payload.changes) {
+    for (const c of changes) {
       if (c.confidence < 0.6 || c.kind === "scrolled") continue;
       const dup = fromApp.some((a) => (c.field && norm(a.payload.field) === norm(c.field)) || (c.to != null && c.to !== "" && norm(a.payload.to) === norm(c.to)));
       if (dup) continue;
@@ -397,6 +433,7 @@ export class CaptureHub {
       this.emit({ t, type: "marker.case_boundary", source: "app", caseId: m.case.id, payload: { state: m.state, case: m.case, ...(m.outcome ? { outcome: m.outcome } : {}), detectedBy: "app" } });
     } else if (m.kind === "app") {
       if (m.payload.action === "save") this.lastSaveAt = t;
+      if (m.payload.field) this.lastField = m.payload.field;
       this.staticSince = t; // the app UI changed, even without a screen share
       this.lastKeyAt = t;
       const ae = this.emit({ t, type: "app.event", source: "app", payload: m.payload });
@@ -423,7 +460,9 @@ export class CaptureHub {
       this.emit({ t, type: "marker.off_record", source: "user", payload: { state: "start", trigger } });
       void this.log.flush();
       this.screenRec?.pause();
-      this.micRec?.pause();
+      // voice trigger: drop the in-progress mic slice, it contains the spoken command (a slice that already
+      // closed before the transcript arrived is not recalled)
+      this.micRec?.pause(trigger === "voice");
       if (this.transcriber) this.transcriber.muted = true;
       this.set({ offRecord: true });
       void this.voice?.say("Okay, not recording.");
@@ -467,8 +506,10 @@ export class CaptureHub {
     if (!turn.spontaneous) this.turnMeta = null;
     const tEnd = t + Math.round((turn.text.split(/\s+/).length / 2.6) * 1000);
     const utteranceId = newId("utt");
-    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: turn.text, words: interpolateWords(turn.text, t, tEnd), language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
-    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: turn.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
+    const r = redactUtterance(turn.text, interpolateWords(turn.text, t, tEnd)); // the agent may repeat a name or number back
+    const u = this.emit({ t, tEnd, type: "utterance", source: "agent", payload: { utteranceId, speaker: this.session.kind === "teach" ? "tutor" : "agent", text: r.text, words: r.words, language: "en", transcriptVersion: 1, sttModel: this.voice?.name ?? "tts", addressedTo: "other_person" } });
+    this.noteRedaction(u.id, r);
+    this.emit({ t, tEnd, type: "agent.turn", source: "agent", causedBy: [u.id], payload: { text: r.text, intent: meta.intent, interrupted: false, utteranceId, ...(meta.questionId ? { questionId: meta.questionId } : {}) } });
     this.agentSpokeAt.push({ t, text: turn.text.toLowerCase() });
     if (this.agentSpokeAt.length > 20) this.agentSpokeAt.shift();
     send({ kind: "agentState", speaking: true, listening: this.listening, caption: turn.text });
@@ -523,11 +564,14 @@ export class CaptureHub {
     const lateReply = !this.replyWaiter && this.windowClosedAt > 0 && u.t <= this.windowClosedAt + 500 && this.now() - this.windowClosedAt < 20_000;
     const addressedTo = this.replyWaiter || replyTo || lateReply ? "agent" : "self";
     this.emit({ t: u.tEnd, type: "speech.vad", source: "stt", payload: { speaker: this.humanSpeaker(), state: "end" } });
-    // IBANs, emails, phone numbers never reach the log, the LLM or the Work Map
+    // redact before the utterance is logged: everything downstream (answer linking, corrections, question picking,
+    // Map, storage) only ever sees the placeholders
+    const r = redactUtterance(u.text, u.words);
     const ev = this.emit({
       t: u.t, tEnd: u.tEnd, type: "utterance", source: "stt",
-      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: maskPii(u.text), words: maskWords(u.words), language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
+      payload: { utteranceId: newId("utt"), speaker: this.humanSpeaker(), text: r.text, words: r.words, language: u.language, transcriptVersion: 1, sttModel: u.sttModel, addressedTo, ...(replyTo ? { inReplyToQuestionId: replyTo } : {}) },
     }) as Utterance;
+    this.noteRedaction(ev.id, r);
 
     if (this.replyWaiter) {
       const w = this.replyWaiter;
@@ -544,6 +588,13 @@ export class CaptureHub {
       p.timer = setTimeout(() => void this.linkAnswer(p.questionId, p.replies), PAUSE.replySilenceMs);
     }
     if (this.session.kind === "capture") void this.detectCorrection(ev);
+  }
+
+  /** Log what was redacted from an utterance (types + placeholder spans, never the original text). */
+  private noteRedaction(targetEventId: Id, r: RedactedUtterance) {
+    if (!r.entities.length) return;
+    this.emit({ t: this.now(), type: "redaction.applied", source: "redactor", causedBy: [targetEventId], payload: { targetEventId, entities: r.entities.map((e) => ({ ...e, charSpan: [...e.charSpan] as [number, number] })) } });
+    this.set({ redactedCount: this.state.redactedCount + r.entities.length });
   }
 
   /**
@@ -579,6 +630,8 @@ export class CaptureHub {
       this.modelCall("answer_link", replies.map((r) => r.id), Math.round(performance.now() - t0), undefined, out);
       const hit = replies.find((r) => r.payload.text.includes(out.quote));
       const quote = hit ? out.quote : replies[0].payload.text; // code verifies: never store a non-verbatim quote
+      const cq = this.state.currentQuestion;
+      if (cq?.questionId === questionId) this.set({ currentQuestion: { ...cq, answered: true } });
       this.emit({
         t: this.now(), type: "answer.linked", source: "agent", causedBy: [q.id, ...replies.map((r) => r.id)],
         payload: { questionId, utteranceIds: replies.map((r) => r.payload.utteranceId), quote, quoteSpan: { t: replies[0].t, tEnd: replies.at(-1)!.tEnd ?? replies.at(-1)!.t }, summary: out.summary, completeness: out.completeness, needsFollowUp: out.needsFollowUp },
@@ -636,8 +689,16 @@ export class CaptureHub {
       : decision === "hold" ? "mid-case pause; waiting for a save, case boundary or a longer pause"
       : `${kind}: ${Math.round(sinceKey / 100) / 10}s no typing, ${Math.round(sinceSpeech / 100) / 10}s no speech`;
     const pe = this.emit({ t, type: "pause.detected", source: "pause_detector", payload: { kind, durationMs: Math.min(sinceKey, sinceSpeech), signals: { msSinceKeystroke: sinceKey, msSinceSpeech: sinceSpeech, screenDiff: 0, expertSpeaking: false }, decision, reason } });
-    this.set({ lastPause: `${decision}: ${reason}` });
+    const info = describePause({ decision, kind, sinceKeyMs: sinceKey, sinceSpeechMs: sinceSpeech, staticMs: staticFor, longStaticMs: PAUSE.longStaticMs, field: this.lastField });
+    if (decision === "ask") this.lastAskWhy = info.reason;
+    this.set({ lastPause: `${decision}: ${reason}`, lastPauseInfo: info, questionBudgetLeft: this.budgetNow() });
     if (decision === "ask") void this.pickQuestion(pe.id);
+  }
+
+  /** Live questions left in the rolling 10-minute window. */
+  private budgetNow() {
+    const askedAt = this.events.filter((e) => e.type === "agent.question" && e.phase === "capture" && !e.payload.gapId).map((e) => e.t);
+    return budgetLeft(askedAt, this.now(), PAUSE.budgetPer10Min);
   }
 
   private async pickQuestion(pauseId: Id) {
@@ -661,8 +722,12 @@ export class CaptureHub {
         this.unasked = [];
         await this.askLive(out.question, out.category, about, pauseId, out.scores, out.rejected);
       } else if (out.deferInstead && out.question) {
-        this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason: inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority" } });
+        const reason = inWindow >= PAUSE.budgetPer10Min ? "budget" : "low_priority";
+        this.emit({ t: this.now(), type: "question.deferred", source: "question_picker", payload: { text: out.question, category: out.category, about: { actionIds: about }, reason } });
         this.unasked = [];
+        this.set({ lastPauseInfo: describeDeferral(reason), deferredQuestions: this.state.deferredQuestions + 1 });
+      } else {
+        this.set({ lastPauseInfo: QUIET_INFO });
       }
     } catch (err) {
       this.modelCall("question_pick", [pauseId], Math.round(performance.now() - t0), (err as Error).message);
@@ -673,8 +738,13 @@ export class CaptureHub {
 
   private async askLive(text: string, category: QuestionCategory, actionIds: Id[], pauseId: Id, scores: { infoGain: number; screenAlreadyAnswers: number; guardrailValue: number }, rejected: Array<{ text: string; category: QuestionCategory; reason: string }>) {
     const questionId = newId("q");
-    this.emit({ t: this.now(), type: "agent.question", source: "question_picker", causedBy: [pauseId], payload: { questionId, text, category, about: { actionIds, ...(this.lastFrameId ? { frameId: this.lastFrameId } : {}) }, triggerPauseId: pauseId, scores, rejectedCandidates: rejected } });
-    this.set({ liveQuestions: this.state.liveQuestions + 1 });
+    const qe = this.emit({ t: this.now(), type: "agent.question", source: "question_picker", causedBy: [pauseId], payload: { questionId, text, category, about: { actionIds, ...(this.lastFrameId ? { frameId: this.lastFrameId } : {}) }, triggerPauseId: pauseId, scores, rejectedCandidates: rejected } });
+    const aboutAction = this.events.find((e) => e.id === actionIds[0]);
+    const aboutScreen = aboutAction?.type === "screen.action" ? aboutAction.payload.description : undefined;
+    this.set({
+      liveQuestions: this.state.liveQuestions + 1, questionBudgetLeft: this.budgetNow(),
+      currentQuestion: { questionId, text, category, t: qe.t, ...(aboutScreen ? { aboutScreen } : {}), why: this.lastAskWhy || "You paused.", answered: false },
+    });
     this.pending = { questionId, endedAt: this.now(), replies: [] }; // answers may start before the agent has finished
     this.agentListen(true);
     await this.agentSay(text, "question", questionId);
@@ -712,7 +782,8 @@ export class CaptureHub {
   async ask(text: string, opts: { category?: QuestionCategory; gapId?: Id; actionIds?: Id[]; intent?: "question" | "follow_up" | "teachback" | "intervention"; timeoutMs?: number; control?: string } = {}): Promise<{ questionId: Id; replies: Utterance[] }> {
     const questionId = newId("q");
     if (opts.category) {
-      this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
+      const qe = this.emit({ t: this.now(), type: "agent.question", source: "question_picker", payload: { questionId, text, category: opts.category, about: { actionIds: opts.actionIds ?? [] }, ...(opts.gapId ? { gapId: opts.gapId } : {}), scores: { infoGain: 0, screenAlreadyAnswers: 0, guardrailValue: 0 }, rejectedCandidates: [] } });
+      this.set({ currentQuestion: { questionId, text, category: opts.category, t: qe.t, why: scriptedWhy(this.state.phase, !!opts.gapId), answered: false } });
     }
     // open the reply window BEFORE the agent speaks: answers can start while it's still finishing its turn
     const prev = this.replyWaiter; // a newer ask preempts an older one (e.g. an intervention interrupts a pending prediction)

@@ -241,7 +241,7 @@ try {
     if (TEACH_ONLY) log(`   training on preselected map ${picked}`);
     else check("Training preselects the new Work Map", picked === wm.workMapId, `${picked} vs ${wm.workMapId}`);
     await lena.evaluate(() => (window.open = () => null));
-    await click(lena, "Start teach session");
+    await click(lena, "Start practising with Ada");
     await sleep(3000);
     result.teachSessionId = await lena.evaluate(() => (window as any).__hub?.session.id);
     const erp = await browser.newPage();
@@ -255,7 +255,7 @@ try {
     await sleep(12_000);
     const banner = await erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? ""); // the extension overlay's coaching card
     const status = await erp.evaluate(() => [...document.querySelectorAll(".form input")].at(-1)?.getAttribute("value") ?? (document.querySelectorAll(".form input")[document.querySelectorAll(".form input").length - 1] as HTMLInputElement)?.value);
-    check("new hire's wrong save (opex on €7,200 equipment) is blocked by Sabine's map", /hold on|held/i.test(banner) && status !== "approved", `${banner} · status ${status}`);
+    check("new hire's wrong save (opex on €7,200 equipment) is blocked by Sabine's map", /hold on|held|blocked/i.test(banner) && status !== "approved", `${banner} · status ${status}`);
     const cards = await lena.$$eval(".intervention h3, .intervention p", (els) => els.map((e) => e.textContent ?? "").slice(0, 4));
     log("   tutor:", cards.join(" | ").slice(0, 300));
     await erp.screenshot({ path: "../docs/brag/golden-teach-blocked.png" }).catch(() => {});
@@ -270,8 +270,8 @@ try {
     await btn(erp, "Approve");
     await sleep(6000);
     const held = await card(), s1 = await statusNow();
-    check("new case INV-4494 (Brno services, never shown): Approve without a 2nd approver is held by the intercompany rule",
-      /held|hold on/i.test(held) && /intercompany|weber|second|2nd|brno/i.test(held) && s1 !== "approved", `${held} · status ${s1}`);
+    check("new case INV-4494 (Brno spare parts, never shown): Approve without a 2nd approver is held by the intercompany rule",
+      /held|hold on|blocked/i.test(held) && /intercompany|weber|second|2nd|brno/i.test(held) && s1 !== "approved", `${held} · status ${s1}`);
     await erp.screenshot({ path: "../docs/brag/golden-teach-new-case.png" }).catch(() => {});
     await erp.select("#approver", "M. Weber (Controlling)");
     await sleep(2000);

@@ -6,14 +6,17 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import type { CaseFacts, Claim, Decision, Event, Gap, Guardrail, Id, Quote as QuoteT, ScreenMoment, Step, WorkMap } from "@shared/schema";
-import { LogIndex } from "@shared/logindex";
+import { LogIndex, mediaClip } from "@shared/logindex";
 import { violations } from "@shared/conditions";
 import { PROV, agentInstructions, claimsByEvent, conditionText, flowModel, fmtClock, machineGuardrails, quoteParts, type FlowNode } from "./present";
+import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_BEFORE, useMediaUrl, type MediaSource } from "./Replay";
+import { languageName } from "@shared/i18n";
+import { useQuoteTranslation } from "../lib/translate";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
-type MediaSource = (sessionId: string, uri: string) => Promise<string | null>;
-const Sources = createContext<{ frame: FrameSource; media?: MediaSource }>({ frame: async () => null });
+export type { MediaSource } from "./Replay";
+const Sources = createContext<{ frame: FrameSource; media?: MediaSource; events: Event[] }>({ frame: async () => null, events: [] });
 
 type Sel = { kind: "step" | "decision" | "guardrail" | "mistake" | "offrecord"; id: Id } | null;
 type Tab = "map" | "rules" | "debrief" | "export";
@@ -29,7 +32,8 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
     // open on the strongest moment: a step whose quote shows the expert correcting herself, else any quoted step
     const selfCorrected = (st: Step) => { const q = stepQuote(wm, st); return !!q && stepCorrected(wm, st) && quoteParts(q, true).some((p) => p.style === "struck"); };
     const spoken = ordered.find(selfCorrected) ?? ordered.find((st) => !!stepQuote(wm, st));
-    const first = (spoken ?? ordered[0]) ? { kind: "step" as const, id: (spoken ?? ordered[0]).id } : null;
+    const linked = wm.guardrails.find((g) => `#${g.id}` === window.location.hash); // e.g. the mastery report's "See the rule"
+    const first = linked ? { kind: "guardrail" as const, id: linked.id } : (spoken ?? ordered[0]) ? { kind: "step" as const, id: (spoken ?? ordered[0]).id } : null;
     if (!sel) setSel(first);
     else if (sel.kind === "step" && !wm.steps.some((s) => s.id === sel.id)) setSel(first);
   }, [wm, sel, ordered]);
@@ -39,7 +43,7 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
   };
 
   return (
-    <Sources.Provider value={{ frame: frameSource, media: mediaSource }}>
+    <Sources.Provider value={{ frame: frameSource, media: mediaSource, events }}>
       <div className="wm">
         <header className="wm-titlebar">
           <div className="wm-title">
@@ -190,7 +194,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
             <h2>{s.title}</h2>
             {showDesc && <p className="lead">{s.instructions}</p>}
           </div>
-          {why && <Quote q={why} corrected={whyCorrected} who={firstName(wm)} />}
+          {why && <Quote q={why} corrected={whyCorrected} who={firstName(wm)} lang={wm.expert.language} />}
           <Frame m={s.screenMoment} caption={caseLabel(wm, ix, s.screenMoment)} />
           {decisions.map((d) => <DecisionBlock key={d.id} d={d} onOpen={() => onSelect({ kind: "decision", id: d.id })} />)}
           {extraRules.length > 0 && (
@@ -214,7 +218,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
           <Field label="Options">
             <ul className="opts">{d.options.map((o) => <li key={o.option}><span>{o.option}</span><span className="dim">{o.whenText ?? (o.when ? conditionText(o.when) : "otherwise")}</span></li>)}</ul>
           </Field>
-          <Quote q={d.reason} corrected={d.history.length > 0} who={firstName(wm)} />
+          <Quote q={d.reason} corrected={d.history.length > 0} who={firstName(wm)} lang={wm.expert.language} />
           <Confirmed c={d} wm={wm} history />
         </>
       );
@@ -229,7 +233,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
         <h2>{g.statement}</h2>
         {g.evidence.moments[0] && <Frame m={g.evidence.moments[0]} caption={caseLabel(wm, ix, g.evidence.moments[0])} />}
         <RuleFacts g={g} />
-        {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} who={firstName(wm)} />}
+        {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} who={firstName(wm)} lang={wm.expert.language} />}
         <Confirmed c={g} wm={wm} history />
       </>
     );
@@ -241,7 +245,7 @@ function Detail({ wm, ix, sel, onSelect }: { wm: WorkMap; ix: LogIndex; sel: Sel
         <h2>{m.description}</h2>
         <Frame m={m.moment} caption={caseLabel(wm, ix, m.moment)} />
         <Field label="Do instead">{m.correctBehavior}</Field>
-        <Quote q={m.quote} corrected={false} who={firstName(wm)} />
+        <Quote q={m.quote} corrected={false} who={firstName(wm)} lang={wm.expert.language} />
       </>
     );
   }
@@ -318,8 +322,15 @@ const caseLabel = (wm: WorkMap, ix: LogIndex, m: ScreenMoment) => {
 };
 
 export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
-  const { frame } = useContext(Sources);
+  const { frame, media, events } = useContext(Sources);
   const [full, setFull] = useState(false);
+  // replay the recorded screen around the moment (full-size frames only; cropped/zoomed thumbnails stay still)
+  const clip = useMemo(() => (media && !cropH ? mediaClip(events, "screen_video", m.t, m.t - SCREEN_BEFORE, m.t + SCREEN_AFTER, m.sessionId) : null), [media, cropH, events, m.t, m.sessionId]);
+  const clipUrl = useMediaUrl(media, m.sessionId, clip?.uri);
+  const [videoFailed, setVideoFailed] = useState(false);
+  const [playing, setPlaying] = useState(false);
+  useEffect(() => { setVideoFailed(false); setPlaying(false); }, [clipUrl, clip?.start]);
+  const video = clip && clipUrl && !videoFailed ? { clip, url: clipUrl } : null;
   const zoom = m.bbox && !full ? zoomIn : 1;
   const crop = full ? 0 : cropH;
   const [src, setSrc] = useState<string | null | undefined>(undefined);
@@ -335,7 +346,12 @@ export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: Sc
   return (
     <figure className="wframe">
       <div className={`frame-img ${crop ? "cropped" : ""} ${zoom !== 1 ? "zoomed" : ""}`} style={crop ? { height: crop } : undefined}>
-        {src ? (
+        {video ? (
+          <>
+            <ClipVideo url={video.url} clip={video.clip} poster={src ?? undefined} label={`Screen recording around ${fmtClock(m.t)}`} onFail={() => setVideoFailed(true)} onPlayingChange={setPlaying} />
+            {m.bbox && !playing && <div className="frame-box" style={{ left: `${m.bbox.x * 100}%`, top: `${m.bbox.y * 100}%`, width: `${m.bbox.w * 100}%`, height: `${m.bbox.h * 100}%` }} />}
+          </>
+        ) : src ? (
           // zoom gently toward the highlighted field so the step's context reads at a glance
           <div className="frame-zoom" style={frameStyle(m, zoom, crop)}>
             <img src={src} alt={`Screen at ${fmtClock(m.t)}`} />
@@ -343,7 +359,7 @@ export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: Sc
           </div>
         ) : <div className="frame-empty">{src === null ? "Screenshot unavailable" : ""}</div>}
       </div>
-      {caption && <figcaption><span>Screen at {caption}</span>{m.bbox && zoomIn !== 1 && <button className="link-quiet" onClick={() => setFull(!full)}>{full ? "Zoom to field" : "Full screen"}</button>}</figcaption>}
+      {caption && <figcaption><span>Screen at {caption}{video && <span className="dim"> · replay with sound</span>}</span>{m.bbox && zoomIn !== 1 && <button className="link-quiet" onClick={() => setFull(!full)}>{full ? "Zoom to field" : "Full screen"}</button>}</figcaption>}
     </figure>
   );
 }
@@ -364,13 +380,18 @@ function frameStyle(m: ScreenMoment, z: number, crop: number): React.CSSProperti
   };
 }
 
-export function Quote({ q, corrected, who }: { q: QuoteT; corrected: boolean; who?: string }) {
+export function Quote({ q, corrected, who, lang }: { q: QuoteT; corrected: boolean; who?: string; lang?: string }) {
   const parts = quoteParts(q, corrected);
+  const { media, events } = useContext(Sources);
+  const words = useMemo(() => (media ? mediaClip(events, "mic", q.t, q.t - WORDS_BEFORE, q.tEnd + WORDS_AFTER, q.sessionId) : null), [media, events, q.t, q.tEnd, q.sessionId]);
+  const wordsUrl = useMediaUrl(media, q.sessionId, words?.uri);
+  const meaning = useQuoteTranslation(q.text, lang);
   const when = q.phase === "capture" ? (q.questionId ? "answering a question" : "thinking aloud") : q.phase === "debrief" ? "debrief" : q.phase === "teachback" ? "teach-back" : q.phase;
   return (
     <blockquote className="quote">
       <p>“{parts.map((p, i) => <span key={i} className={p.style ? `q-${p.style}` : undefined}>{p.text}</span>)}”</p>
-      <footer>{who ? `${who}, ` : ""}{when} · {fmtClock(q.t)}</footer>
+      {meaning && <p className="q-meaning" lang="en">{languageName(lang)}, in English: “{meaning}”</p>}
+      <footer>{who ? `${who}, ` : ""}{when} · {fmtClock(q.t)}<PlayWords url={wordsUrl} clip={words} who={who} /></footer>
     </blockquote>
   );
 }
@@ -444,7 +465,7 @@ function RulesTab({ wm, onSelect }: { wm: WorkMap; onSelect: (s: Sel) => void })
                 {open === g.id && (
                   <div className="list-body">
                     <RuleFacts g={g} />
-                    {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} />}
+                    {g.evidence.quotes[0] && <Quote q={g.evidence.quotes[0]} corrected={g.history.length > 0} lang={wm.expert.language} />}
                     <button className="link" onClick={() => onSelect({ kind: "guardrail", id: g.id })}>Show in Work Map →</button>
                   </div>
                 )}

@@ -12,6 +12,9 @@ import { WorkdayRecorder, WORKDAY } from "./workday";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { DebriefPanel } from "../map/DebriefPanel";
 import { EventFeed } from "../components/ui";
+import { AdaPanel } from "./AdaPanel";
+import { PAUSE } from "./hub";
+import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
@@ -158,15 +161,9 @@ export default function DayPage() {
     <div className="page split">
       <section>
         <h1>{user.short}'s day <span className="muted small">{day.date}</span></h1>
-        <div className="status-row">
-          <span className={`pill ${ended ? "" : "ok"}`}>{ended ? "day ended" : s.offRecord ? "off the record" : "recording"}</span>
-          {s.offRecord && <span className="pill danger">OFF THE RECORD</span>}
-          <span className="pill">voice: {s.voice}{s.voiceStatus ? ` (${s.voiceStatus})` : ""}</span>
-          <span className="pill">stt: {s.stt}</span>
-          <span className={`pill ${s.extension ? "ok" : ""}`}>extension: {s.extension ? "connected" : "not detected"}</span>
-          <span className="pill">frames: {s.frameSource}</span>
-          {s.agentSpeaking && <span className="pill ok">Ada speaking</span>}
-        </div>
+        <SessionStatus s={s} ended={ended}><p className="muted small mono">{rec.hub.session.id}</p></SessionStatus>
+
+        {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
 
         {!ended && cur && (
           <div className="card current-task">
@@ -178,7 +175,6 @@ export default function DayPage() {
               <button onClick={() => window.open(user.app.url + (user.app.url.includes("?") ? "&" : "?") + "mode=capture", "work")}>Open {user.app.name}</button>
               <button disabled={s.sharing} onClick={() => void rec.hub.shareScreen().catch((e) => setErr((e as Error).message))} title="Optional when the extension is installed">Share screen{s.extension ? " (optional)" : ""}</button>
               <button onClick={() => void rec.newTask()} title="Tell Ada you're starting something different">New task</button>
-              <button onClick={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")}>{s.offRecord ? "Back on the record" : "Off the record"}</button>
               <button onClick={() => rec.hub.onMarker("bookmark", "button")}>Bookmark</button>
               <button className="primary" onClick={() => void rec.endDay()}>End my day</button>
             </div>
@@ -186,6 +182,24 @@ export default function DayPage() {
           </div>
         )}
 
+        {debrief && (
+          <div className="card">
+            <h3>Debrief: {tasks.find((t) => t.sessionId === rec.hub.session.id)?.title ?? ""}</h3>
+            <DebriefPanel s={debrief} sessionId={rec.hub.session.id} />
+          </div>
+        )}
+
+        <div className="card">
+          <label className="wide">Type instead of speaking (fallback)
+            <div className="row">
+              <input value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (rec.hub.typeUtterance(typed), setTyped(""))} />
+              <button onClick={() => typed && (rec.hub.typeUtterance(typed), setTyped(""))}>Send</button>
+            </div>
+          </label>
+        </div>
+        {(err || s.error) && <p className="error">{err ?? s.error}</p>}
+      </section>
+      <section>
         <ExpertQuestions user={user} hub={rec.hub} />
 
         <div className="card">
@@ -209,27 +223,10 @@ export default function DayPage() {
           {ended && <p className="next-step"><b>Next: press “Debrief now” on each task.</b> That builds its Work Map: Ada asks what she couldn't work out, then explains the task back to you. Until then the Work Map is only an empty draft.</p>}
         </div>
 
-        {debrief && (
-          <div className="card">
-            <h3>Debrief: {tasks.find((t) => t.sessionId === rec.hub.session.id)?.title ?? ""}</h3>
-            <DebriefPanel s={debrief} sessionId={rec.hub.session.id} />
-          </div>
-        )}
-
-        <div className="card">
-          <label className="wide">Type instead of speaking (fallback)
-            <div className="row">
-              <input value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => e.key === "Enter" && typed && (rec.hub.typeUtterance(typed), setTyped(""))} />
-              <button onClick={() => typed && (rec.hub.typeUtterance(typed), setTyped(""))}>Send</button>
-            </div>
-          </label>
-          <p className="muted small">Last pause decision: {s.lastPause || "-"}</p>
-        </div>
-        {(err || s.error) && <p className="error">{err ?? s.error}</p>}
-      </section>
-      <section>
-        <h3>Live log · task {rec.hub.session.taskIndex !== undefined ? rec.hub.session.taskIndex + 1 : ""}</h3>
-        <EventFeed events={events} />
+        <details className="devlog">
+          <summary>Developer log · task {rec.hub.session.taskIndex !== undefined ? rec.hub.session.taskIndex + 1 : ""}</summary>
+          <EventFeed events={events} />
+        </details>
       </section>
     </div>
   );

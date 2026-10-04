@@ -40,7 +40,7 @@ try {
   // 4. tutor blocks a wrong save in MiniERP (deterministic guardrail check)
   await as(p, "u_lena", "/learn", 4000);
   await p.evaluate(() => (window.open = () => null));
-  await p.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Start teach session"))?.click());
+  await p.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent?.includes("Start practising with Ada"))?.click());
   await sleep(3000);
   created.push(await p.evaluate(() => (window as any).__hub?.session.id));
   const erp = await browser.newPage();

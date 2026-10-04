@@ -1,4 +1,4 @@
-// Mirrors scripts/eval_guardrails.py: Teach's T1–T4 against the fixture's expected Work Map.
+// Mirrors scripts/eval_guardrails.py: Teach's T1–T5 against the fixture's expected Work Map.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
@@ -22,6 +22,8 @@ const cases: Array<[string, CaseFacts, string[]]> = [
   ["T2b Brno correct", { invoice: inv({ amount: 9800, category: "equipment", costCenter: "0400", assetNo: "AN-1", status: "awaiting_approval", approver: "M. Weber (Controlling)" }), supplier: sup("Brno Precision s.r.o.", "Intercompany CZ") }, []],
   ["T3a Hofmann dup approved", { invoice: inv({ amount: 1240, status: "approved", duplicateDeliveryNote: true }), supplier: sup("Hofmann Industriebedarf") }, ["gr_december_hold"]],
   ["T3b Hofmann dup on hold", { invoice: inv({ amount: 1240, status: "on_hold", duplicateDeliveryNote: true }), supplier: sup("Hofmann Industriebedarf") }, []],
+  ["T5a Brno spare parts approved, no second approver", { invoice: inv({ key: "4494", amount: 2400, category: "spare_parts", status: "approved" }), supplier: sup("Brno Precision s.r.o.", "Intercompany CZ") }, ["gr_intercompany_approval"]],
+  ["T5b Brno spare parts sent to Weber", { invoice: inv({ key: "4494", amount: 2400, category: "spare_parts", status: "awaiting_approval", approver: "M. Weber (Controlling)" }), supplier: sup("Brno Precision s.r.o.", "Intercompany CZ") }, []],
   ["T4 Würth consumables", { invoice: inv({ amount: 312.4, status: "coded" }), supplier: sup("Würth") }, []],
 ];
 

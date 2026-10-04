@@ -34,7 +34,11 @@ export type BridgeBody =
   | { kind: "frame"; dataUrl: string; at: number; url: string; pii?: Array<{ x: number; y: number; w: number; h: number }> }
   /** Overlay content on the work tab. */
   | { kind: "tutorSay"; text: string }
-  | { kind: "tutorCard"; tone: "block" | "nudge" | "info" | "predict"; title: string; text: string; quote?: { text: string; who: string; when: string }; imageUrl?: string; bbox?: { x: number; y: number; w: number; h: number } }
+  | { kind: "tutorCard"; tone: "block" | "nudge" | "info" | "predict"; title: string; text: string; quote?: { text: string; who: string; when: string; translation?: string }; imageUrl?: string; bbox?: { x: number; y: number; w: number; h: number };
+      /** Visible severity text ("Blocked before save" / "Heads-up"), not colour alone. */
+      label?: string;
+      /** Where the rule comes from, e.g. "Sabine never worked this invoice. Rule learned from INV-4471 at 00:28." */
+      provenance?: string }
   | { kind: "agentState"; speaking: boolean; listening: boolean; caption?: string };
 
 export type BridgeMsg = BridgeBody & { id: string };

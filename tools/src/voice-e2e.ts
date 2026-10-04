@@ -71,9 +71,8 @@ try {
   hub.on("response", async (r) => r.status() >= 400 && console.log("  [http]", r.status(), r.url().slice(0, 120), (await r.text().catch(() => "")).slice(0, 200)));
   await hub.goto(`${HUB}/capture`, { waitUntil: "networkidle2" });
   await hub.evaluate(() => (window.open = () => null));
-  await click(hub, "Start session");
+  await click(hub, "Start recording with Ada");
   await sleep(2500);
-  await click(hub, "Start listening");
   for (let i = 0; i < 12; i++) {
     await sleep(1500);
     const st = await hub.evaluate(() => { const h = (window as any).__hub; return h ? `${h.state.voiceStatus} voice=${h.state.voice} stt=${h.state.stt} err=${h.state.error}` : "no hub"; });
@@ -114,7 +113,7 @@ try {
   await sleep(1500);
   await click(hub, "Close session");
   await sleep(3000);
-  console.log("session:", await hub.$eval("h1 .mono", (e) => e.textContent ?? ""));
+  console.log("session:", await hub.evaluate(() => (window as any).__hub?.session.id));
 } finally {
   await browser.close();
 }

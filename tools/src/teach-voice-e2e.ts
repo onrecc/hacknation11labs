@@ -74,9 +74,8 @@ try {
   await hub.goto(`${HUB}/learn`, { waitUntil: "networkidle2" });
   await hub.waitForFunction(() => (document.querySelector("select") as HTMLSelectElement | null)?.value, { timeout: 20_000 });
   await hub.evaluate(() => (window.open = () => null));
-  await click(hub, "Start teach session");
+  await click(hub, "Start practising with Ada");
   await sleep(2500);
-  await click(hub, "Start Ada");
   for (let i = 0; i < 12; i++) {
     await sleep(1500);
     const st = await hub.evaluate(() => (window as any).__hub?.state.voice);
@@ -95,7 +94,7 @@ try {
   await erp.evaluate(() => [...document.querySelectorAll("button")].find((b) => b.textContent === "Approve")?.click());
   await sleep(3000);
   const banner = await erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? "");
-  check("save held before it happened (extension overlay)", /hold on|held/i.test(banner), banner);
+  check("save held before it happened (extension overlay)", /hold on|held|blocked/i.test(banner), banner);
 
   let rows: string[] = [];
   if (process.env.TRACE) for (let i = 0; i < 16; i++) {
@@ -111,11 +110,11 @@ try {
   console.log(turns.map((t) => "   " + t.slice(0, 220)).join("\n"));
   check("tutor asked Socratically", turns.some((t) => /why/i.test(t) && /stop/i.test(t)));
   check("new hire's spoken answer transcribed by Scribe", rows.some((r) => r.includes("utterance newhire")), rows.find((r) => r.includes("utterance newhire"))?.slice(0, 160));
-  check("tutor explained in the expert's words", turns.some((t) => /sabine/i.test(t) && /capex|five thousand|5,000/i.test(t) && !/stop here/i.test(t)));
+  check("tutor explained in the expert's words", turns.some((t) => /sabine|\[PERSON\]/i.test(t) && /capex|five thousand|5,000/i.test(t) && !/stop here/i.test(t)));
   check("intervention logged", rows.some((r) => r.includes("tutor.intervention")));
   await click(hub, "Finish");
   await sleep(4000);
-  console.log("session:", await hub.$eval("h1 .mono", (e) => e.textContent ?? ""));
+  console.log("session:", await hub.evaluate(() => (window as any).__hub?.session.id));
 } finally {
   await browser.close();
 }

@@ -12,7 +12,7 @@
 import type {
   Claim, Condition, Decision, Event, Gap, Guardrail, Id, KnowledgeCorrection, Provenance, Quote, ScreenMoment, Session, Step, WorkMap,
 } from "./schema";
-import type { ExtractionProposal } from "./llm";
+import type { ExtractionProposal, LlmOutput } from "./llm";
 import { FACT_PATHS } from "./llm";
 import { LogIndex, fmtT } from "./logindex";
 import { newId } from "./ids";
@@ -237,19 +237,9 @@ export function assemble(draft: WorkMap, proposal: ExtractionProposal, ix: LogIn
     return q;
   };
   const parseCondition = (json: string, where: string): Condition | undefined => {
-    if (!json || !json.trim()) return undefined;
-    try {
-      const c = JSON.parse(json) as Condition;
-      const bad = conditionFields(c).filter((f) => !(FACT_PATHS as readonly string[]).includes(f));
-      if (bad.length) {
-        problems.push({ where, problem: `condition uses unknown fields ${bad.join(", ")}` });
-        return undefined;
-      }
-      return c;
-    } catch {
-      problems.push({ where, problem: "condition is not valid JSON" });
-      return undefined;
-    }
+    const r = checkCondition(json);
+    if (r.problem) problems.push({ where, problem: r.problem });
+    return r.condition;
   };
 
   // correction → claim ids (LLM mapping ∪ explicit workMapRefs ∪ evidence overlap), mistakes excluded
@@ -274,8 +264,9 @@ export function assemble(draft: WorkMap, proposal: ExtractionProposal, ix: LogIn
         c.payload.targets.actionIds?.some((a) => actionIds.includes(a)))
       .map((c) => ({ before: c.payload.before ?? "", after: c.payload.after ?? "", correctionEventId: c.id, at: c.t, phase: c.phase }));
 
-  // teach-back confirmation carries over from the previous version (segments → step ids)
-  const confirmedSteps = new Set<Id>((prev?.teachBack.segments ?? []).filter((s) => s.verdict === "confirmed" || s.verdict === "corrected").flatMap((s) => s.stepIds));
+  // teach-back confirmation carries over from the previous version (segments → step ids); a part that was corrected
+  // but never re-confirmed doesn't count
+  const confirmedSteps = new Set<Id>((prev?.teachBack.segments ?? []).filter((s) => s.verdict === "confirmed").flatMap((s) => s.stepIds));
   const wholeMapConfirmed = prev?.teachBack.status === "confirmed";
 
   const claim = (id: Id, moments: ScreenMoment[], quotes: Quote[], actionIds: Id[], stepIds: Id[]): Claim => {
@@ -484,6 +475,123 @@ export function proposalFromWorkMap(wm: WorkMap, corrections: KnowledgeCorrectio
     glossary: wm.glossary.map((g) => ({ term: g.term, meaning: g.meaning })),
     mistakes: wm.commonMistakes.map((m) => ({ correctionEventId: m.correctionEventId, description: m.description, correctBehavior: m.correctBehavior, relatedKeys: m.relatedIds })),
     correctionTargets: corrections.filter((c) => !mistakeIds.has(c.id) && corrTargets.has(c.id)).map((c) => ({ correctionEventId: c.id, keys: [...corrTargets.get(c.id)!] })),
+  };
+}
+
+/** Parse an LLM condition; only FACT_PATHS fields pass ("" = no condition). */
+function checkCondition(json: string): { condition?: Condition; problem?: string } {
+  if (!json || !json.trim()) return {};
+  try {
+    const c = JSON.parse(json) as Condition;
+    const bad = conditionFields(c).filter((f) => !(FACT_PATHS as readonly string[]).includes(f));
+    return bad.length ? { problem: `condition uses unknown fields ${bad.join(", ")}` } : { condition: c };
+  } catch {
+    return { problem: "condition is not valid JSON" };
+  }
+}
+
+// ───────────────────────── teach-back patches (LLM rewrite → verified claim text) ─────────────────────────
+
+export type ClaimKind = "step" | "decision" | "guardrail";
+type AnyClaim = Step | Decision | Guardrail;
+
+/** Fields a teach-back correction may rewrite, per claim kind; evidence, ids and links stay as extracted. */
+export const PATCHABLE: Readonly<Record<ClaimKind, readonly string[]>> = {
+  step: ["title", "goal", "instructions", "whenText", "whenJson"],
+  decision: ["question", "observedChoice", "reasonSummary"],
+  guardrail: ["statement", "requiredAction", "scope", "escalateToRole", "escalateToName", "conditionJson"],
+};
+
+export interface ClaimChange {
+  ref: { kind: ClaimKind; id: Id };
+  before: string;
+  after: string;
+}
+
+const findClaim = (wm: WorkMap, id: Id): { kind: ClaimKind; claim: AnyClaim } | null => {
+  const s = wm.steps.find((x) => x.id === id);
+  if (s) return { kind: "step", claim: s };
+  const d = wm.decisions.find((x) => x.id === id);
+  if (d) return { kind: "decision", claim: d };
+  const g = wm.guardrails.find((x) => x.id === id);
+  return g ? { kind: "guardrail", claim: g } : null;
+};
+
+function readField(c: AnyClaim, field: string): string {
+  if (field === "whenJson") return "when" in c && c.when ? JSON.stringify(c.when) : "";
+  if (field === "conditionJson") return "condition" in c && c.condition ? JSON.stringify(c.condition) : "";
+  if (field === "escalateToRole") return ("escalateTo" in c && c.escalateTo?.role) || "";
+  if (field === "escalateToName") return ("escalateTo" in c && c.escalateTo?.name) || "";
+  const v = (c as unknown as Record<string, unknown>)[field];
+  return typeof v === "string" ? v : "";
+}
+
+function writeField<C extends AnyClaim>(c: C, field: string, value: string, condition?: Condition): C {
+  if (field === "whenJson") return { ...c, when: condition };
+  if (field === "conditionJson") return { ...c, condition };
+  if (field === "escalateToRole" || field === "escalateToName") {
+    const e = "escalateTo" in c ? c.escalateTo : undefined;
+    const role = field === "escalateToRole" ? value : e?.role ?? "";
+    const name = field === "escalateToName" ? value : e?.name;
+    return { ...c, escalateTo: { role, ...(name ? { name } : {}) } };
+  }
+  return { ...c, [field]: value };
+}
+
+/** Current patchable fields of the given claims (the patch_claim input). */
+export function claimFields(wm: WorkMap, ids: Id[]): Array<{ kind: ClaimKind; id: Id; fields: Array<{ field: string; value: string }> }> {
+  return ids.flatMap((id) => {
+    const f = findClaim(wm, id);
+    return f ? [{ kind: f.kind, id, fields: PATCHABLE[f.kind].map((field) => ({ field, value: readField(f.claim, field) })) }] : [];
+  });
+}
+
+/**
+ * Apply an LLM rewrite of claims after a teach-back correction, verified like an extraction: at least one quote
+ * verbatim in the expert's words (else nothing changes), only claims of the corrected part, only PATCHABLE fields,
+ * conditions on FACT_PATHS only. Returns a new Work Map (not a new version) and what changed, for the correction
+ * events that put the old text into each claim's history.
+ */
+export function applyClaimPatch(wm: WorkMap, out: LlmOutput<"patch_claim">, ix: LogIndex, allowedIds: Id[]): { workmap: WorkMap; changes: ClaimChange[]; quote: Quote | null; problems: AssembleProblem[] } {
+  const problems: AssembleProblem[] = [];
+  const where = "patch_claim";
+  const quote = out.quotes
+    .map((q) => (ix.utterances.get(q.utteranceId)?.payload.speaker === "expert" ? verbatimQuote(ix, [q.utteranceId], q.quote) : null))
+    .find((q): q is Quote => !!q) ?? null;
+  if (!quote) {
+    problems.push({ where, problem: "dropped: no verbatim quote in the expert's reply" });
+    return { workmap: wm, changes: [], quote: null, problems };
+  }
+  const patched = new Map<Id, { kind: ClaimKind; claim: AnyClaim; before: string[]; after: string[] }>();
+  for (const p of out.patches) {
+    const value = p.value.trim();
+    const f = findClaim(wm, p.id);
+    if (!allowedIds.includes(p.id) || !f) {
+      problems.push({ where, problem: `${p.id} is not a claim of the corrected part` });
+      continue;
+    }
+    if (!PATCHABLE[f.kind].includes(p.field)) {
+      problems.push({ where: `${f.kind} ${p.id}`, problem: `field ${p.field} can't be patched` });
+      continue;
+    }
+    if (!value) continue;
+    const cond = p.field === "conditionJson" || p.field === "whenJson" ? checkCondition(value) : {};
+    if (cond.problem) {
+      problems.push({ where: `${f.kind} ${p.id}`, problem: cond.problem });
+      continue;
+    }
+    const cur = patched.get(p.id) ?? { kind: f.kind, claim: f.claim, before: [], after: [] };
+    const old = readField(cur.claim, p.field);
+    if (old === value) continue;
+    patched.set(p.id, { ...cur, claim: writeField(cur.claim, p.field, value, cond.condition), before: [...cur.before, `${p.field}: ${old}`], after: [...cur.after, `${p.field}: ${value}`] });
+  }
+  const pick = <C extends AnyClaim>(c: C): C => (patched.get(c.id)?.claim as C | undefined) ?? c;
+  const label = (xs: string[]) => (xs.length === 1 ? xs[0].replace(/^\w+: /, "") : xs.join(" · "));
+  return {
+    workmap: { ...wm, steps: wm.steps.map(pick), decisions: wm.decisions.map(pick), guardrails: wm.guardrails.map(pick) },
+    changes: [...patched.entries()].map(([id, p]) => ({ ref: { kind: p.kind, id }, before: label(p.before), after: label(p.after) })),
+    quote,
+    problems,
   };
 }
 

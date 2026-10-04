@@ -30,10 +30,8 @@ export const SEED: Invoice[] = [
   { ...base, set: "teach", key: "4490", supplier: "Gerätebau Schmidt KG", group: "External", date: "2026-12-02", amount: 7200, desc: "Hydraulic press tooling", category: "equipment", dn: "DN-GS-0042", iban: "DE75 5121 0800 1245 1261 99" },
   { ...base, set: "teach", key: "4491", supplier: "Brno Precision s.r.o.", group: "Intercompany CZ", date: "2026-12-01", amount: 9800, desc: "Gearbox test bench", category: "equipment", dn: "DN-CZ-5561", iban: "CZ65 0800 0000 1920 0014 5399" },
   { ...base, set: "teach", key: "4492", supplier: "Hofmann Industriebedarf", group: "External", date: "2026-12-03", amount: 1240, desc: "Lubricants & filters, monthly delivery", category: "consumables", dn: "DN-88213", iban: "DE44 5001 0517 5407 3249 31" },
+  { ...base, set: "teach", key: "4494", supplier: "Brno Precision s.r.o.", group: "Intercompany CZ", date: "2026-12-04", amount: 2400, desc: "Bearing kits, gearbox line", category: "spare_parts", dn: "DN-CZ-5577", iban: "CZ65 0800 0000 1920 0014 5399" },
   { ...base, set: "teach", key: "4493", supplier: "Würth", group: "External", date: "2026-12-03", amount: 312.4, desc: "Screws, fasteners", category: "consumables", dn: "DN-W-9944", iban: "DE02 6005 0101 0002 0343 41" },
-  // T5, the truly new case: never shown in the recording (services, small amount, not capex, not a duplicate).
-  // Only the intercompany rule applies: the Czech subsidiary needs the controller as 2nd approver, whatever the amount.
-  { ...base, set: "teach", key: "4494", supplier: "Brno Precision s.r.o.", group: "Intercompany CZ", date: "2026-12-04", amount: 1450, desc: "Shared services recharge Q4 (IT support)", category: "services", dn: "DN-CZ-5602", iban: "CZ65 0800 0000 1920 0014 5399" },
 ];
 
 /** Already paid invoices (supplier history search). */

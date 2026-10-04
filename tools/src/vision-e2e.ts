@@ -27,7 +27,7 @@ try {
   await hub.evaluate(() => localStorage.setItem("apprentice.user", "u_sabine"));
   await hub.goto(`${HUB}/capture`, { waitUntil: "networkidle2" });
   await hub.evaluate(() => (window.open = () => null));
-  await clickButton(hub, "Start session"); // vision is on by default
+  await clickButton(hub, "Start recording with Ada"); // vision is on by default
   await sleep(3000);
   console.log(`capture session: ${await hub.evaluate(() => (window as any).__hub?.session.id)}`);
 
@@ -41,13 +41,16 @@ try {
     (document.getElementById("approver") as HTMLSelectElement).selectedIndex = 1; // M. Weber (Controlling), no change event
     (document.getElementById("gl") as HTMLSelectElement).value = "0400"; // capex, no change event
   });
+  // wait for the change we made (GL account / approver / status), not just any vision action
+  const ours = /gl|approver|status|0400|weber|approved/i;
   let actions: Array<{ source: string; agreement: string; description: string }> = [];
-  for (let i = 0; i < 30 && !actions.length; i++) {
+  for (let i = 0; i < 45 && !actions.some((a) => ours.test(a.description)); i++) {
     await sleep(1000);
     actions = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "screen.action" && e.source === "vision")
       .map((e: any) => ({ source: e.source, agreement: e.payload.sourceAgreement, description: e.payload.description })));
   }
-  check("vision turned an unreported change into screen.action (source vision)", actions.length > 0, actions.map((a) => a.description).join(" | ").slice(0, 300));
+  check("vision turned the unreported change into screen.action (source vision)", actions.some((a) => ours.test(a.description)), actions.map((a) => a.description).join(" | ").slice(0, 300));
+  check("no noise actions from blurred/empty fields", !actions.some((a) => /blur|mask|""\s*(on|$)/i.test(a.description)), actions.map((a) => a.description).join(" | ").slice(0, 300));
   check("marked vision_only", actions.every((a) => a.agreement === "vision_only"));
   const state = await hub.evaluate(() => {
     const h = (window as any).__hub;

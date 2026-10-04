@@ -134,12 +134,16 @@ body:has(.wm) .nav { background: #ffffff; border-bottom: 1px solid #eaeaea; }
 .frame-img img { display: block; width: 100%; height: 100%; object-fit: fill; }
 .frame-empty { width: 100%; height: 100%; display: grid; place-items: center; color: var(--w-muted); font-size: 13px; aspect-ratio: 16 / 9; }
 .frame-box { position: absolute; border: 2px solid var(--w-blue); border-radius: 3px; box-shadow: 0 0 0 4px color-mix(in srgb, var(--w-blue) 20%, transparent); }
+.frame-video { display: block; width: 100%; height: 100%; object-fit: fill; background: var(--w-subtle); }
+.frame-video ~ .frame-box { pointer-events: none; }
+.wm .quote .play-words { display: inline-flex; align-items: center; gap: 4px; margin-left: 10px; }
 .wm .wframe figcaption { margin-top: 8px; font-size: 12px; color: var(--w-muted); font-variant-numeric: tabular-nums; }
 
 /* quote */
 .wm .quote { margin: 0; padding: 2px 0 2px 14px; border-left: 2px solid var(--w-border-strong); background: none; border-radius: 0; }
 .wm .quote p { margin: 0; font-size: 15px; line-height: 1.55; }
 .wm .quote footer { margin-top: 4px; font-size: 12px; color: var(--w-muted); }
+.wm .quote p.q-meaning { margin-top: 4px; font-size: 13px; font-style: italic; color: var(--w-muted); }
 .q-struck { text-decoration: line-through; text-decoration-color: var(--w-red); color: var(--w-muted); }
 .q-marker { color: var(--w-muted); }
 .q-fix { font-weight: 600; }

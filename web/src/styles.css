@@ -89,6 +89,13 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); background: color-mix(in srgb, var(--ok) 8%, transparent); }
 .pill.danger { background: color-mix(in srgb, var(--danger) 12%, transparent); color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
 .pill.capture { color: var(--accent-2); }
+.pill.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); background: color-mix(in srgb, var(--warn) 10%, transparent); }
+/* mastery report (TeachPage) */
+.mastery-list { list-style: none; padding: 0; margin: 0 0 16px; display: grid; gap: 10px; }
+.mastery-list li { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: baseline; }
+.mastery-list li .actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.mastery-score { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
+.mastery-score b { color: var(--text); }
 .muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: "Geist Mono", ui-monospace, Menlo, monospace; font-size: 12px; } .error { color: var(--danger); }
 .feed { max-height: 70vh; overflow: auto; font-size: 13px; background: var(--subtle); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; }
 .feed-row { padding: 4px 0; border-bottom: 1px solid var(--line); }
@@ -150,6 +157,29 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .tasks li:last-child { border-bottom: none; }
 .tasks li.active b::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--ok); vertical-align: 1px; }
 .dayrow ul { margin: 4px 0 10px; }
+
+/* ── Ada panel (the conversation) ── */
+.ada { border-color: var(--line-strong); }
+.ada.off { border-color: color-mix(in srgb, var(--danger) 50%, transparent); }
+.ada-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+.ada-state { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 500; color: var(--muted); }
+.ada-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--faint); }
+.ada-state.listening i { background: var(--ok); }
+.ada-state.ada_speaking i, .ada-state.you_speaking i { background: var(--text); }
+.ada-state.ada_speaking, .ada-state.you_speaking { color: var(--text); }
+.ada-state.off_record { color: var(--danger); } .ada-state.off_record i { background: var(--danger); }
+.ada-meta { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.ada-q { font-size: 20px; line-height: 1.35; font-weight: 600; letter-spacing: -0.01em; margin: 0 0 10px; }
+.ada-why { margin: 0 0 6px; }
+.ada-pause { margin: 12px 0 0; padding-top: 12px; border-top: 1px solid var(--line); color: var(--muted); }
+.ada-stats { margin: 8px 0 0; }
+.session-status { margin: 0 0 16px; }
+.status-line { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; font-size: 13px; font-weight: 500; }
+.status-line i { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); flex: none; }
+.status-line.off { color: var(--danger); } .status-line.off i { background: var(--danger); }
+.status-line.idle { color: var(--muted); } .status-line.idle i { background: var(--faint); }
+details.devlog > summary, details.diagnostics > summary { cursor: pointer; font-size: 13px; font-weight: 500; color: var(--muted); padding: 4px 0; }
+details.devlog[open] > summary, details.diagnostics[open] > summary { color: var(--text); margin-bottom: 8px; }
 
 /* ── nav status ── */
 .health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }

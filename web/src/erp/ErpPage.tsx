@@ -71,11 +71,20 @@ export default function ErpPage() {
     };
   }, []);
 
+  // ?case=4490 (Teach's "Practice next"): that teach invoice back to its seed state, opened
+  useEffect(() => {
+    const key = new URLSearchParams(location.search).get("case");
+    const seed = SEED.find((r) => r.key === key && r.set !== "demo");
+    if (!seed) return;
+    setRows((rs) => rs.map((r) => (r.key === seed.key ? seed : r)));
+    openInvoice(seed.key, seed);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const caseRef = (i: Invoice) => ({ id: `case_${i.key}`, kind: "invoice", key: i.key, label: i.supplier });
   const entity = (i: Invoice) => ({ kind: "invoice", key: i.key });
 
-  function openInvoice(key: string) {
-    const i = rows.find((r) => r.key === key)!;
+  function openInvoice(key: string, fresh?: Invoice) {
+    const i = fresh ?? rows.find((r) => r.key === key)!;
     setOpen(key);
     setView("invoice");
     setBanner(null);

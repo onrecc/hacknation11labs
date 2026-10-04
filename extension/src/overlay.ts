@@ -80,9 +80,13 @@ const CSS = `
 .card.min > :not(.head) { display: none; }
 .quote { padding: 10px 12px; border-radius: 10px; background: #1b1b1b; }
 .quote span { display: block; color: #9a9a9a; font-size: 12px; margin-top: 4px; }
+.quote .meaning { margin-top: 6px; color: #b5b5b5; font-size: 12px; font-style: italic; }
 .frame { position: relative; border-radius: 8px; overflow: hidden; border: 1px solid #2a2a2a; } .frame img { display: block; width: 100%; }
 .bbox { position: absolute; border: 2px solid #ef4444; border-radius: 4px; box-shadow: 0 0 0 2px rgba(239,68,68,.25); }
 .label { font-size: 12px; color: #9a9a9a; margin-bottom: -6px; }
+.sev { display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #52a8ff; margin-bottom: 2px; }
+.card.block .sev { color: #ff8589; } .card.nudge .sev { color: #ffc34d; }
+.prov { font-size: 12px; color: #9a9a9a; border-left: 2px solid #2a2a2a; padding-left: 8px; }
 @media (prefers-reduced-motion: reduce) { .dot, .wave i { animation: none; } .pill, .grip { transition: none; } }
 `;
 
@@ -198,10 +202,18 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
 
   const showCard = (c: Extract<BridgeBody, { kind: "tutorCard" }>) => {
     const el = h("div", { class: `card ${c.tone}` });
-    const head = h("div", { class: "head" }, h("span", { class: "tone" }), h("h4", {}, c.title));
+    const title = h("h4", {}, c.title);
+    if (c.label) title.prepend(h("span", { class: "sev" }, c.label));
+    const head = h("div", { class: "head" }, h("span", { class: "tone" }), title);
     head.append(iconBtn(MINUS, "Minimize", () => el.classList.toggle("min")), iconBtn(CLOSE, "Dismiss", () => el.remove()));
+    if (c.tone === "block") el.setAttribute("role", "alert");
     el.append(head, h("p", {}, c.text));
-    if (c.quote) el.append(h("div", { class: "quote" }, `“${c.quote.text}”`, h("span", {}, `${c.quote.who} · ${c.quote.when}`)));
+    if (c.provenance) el.append(h("p", { class: "prov" }, c.provenance));
+    if (c.quote) {
+      const q = h("div", { class: "quote" }, `“${c.quote.text}”`, h("span", {}, `${c.quote.who} · ${c.quote.when}`));
+      if (c.quote.translation) q.append(h("div", { class: "meaning" }, `In English: “${c.quote.translation}”`));
+      el.append(q);
+    }
     const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
     if (src) {
       const frame = h("div", { class: "frame" }, h("img", { src }));

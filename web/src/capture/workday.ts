@@ -19,6 +19,7 @@ import { llm } from "../lib/api";
 import type { BridgeMsg } from "../lib/bridge";
 import { personOf, type User } from "../lib/users";
 import { CaptureHub, PAUSE } from "./hub";
+import { REDACTION_CONFIG } from "./redaction";
 import agents from "../lib/elevenlabs.json";
 
 export const WORKDAY = { idleMs: 3 * 60_000, interruptionMs: 45_000, labelEveryActions: 6, labelEveryMs: 90_000, newWorkConfidence: 0.7 };
@@ -142,7 +143,7 @@ export class WorkdayRecorder {
       consent: { recordingAccepted: true, acceptedAt: this.workday.startedAt, retention: "hackathon demo" },
       config: {
         frameIntervalMs: 1000, visionModel: this.opts.vision ? "api:vision (changes only)" : "off", agentId: agents.interviewerAgentId, agentLlm: agents.llm,
-        sttModel: "scribe_v2_realtime", promptVersions: { workday: "v1" }, redaction: { enabled: true, engine: "none", entityTypes: ["IBAN"] },
+        sttModel: "scribe_v2_realtime", promptVersions: { workday: "v1" }, redaction: REDACTION_CONFIG,
         questionBudgetPer10Min: PAUSE.budgetPer10Min,
       },
     });

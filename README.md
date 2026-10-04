@@ -65,9 +65,9 @@ Pages:
 - **Capture:** `/capture` → start a session → **Start listening** (Ada = ElevenAgents interviewer, Scribe transcript) → share the screen *or* use the extension → work in MiniERP or any web app. Ada asks *why* at natural pauses, then End task → debrief → teach-back.
 - **Any other web app:** `/demo/procurex.html` is a plain third-party-style form. With the extension (or the one-line embed it includes) Capture records its field changes and Teach holds a wrong "Submit for approval".
 
-## Browser extension: Chrome + Firefox (required for coaching; capture on any site + tutor overlay)
+## Browser extension: Chrome + Firefox (coaching and capture on any site + tutor overlay)
 
-Ada's coaching always runs in the extension, on every work app, MiniERP included: the overlay, the coaching cards and holding a wrong Save/Approve. MiniERP has no Ada UI of its own; it only publishes structured events (case facts) like an app integration would, so the save check there is exact instead of read off the screen. Every build makes **both** targets (`dist/chrome`, `dist/firefox`), and `npm run check` lints the Firefox build with Mozilla's `web-ext lint`.
+Ada's coaching always runs in the extension, on every work app, MiniERP included: the overlay, the coaching cards and holding a wrong Save/Approve. MiniERP has no Ada UI of its own; it only publishes structured events (case facts) like an app integration would, so the save check there is exact instead of read off the screen. Without the extension, `/erp` loads the same overlay and save hold from `apprentice-embed.js` (that's how the hosted demo works with no install). Every build makes **both** targets (`dist/chrome`, `dist/firefox`), and `npm run check` lints the Firefox build with Mozilla's `web-ext lint`.
 
 ```bash
 npm run build:extension
@@ -96,7 +96,7 @@ shared/            contract + logic used everywhere (no framework code)
   llm.ts             typed contract of every LLM task (vision, pick_question, extract_workmap, …)
 web/               Vite + React app: /capture /map /teach /erp (MiniERP sandbox)
 functions/         `api` Cloud Function: LLM tasks (Claude) + ElevenLabs tokens/TTS; keys never in the browser
-extension/         Chrome MV3 extension: DOM capture on any site, overlay, cross-tab relay, tab screenshots
+extension/         Chrome + Firefox MV3 extension: DOM capture on any site, overlay, cross-tab relay, tab screenshots
 tools/             admin scripts: dev-api server, seed fixture, pull session, deploy rules, project setup
 fixtures/          demo session + expected Work Map (test oracle)
 scripts/           Python: fixture generator, bundle validator, guardrail reference evaluator
@@ -118,13 +118,14 @@ Firestore (`eur3`) and Storage (`us-east1`) are set up. A web app is registered,
 
 ```bash
 firebase functions:secrets:set CLAUDE_KEY
+firebase functions:secrets:set ELEVENLABS_API_KEY
 ```
 
 ```bash
 npm run deploy:functions
 ```
 
-Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Anthropic Claude (Sonnet 5.5 for every live and offline task, Opus 5.5 only for the Work Map extraction; `LLM_MODEL` / `LLM_MODEL_MAP` to override; both ElevenAgents also run on Claude Sonnet 5.5) · Firebase · Chrome MV3 extension. All data is fictional sandbox data.
+Stack: ElevenLabs (ElevenAgents interviewer + tutor on `eleven_v3_conversational` expressive voices, Scribe v2 Realtime, TTS fallback) · Anthropic Claude (Sonnet 5.5 for every live and offline task, Opus 5.5 only for the Work Map extraction; `LLM_MODEL` / `LLM_MODEL_MAP` to override; both ElevenAgents also run on Claude Sonnet 5.5) · Firebase · Chrome + Firefox MV3 extension. All data is fictional sandbox data.
 
 Tool checks against the real services: `npm run smoke -w tools` (every Claude task), `npm run agent-test -w tools` (both agents' control protocol over WebSocket), `npm run scribe-test -w tools` (Scribe realtime with word timestamps), `npm run e2e:voice -w tools` / `npm run e2e:teach-voice -w tools` (live ElevenAgents interviewer / tutor + Scribe in a real browser with a synthetic mic), `npm run e2e:extension -w tools` (the real extension in Chrome for Testing; needs `npm run dev` + `npm run api`; first time: `npx puppeteer browsers install chrome`).
 

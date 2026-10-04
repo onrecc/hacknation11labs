@@ -94,7 +94,12 @@ const schemas = {
   check_guardrails: z.object({ violations: z.array(z.object({ guardrailId: z.string(), reason: z.string(), confidence: z.number() })) }),
   grade_prediction: z.object({ correct: z.boolean(), feedback: z.string() }),
   teachback_verdict: z.object({ verdict: z.enum(["confirmed", "corrected", "unclear"]), correction: z.string(), correctedText: z.string() }),
+  patch_claim: z.object({
+    patches: z.array(z.object({ id: z.string(), field: z.string(), value: z.string() })),
+    quotes: z.array(z.object({ utteranceId: z.string(), quote: z.string() })),
+  }),
   tutor_explain: z.object({ spoken: z.string() }),
+  translate: z.object({ text: z.string() }),
 } satisfies Record<LlmTask, z.ZodType>;
 
 // ───────────── prompts ─────────────
@@ -126,7 +131,8 @@ Hard rules:
 - Later CORRECTION lines override earlier statements; use the corrected values everywhere (thresholds, names, scope).
 - Actions the expert called a mistake are NOT steps. Habits are NOT guardrails.
 - Conditions use only the given fact paths. Condition JSON shape: {"op":"and"|"or","all":[...]} | {"op":"not","c":{...}} | {"op":"eq"|"neq"|"gt"|"gte"|"lt"|"lte"|"in"|"contains"|"missing","field":"invoice.amount","value":5000}. "missing" is true for null/empty/false. Boolean facts (invoice.duplicateDeliveryNote, supplier.isNew): use {"op":"eq","value":true}. Use "" when not expressible.
-- Reference only ids that appear in the log.`,
+- Reference only ids that appear in the log.
+- Language: the expert may speak any language. Write summary, titles, goals, instructions, questions, options, whenText, statements, requiredAction, scope, glossary meanings and mistakes in ENGLISH. Quotes (reasonQuote, quotes[].quote) stay verbatim in the language the expert spoke: never translate a quote.`,
   plan_debrief: `Plan a short spoken debrief with the expert, right after they finished the task. Find what a new hire STILL could not decide from what was seen and said:
 unknown_scope (rule seen on one supplier/case: does it apply to others?), who_decides (who releases/approves/escalates), unseen_case (a guardrail's other branch never seen, e.g. no asset number), conflict (two rules that could both apply to one case), habit_vs_rule (something done once without a stated reason), missing_threshold (a limit without a number).
 Rules: never ask anything already answered in the log; deferred questions come first (priority 0.9). Each proposedQuestion is max 20 words, spoken, and names the concrete case ("the Hofmann invoice"). Priority 0..1 = how badly a new hire needs it. 3-6 gaps.`,
@@ -135,6 +141,10 @@ Use ONLY facts from the Work Map you are given, with the expert's thresholds, co
   teachback_verdict: `The apprentice just read one part of its explanation back to the expert and asked "is that right?". Classify the expert's reply.
 confirmed: they agree (yes, right, exactly, mm-hm) with no change. corrected: they change or add something (even after a "yes, but…"); write the corrected version of the segment in correctedText, keeping everything else the same. unclear: no answer or off-topic.
 correction: the expert's own words that carry the change, copied verbatim from the reply ("" if none).`,
+  patch_claim: `The expert corrected one part of the apprentice's explanation (segment) of their Work Map. Rewrite the Work Map claims behind that part so they say what the expert now says.
+patches: one entry per field that must change: id (from claims), field (one of the field names listed for that claim), value = the complete new text of that field. Change only what the correction changes; keep the expert's numbers, codes and names exactly. Leave everything else out.
+conditionJson / whenJson: a JSON Condition over the given fact paths only (same shape as in the Work Map; a guardrail condition is a VIOLATION predicate), or leave the field out.
+quotes: the expert's words that carry the change, copied CHARACTER FOR CHARACTER from one of replyUtterances (with its id). If the reply does not say clearly what is different, return empty patches.`,
   label_task: `You watch an expert's workday and keep a list of the TASKS they do (a task = one kind of work with one goal, e.g. "Process supplier invoices", "Approve purchase requests", "Answer supplier emails"). Several cases of the same kind of work (invoice after invoice) are ONE task.
 Given the current task title (may be empty), the app, the department and the recent actions/utterances:
 - title: short verb phrase for the work in these actions (max 6 words), domain: snake_case business domain (e.g. accounts_payable, procurement), summary: one sentence.
@@ -148,7 +158,9 @@ severity = important when the difference changes money, approvals or compliance,
 both_valid (each is right under a different condition: give that condition), a_is_the_rule / b_is_the_rule (one is the safer/correct practice), or escalate (needs the controller/team lead to decide). note: 1-2 sentences a new hire can follow. condition: when each applies ("" if not both_valid).`,
   check_guardrails: `A new hire is about to perform an action on a web page. Given the expert's guardrails and the visible form fields, list ONLY guardrails that this action would clearly violate. Be conservative: no violation if the fields don't show it. confidence 0..1.`,
   grade_prediction: `Grade whether the new hire's predicted decision matches the expert's decision in substance (wording may differ). Feedback: one short, encouraging sentence that uses the expert's reason.`,
-  tutor_explain: `You are a patient tutor coaching a new hire on their screen. The new hire is about to break a guardrail. If socratic=true, ask them why the expert would stop here (one sentence) and wait. Otherwise explain using the expert's quote verbatim, naming the expert. Max 2 sentences.`,
+  tutor_explain: `You are a patient tutor coaching a new hire on their screen. The new hire is about to break a guardrail. If socratic=true, ask them why the expert would stop here (one sentence) and wait. Otherwise explain using the expert's quote verbatim, naming the expert. Max 2 sentences.
+Always speak English. If quoteTranslation is set, the expert spoke another language (quoteLanguage): say the quote verbatim, name the language, then give its English meaning ("Jürgen said, in German: '…' Meaning: '…'").`,
+  translate: `Translate an expert's spoken words from the "from" language into the "to" language (BCP-47) for a new hire. Faithful and natural, spoken register; keep numbers, amounts, codes and names exactly as they are; translate self-corrections as self-corrections. Return only the translation in text.`,
 };
 
 const DEEP: ReadonlySet<LlmTask> = new Set<LlmTask>(["extract_workmap", "plan_debrief", "teachback", "compare_workmaps"]);
