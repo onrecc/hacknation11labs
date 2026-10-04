@@ -136,6 +136,22 @@ export interface LlmTasks {
     input: { segment: string; reply: string; workmapContext: string };
     output: { verdict: "confirmed" | "corrected" | "unclear"; correction: string; correctedText: string };
   };
+  /**
+   * Map: the expert corrected a teach-back part; rewrite the claims it speaks for. Code verifies the result like an
+   * extraction (shared/workmap.ts `applyClaimPatch`): quotes verbatim from the reply, conditions on FACT_PATHS only.
+   */
+  patch_claim: {
+    input: {
+      segment: string;
+      reply: string;
+      correction: string;
+      replyUtterances: Array<{ id: Id; text: string }>;
+      claims: Array<{ kind: "step" | "decision" | "guardrail"; id: Id; fields: Array<{ field: string; value: string }> }>;
+      factPaths: string[];
+    };
+    /** patches: full new value per changed field ("" = leave it). quotes: the expert's words carrying the change. */
+    output: { patches: Array<{ id: Id; field: string; value: string }>; quotes: Array<{ utteranceId: Id; quote: string }> };
+  };
   /** Teach: phrase an intervention in the expert's words. */
   tutor_explain: {
     input: { expertName: string; guardrail: Pick<Guardrail, "statement" | "requiredAction">; quote: string; facts: CaseFacts; socratic: boolean };

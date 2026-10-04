@@ -30,7 +30,8 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
     link_answer: (i) => {
       const text = i.utterances[0]?.text ?? "";
       const quote = text.split(/(?<=[.!?])\s+/)[0] ?? text;
-      return { quote, summary: quote, completeness: "partial", needsFollowUp: false };
+      const deflected = !text.trim() || /\b(not sure|don'?t know|no idea|can'?t say|skip|pass)\b/i.test(text);
+      return { quote, summary: quote, completeness: deflected ? "deflected" : "partial", needsFollowUp: deflected };
     },
     extract_workmap: () => ({ summary: "", steps: [], decisions: [], guardrails: [], glossary: [], mistakes: [], correctionTargets: [] }),
     plan_debrief: (i) => ({
@@ -58,7 +59,16 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
       if (!r) return { verdict: "unclear", correction: "", correctedText: "" };
       const yes = /^\s*(yes|yeah|yep|right|correct|exactly|mm-?hm|that'?s right)\b/i.test(r);
       const change = /\b(but|not|no|except|actually|instead|wrong)\b/i.test(r);
-      return yes && !change ? { verdict: "confirmed", correction: "", correctedText: "" } : { verdict: "corrected", correction: r, correctedText: `${i.segment} (Correction: ${r})` };
+      // no rewritten text: the runner re-states the part from the patched claims (patch_claim)
+      return yes && !change ? { verdict: "confirmed", correction: "", correctedText: "" } : { verdict: "corrected", correction: r, correctedText: "" };
+    },
+    patch_claim: (i) => {
+      // the first guardrail (else decision, else step) the part speaks for takes the expert's first sentence
+      const u = i.replyUtterances[0];
+      const quote = u?.text.split(/(?<=[.!?])\s+/)[0] ?? "";
+      const c = ["guardrail", "decision", "step"].map((k) => i.claims.find((x) => x.kind === k)).find(Boolean);
+      const field = c?.kind === "guardrail" ? "statement" : c?.kind === "decision" ? "reasonSummary" : "instructions";
+      return c && quote ? { patches: [{ id: c.id, field, value: quote }], quotes: [{ utteranceId: u.id, quote }] } : { patches: [], quotes: [] };
     },
     tutor_explain: (i) => ({
       spoken: i.socratic

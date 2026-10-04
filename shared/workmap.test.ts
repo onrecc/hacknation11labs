@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Event, Session, WorkMap } from "./schema";
 import { LogIndex } from "./logindex";
-import { assemble, buildDraft, findVerbatim, proposalFromWorkMap, stableId, verbatimQuote } from "./workmap";
+import { applyClaimPatch, assemble, buildDraft, findVerbatim, proposalFromWorkMap, stableId, verbatimQuote } from "./workmap";
 
 const dir = new URL("../fixtures/demo-session/", import.meta.url);
 const session = JSON.parse(readFileSync(new URL("session.json", dir), "utf8")) as Session;
@@ -102,4 +102,65 @@ test("ids survive a rebuild when the LLM reuses existing ids", () => {
   const again = build(proposalFromWorkMap(first, corrections, ix), first).workmap;
   assert.deepEqual(again.steps.map((s) => s.id), first.steps.map((s) => s.id));
   assert.deepEqual(again.guardrails.map((g) => g.id), first.guardrails.map((g) => g.id));
+});
+
+// ── teach-back corrections rewrite the claim (code verifies the LLM's patch like an extraction)
+const GR = "gr_intercompany_approval";
+const NEW = "Brno invoices always need the controller, Weber, as second approver, whatever the amount.";
+const QUOTE = [{ utteranceId: "utt_0004", quote: "no asset number, no capex booking" }];
+const statementOf = (wm: WorkMap, id: string) => wm.guardrails.find((g) => g.id === id)!.statement;
+
+test("applyClaimPatch rewrites the claim text from a verified correction, without mutating the input", () => {
+  const before = statementOf(oracle, GR);
+  const r = applyClaimPatch(oracle, { patches: [{ id: GR, field: "statement", value: NEW }, { id: GR, field: "escalateToName", value: "Weber" }], quotes: QUOTE }, ix, [GR]);
+  assert.deepEqual(r.problems, []);
+  const g = r.workmap.guardrails.find((x) => x.id === GR)!;
+  assert.equal(g.statement, NEW);
+  assert.equal(g.escalateTo?.name, "Weber");
+  assert.equal(statementOf(oracle, GR), before, "input not mutated");
+  assert.equal(r.changes.length, 1);
+  assert.deepEqual(r.changes[0].ref, { kind: "guardrail", id: GR });
+  assert.ok(r.changes[0].before.includes(before) && r.changes[0].after.includes(NEW));
+  assert.equal(r.quote?.text, "no asset number, no capex booking");
+});
+
+test("applyClaimPatch drops unverifiable parts: invented quotes, unknown fields, foreign claims", () => {
+  const none = applyClaimPatch(oracle, { patches: [{ id: GR, field: "statement", value: NEW }], quotes: [{ utteranceId: "utt_0004", quote: "Weber signs everything." }] }, ix, [GR]);
+  assert.equal(none.changes.length, 0, "no verbatim quote → nothing changes");
+  assert.equal(statementOf(none.workmap, GR), statementOf(oracle, GR));
+  assert.ok(none.problems.length >= 1);
+
+  const some = applyClaimPatch(oracle, {
+    patches: [
+      { id: GR, field: "statement", value: NEW },
+      { id: GR, field: "conditionJson", value: JSON.stringify({ op: "eq", field: "invoice.vibes", value: 1 }) },
+      { id: GR, field: "severity", value: "info" },
+      { id: "gr_capex_threshold", field: "statement", value: "Everything is capex." },
+    ],
+    quotes: QUOTE,
+  }, ix, [GR]);
+  const g = some.workmap.guardrails.find((x) => x.id === GR)!;
+  assert.equal(g.statement, NEW);
+  assert.deepEqual(g.condition, oracle.guardrails.find((x) => x.id === GR)!.condition, "condition on an unknown field is dropped");
+  assert.equal(g.severity, oracle.guardrails.find((x) => x.id === GR)!.severity, "fields outside the patchable set are dropped");
+  assert.equal(statementOf(some.workmap, "gr_capex_threshold"), statementOf(oracle, "gr_capex_threshold"), "claims outside the segment are untouched");
+  assert.equal(some.problems.length, 3);
+});
+
+test("a patched claim survives the replay: new text, old text in history, teach-back provenance", () => {
+  const before = statementOf(oracle, GR);
+  const { workmap: patched, changes } = applyClaimPatch(oracle, { patches: [{ id: GR, field: "statement", value: NEW }], quotes: QUOTE }, ix, [GR]);
+  const last = events.at(-1)!;
+  const corr = {
+    id: "evt_tbfix", sessionId: session.id, seq: last.seq + 1, t: last.t + 1000, wall: last.wall, phase: "teachback", type: "knowledge.correction", source: "map",
+    payload: { correctionId: "cor_x", detectedBy: "teachback", kind: "statement_revised", utteranceIds: ["utt_0004"], quote: QUOTE[0].quote, targets: { workMapRefs: [changes[0].ref] }, before: changes[0].before, after: changes[0].after, appliesTo: "always", confidence: 0.85 },
+  } as Event;
+  const all = [...events, corr];
+  const ix2 = new LogIndex(session.id, all);
+  const { workmap } = assemble(buildDraft(session, all, oracle.id), proposalFromWorkMap(patched, ix2.ofType("knowledge.correction"), ix2), ix2, { prev: patched });
+  const g = workmap.guardrails.find((x) => x.id === GR)!;
+  assert.equal(g.statement, NEW);
+  const h = g.history.find((x) => x.correctionEventId === "evt_tbfix");
+  assert.ok(h && h.before.includes(before) && h.after.includes(NEW), JSON.stringify(g.history));
+  assert.ok(g.provenance.includes("teachback_correction"));
 });

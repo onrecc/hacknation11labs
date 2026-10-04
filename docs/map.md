@@ -34,7 +34,7 @@
 |---|---|---|
 | Draft (cases, gaps, common mistakes), log condensing, proposal → verified claims, versioning | `shared/workmap.ts` | ✅ verification is code (quotes, frames, condition fields) |
 | Read helpers (frame at t, verified quote spans) | `shared/logindex.ts` | ✅ |
-| Debrief + teach-back runner (runs on the CaptureHub voice) | `web/src/map/debrief.ts` | ✅ golden path on Claude ends with a confirmed Work Map; verdicts: plain "yes" by regex, everything else via the `teachback_verdict` LLM task (regex fallback on timeout) |
+| Debrief + teach-back runner (runs on the CaptureHub voice) | `web/src/map/debrief.ts` | ✅ golden path on Claude ends with a confirmed Work Map; verdicts: plain "yes" by regex, everything else via the `teachback_verdict` LLM task (regex fallback on timeout); corrections rewrite the claims via `patch_claim` (verified by `applyClaimPatch`) and the part is re-asked |
 | Work Map UI: timeline, steps, evidence, quotes with audio, history | `web/src/map/MapPage.tsx` | ✅ renders the seeded demo map |
 | LLM prompts (extract_workmap, plan_debrief, teachback) | `functions/src/handlers.ts` | 📝 first drafts; check `assemble()` problems output |
 
