@@ -16,6 +16,12 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · "My map is empty" UX fix (Capture side) + a request for Map
+- **What Rene hit:** recorded a real task on Scalefusion via the extension (110 actions, 97 frames), ended the day, opened the task's Work Map → an empty **Draft v0** ("0 cases", "Rules 0", "Save allowed"). Nothing was broken: a Work Map is only built by **Debrief now** (or **Rebuild**), and the live draft only fires on finished *cases*, which generic sites don't have. Once you leave My day there was no way back to Debrief.
+- **Capture side (done):** "Earlier days" now has a **Debrief → Work Map** button per task (`WorkdayRecorder.reopenForDebrief`: reopens the day without recording, then runs your `runDebrief`). After "End my day" the Debrief buttons are primary, with a clear "Next: press Debrief now on each task" line. Empty "Detecting the task… · 0 actions" stubs are hidden from Earlier days.
+- **Request for Toivo (`MapPage`):** when the session has no `workMapId` yet, please show an empty state instead of an empty v0 map: *"No Work Map yet. Debrief this task on My day (recommended): Ada asks what she couldn't work out, then explains it back. Or build it now without a debrief."* Rename **Rebuild** to **Build Work Map** until a map exists, and maybe hide "Try a case" (it says "Save allowed" with 0 rules, which reads as a result).
+- Golden path now loads the Chrome extension (real frames → screen moments; steps without one are dropped) and checks map content. Sabine's run on Claude: 6 steps, 5 guardrails, confirmed; kept as demo data (`wm_01M4367XJDKXY94PAWTKHVD7R7`).
+
 ### 2026-10-04 · Rene's agent · LLM provider switched to Claude (Gemini removed)
 - `functions/src/handlers.ts` now calls **Anthropic Claude** (`@anthropic-ai/sdk`, key `CLAUDE_KEY` or `ANTHROPIC_API_KEY`; Cloud Function secret `CLAUDE_KEY`). Same task contract and zod schemas, so callers don't change.
 - **Cost:** `claude-sonnet-5-5` for every task (live tasks at effort low with thinking off), **`claude-opus-5-5` only for `extract_workmap`** (`LLM_MODEL` / `LLM_MODEL_MAP` override). `extract_workmap` uses plain JSON + zod validation with one retry, because its schema is too large for strict structured outputs. Everything else uses `betaZodOutputFormat`.

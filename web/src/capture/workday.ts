@@ -112,6 +112,24 @@ export class WorkdayRecorder {
     this.changed();
   }
 
+  /**
+   * Reopen an earlier (or abandoned) day only to debrief its tasks: no new task, no recording.
+   * Used from "Earlier days" so a task can still get its Work Map after the My day page was left.
+   */
+  async reopenForDebrief(day: Workday, sessionId: Id): Promise<void> {
+    const session = await getSession(sessionId);
+    if (!session) throw new Error(`no session ${sessionId}`);
+    this.workday = { ...day, status: "ended", endedAt: day.endedAt ?? new Date().toISOString() };
+    for (const t of this.workday.tasks) if (t.status === "active") this.finishTask(t);
+    this.hub = new CaptureHub(session, {
+      writer: "capture", vision: false, workday: true,
+      voice: { agentId: agents.interviewerAgentId, dynamicVariables: { expert_name: this.user.short, task_title: session.task.title } },
+    });
+    if (import.meta.env.DEV) (window as unknown as { __rec?: WorkdayRecorder }).__rec = this;
+    await saveWorkday(this.workday);
+    this.changed();
+  }
+
   /** Synchronous: builds the session locally; the caller persists it (in the background). */
   private newTaskSession(boundary: Boundary, ctx: string | null, app: string): Session {
     const index = this.workday.tasks.length;

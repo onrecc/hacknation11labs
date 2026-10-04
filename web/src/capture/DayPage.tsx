@@ -21,6 +21,9 @@ const fmtDur = (a: string, b?: string) => {
 };
 const BOUNDARY: Record<string, string> = { start: "day start", context_switch: "switched app", idle: "after a break", new_kind_of_work: "new kind of work", manual: "marked by you" };
 
+/** Earlier days list only real work: no detours, no empty "Detecting the task…" stubs from reopened pages. */
+const worked = (t: Workday["tasks"][number]) => t.status !== "interruption" && t.actions > 0;
+
 export default function DayPage() {
   const user = useUser()!;
   const [rec, setRec] = useState<WorkdayRecorder | null>(null);
@@ -69,7 +72,23 @@ export default function DayPage() {
     }
   }
 
-  async function debriefTask(sessionId: string) {
+  /** Debrief a task of an earlier day: reopen that day (no recording), then debrief as usual. */
+  async function debriefEarlier(day: Workday, sessionId: string) {
+    try {
+      setErr(null);
+      await signedIn;
+      const r = new WorkdayRecorder(user, { vision: false });
+      await r.reopenForDebrief(day, sessionId);
+      setRec(r);
+      await r.hub.startListening();
+      await debriefTask(sessionId, r);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+  }
+
+  async function debriefTask(sessionId: string, recorder = rec) {
+    const rec = recorder;
     if (!rec) return;
     setDebriefing(sessionId);
     setDebrief({ stage: "planning", detail: "Opening the task…", gapsOpen: 0 } as DebriefStatus);
@@ -112,10 +131,15 @@ export default function DayPage() {
         {past.length > 0 && (
           <div className="card">
             <h3>Earlier days</h3>
-            {past.map((d) => (
+            {past.filter((d) => d.tasks.some(worked)).map((d) => (
               <div key={d.id} className="dayrow">
-                <b>{d.date}</b> <span className="muted small">{d.status} · {d.tasks.filter((t) => t.status !== "interruption").length} tasks</span>
-                <ul>{d.tasks.filter((t) => t.status !== "interruption").map((t) => <li key={t.sessionId}><Link to={`/map/${t.sessionId}`}>{t.title}</Link> <span className="muted small">{fmtTime(t.startedAt)}–{fmtTime(t.endedAt)} · {t.actions} actions</span></li>)}</ul>
+                <b>{d.date}</b> <span className="muted small">{d.status} · {d.tasks.filter(worked).length} tasks</span>
+                <ul>{d.tasks.filter(worked).map((t) => (
+                  <li key={t.sessionId}>
+                    <Link to={`/map/${t.sessionId}`}>{t.title}</Link> <span className="muted small">{fmtTime(t.startedAt)}–{fmtTime(t.endedAt)} · {t.actions} actions</span>{" "}
+                    <button className="small" title="Ada asks what she couldn't work out, builds the Work Map, then explains it back to you" onClick={() => void debriefEarlier(d, t.sessionId)}>Debrief → Work Map</button>
+                  </li>
+                ))}</ul>
               </div>
             ))}
           </div>
@@ -176,12 +200,12 @@ export default function DayPage() {
                 </div>
                 <div className="btns">
                   <Link to={`/map/${t.sessionId}`}>Work Map</Link>
-                  {t.status === "done" && <button disabled={!!debriefing} onClick={() => void debriefTask(t.sessionId)}>{debriefing === t.sessionId ? "Debriefing…" : "Debrief now"}</button>}
+                  {t.status === "done" && <button className={ended ? "primary" : ""} disabled={!!debriefing} onClick={() => void debriefTask(t.sessionId)}>{debriefing === t.sessionId ? "Debriefing…" : "Debrief now"}</button>}
                 </div>
               </li>
             ))}
           </ol>
-          {ended && <p className="muted small">Day ended. Debrief each task while it's fresh: Ada asks what she couldn't work out, then explains the task back to you.</p>}
+          {ended && <p className="next-step"><b>Next: press “Debrief now” on each task.</b> That builds its Work Map: Ada asks what she couldn't work out, then explains the task back to you. Until then the Work Map is only an empty draft.</p>}
         </div>
 
         {debrief && (

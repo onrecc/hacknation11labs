@@ -217,7 +217,7 @@ try {
   check("debrief ended with a confirmed Work Map", /confirmed/i.test(stage), stage);
   const head = (await db.doc(`workmaps/${wm.workMapId}`).get()).data();
   const map = head && JSON.parse((await db.doc(`workmaps/${wm.workMapId}/versions/${String(head.latestVersion).padStart(4, "0")}`).get()).get("json"));
-  check("the Work Map has steps and guardrails in Sabine's words", map?.steps.length >= 3 && map?.guardrails.length >= 2,
+  check(`the Work Map has steps and guardrails in ${EXPERT}'s words`, map?.steps.length >= 3 && map?.guardrails.length >= 2,
     `${map?.steps.length} steps, ${map?.guardrails.length} guardrails: ${map?.guardrails.map((g: any) => g.statement).join(" / ").slice(0, 300)}`);
   const debriefQs = await hub.evaluate(() => (window as any).__hub.events.filter((e: any) => e.type === "agent.question" && e.phase === "debrief").length);
   check("≥3 debrief questions", debriefQs >= 3, String(debriefQs));
