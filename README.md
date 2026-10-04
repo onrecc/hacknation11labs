@@ -75,7 +75,7 @@ npm run build:extension
 
 - **Chrome / Edge:** `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist/chrome`
 - **Firefox (140+):** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `extension/dist/firefox/manifest.json`
-- Zips for sharing: `npm run package -w extension` → `extension/dist/ai-apprentice-{chrome,firefox}.zip`
+- Zips for sharing: `npm run package -w extension` → `extension/dist/protege-{chrome,firefox}.zip`
 
 Then start a Capture or Teach session in the web app and work in any other tab:
 - **Capture:** records field changes, clicks and navigation (passwords, IBANs and card numbers are masked). Screenshots the active work tab once per second as frames, so no screen-share dialog is needed. The overlay pill shows recording, with off-record and bookmark buttons.

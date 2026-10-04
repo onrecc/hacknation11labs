@@ -12,6 +12,8 @@ import { FACT_PATHS } from "@shared/llm";
 import { col } from "@shared/paths";
 import { getSession, listSessions, listWorkMaps, loadWorkMap, saveWorkMapVersion, setWorkMapFeatured, subscribeEvents, updateSession, blobUrl, type WorkMapHead } from "../lib/sessions";
 import { useUser } from "../lib/users";
+import { whenLabel } from "../lib/dates";
+import { rowLink } from "../lib/tabKeys";
 import { db, signedIn } from "../lib/firebase";
 import { llm } from "../lib/api";
 import { EventFeed } from "../components/ui";
@@ -45,10 +47,7 @@ function MapIndex() {
   };
   useEffect(load, []);
   const STATUS: Record<string, string> = { draft: "Draft", debrief: "In debrief", teachback_pending: "Awaiting teach-back", confirmed: "Confirmed" };
-  const when = (iso: string) => {
-    const d = new Date(iso);
-    return Number.isNaN(d.getTime()) ? iso.slice(0, 10) : d.toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  };
+  const when = (iso: string) => whenLabel(iso);
   const sessionTitle = (s: Session) => s.task.title || "Untitled task";
   return (
     <div className="page mapindex">
@@ -84,7 +83,7 @@ function MapIndex() {
             <thead><tr><th>Task</th><th>Expert</th><th>Status</th><th className="num">Recorded</th></tr></thead>
             <tbody>
               {sessions?.map((s) => (
-                <tr key={s.id} onClick={() => nav(`/map/${s.id}`)}>
+                <tr key={s.id} {...rowLink(() => nav(`/map/${s.id}`))}>
                   <td><span className="mi-task">{sessionTitle(s)}</span>{s.kind === "teach" && <span className="pill">training</span>}</td>
                   <td className="muted">{s.participant.displayName}</td>
                   <td><span className="mi-status"><i className={s.status === "ended" || s.status === "processed" ? "" : "live"} />{s.status}</span></td>

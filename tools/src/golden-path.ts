@@ -246,7 +246,7 @@ try {
     await sleep(3000);
     await btn(erp, "Approve");
     await sleep(12_000);
-    const banner = await erp.evaluate(() => document.getElementById("ai-apprentice-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? ""); // the extension overlay's coaching card
+    const banner = await erp.evaluate(() => document.getElementById("protege-overlay")?.shadowRoot?.querySelector(".card h4")?.textContent ?? ""); // the extension overlay's coaching card
     const status = await erp.evaluate(() => [...document.querySelectorAll(".form input")].at(-1)?.getAttribute("value") ?? (document.querySelectorAll(".form input")[document.querySelectorAll(".form input").length - 1] as HTMLInputElement)?.value);
     check("new hire's wrong save (opex on €7,200 equipment) is blocked by Sabine's map", /hold on|held/i.test(banner) && status !== "approved", `${banner} · status ${status}`);
     const cards = await lena.$$eval(".intervention h3, .intervention p", (els) => els.map((e) => e.textContent ?? "").slice(0, 4));

@@ -37,9 +37,14 @@ button.danger { background: var(--danger); color: #fff; border-color: var(--dang
 button.danger:hover:not(:disabled) { background: var(--danger); opacity: 0.9; }
 button.link { height: auto; border: none; background: none; color: var(--muted); padding: 0; font-weight: 500; }
 button.link:hover:not(:disabled) { background: none; color: var(--text); }
+button.small { height: 26px; padding: 0 8px; font-size: 12px; border-radius: 5px; }
 input, select, textarea { font: inherit; font-size: 14px; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel); color: var(--text); width: 100%; }
 textarea { height: auto; padding: 8px 10px; }
-input:focus, select:focus, textarea:focus { outline: none; border-color: var(--text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--text) 10%, transparent); }
+input:focus, select:focus, textarea:focus { outline: none; border-color: var(--text); }
+/* one visible keyboard focus ring for every control (beats per-component `outline: none`) */
+:focus-visible { outline: 2px solid var(--accent-2) !important; outline-offset: 2px; }
+input:focus-visible, select:focus-visible, textarea:focus-visible { outline-offset: 1px; }
+tr:focus-visible { outline-offset: -2px; }
 input::placeholder { color: var(--faint); }
 select { appearance: none; -webkit-appearance: none; padding-right: 30px; cursor: pointer;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16' fill='none' stroke='%238f8f8f' stroke-width='1.6'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
@@ -57,6 +62,13 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .nav .brand { color: var(--text); font-weight: 600; margin-right: 12px; padding-left: 0; display: inline-flex; align-items: center; gap: 8px; letter-spacing: -0.01em; }
 .nav .brand:hover { background: none; }
 .nav .brand::before { content: ""; width: 16px; height: 16px; border-radius: 4px; background: var(--text); box-shadow: inset 0 0 0 4px var(--text), inset 0 0 0 6px var(--bg); }
+/* narrow windows: the nav wraps onto two rows instead of overflowing */
+@media (max-width: 800px) {
+  .nav { flex-wrap: wrap; height: auto; min-height: 56px; padding: 8px 16px; row-gap: 2px; }
+  .nav .brand { margin-right: 4px; }
+  .nav a { padding: 6px 8px; }
+  .userchip { flex-basis: 100%; margin-left: 0; padding: 4px 0 2px; border-top: 1px solid var(--line); }
+}
 .page { padding: 32px 24px 64px; max-width: 1200px; margin: 0 auto; }
 .page.narrow { max-width: 760px; }
 .page.split { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
@@ -105,7 +117,7 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .grid { width: 100%; border-collapse: collapse; font-size: 14px; }
 .grid th { text-align: left; font-size: 13px; font-weight: 500; color: var(--muted); padding: 8px 12px; border-bottom: 1px solid var(--line); }
 .grid td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); }
-.grid tbody tr:hover { background: var(--hover); cursor: pointer; }
+.grid tbody tr.row-link:hover, .grid tbody tr.row-link:focus-visible { background: var(--hover); cursor: pointer; }
 .num { text-align: right !important; font-variant-numeric: tabular-nums; }
 .frame { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--subtle); }
 .frame img { display: block; width: 100%; }
@@ -130,11 +142,17 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .erp .form { margin: 16px 0; }
 .erp .actions { display: flex; gap: 8px; align-items: center; } .erp .actions input { max-width: 260px; }
 .erp input, .erp select { background: #fff; color: #171717; border-color: #ccd; }
+/* read-only fields look like text, editable ones like inputs */
+.erp input[readonly] { background: #eceef2; border-color: transparent; color: #3c4350; cursor: default; }
+.erp .needs-fix { border-color: #c62828 !important; box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.2); }
 .erp button:not(.erp-bar button) { background: #fff; color: #171717; border-color: #ccd; }
 .erp button.primary { background: #1f3a5f; color: #fff; border-color: #1f3a5f; }
-.erp .grid th, .erp .grid td { border-color: #dde1e6; } .erp .grid tbody tr:hover { background: #eef2f7; }
+.erp .grid th, .erp .grid td { border-color: #dde1e6; } .erp .grid tbody tr.row-link:hover, .erp .grid tbody tr.row-link:focus-visible { background: #eef2f7; }
 .banner { padding: 10px 16px; font-weight: 500; font-size: 14px; }
 .banner.block { background: var(--danger); color: #fff; } .banner.info { background: var(--soft); }
+.banner { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.banner .banner-go { height: 26px; font-size: 12px; }
+.erp-bar .row span { font-size: 13px; }
 
 /* ── login ── */
 .login h1 { font-size: 28px; }
@@ -157,6 +175,7 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .tasks li:last-child { border-bottom: none; }
 .tasks li.active b::after { content: ""; display: inline-block; width: 7px; height: 7px; margin-left: 8px; border-radius: 50%; background: var(--ok); vertical-align: 1px; }
 .dayrow ul { margin: 4px 0 10px; }
+.next-step { margin: 16px 0 0; padding: 12px 14px; border-radius: 8px; background: var(--subtle); border: 1px solid var(--line); border-left: 3px solid var(--accent-2); }
 
 /* ── Ada panel (the conversation) ── */
 .ada { border-color: var(--line-strong); }
@@ -182,11 +201,19 @@ details.devlog > summary, details.diagnostics > summary { cursor: pointer; font-
 details.devlog[open] > summary, details.diagnostics[open] > summary { color: var(--text); margin-bottom: 8px; }
 
 /* ── nav status ── */
-.health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.health-group { display: inline-flex; align-items: center; gap: 10px; }
+.health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: default; }
 .health i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
-.health.off i { background: var(--faint); }
+.health.warn i { background: var(--warn); }
+.health.off i, .health.pending i { background: var(--faint); }
+.health.off { text-decoration: line-through; text-decoration-color: var(--faint); }
 /* compare (two experts, one task) */
 .compare .cmp td { vertical-align: top; }
 .compare tr.k-same { opacity: 0.75; }
 .badge.important { color: var(--danger, #c62828); border-color: currentColor; margin-left: 0.3rem; }
 .expert-questions .eq { border-top: 1px solid var(--line); padding-top: 0.6rem; margin-top: 0.6rem; }
+
+/* reduced motion: no transitions or animations anywhere in the app */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}

@@ -38,7 +38,7 @@ export default function TeachPage() {
   const user = useUser()!;
   const learner = user.short;
   const [params] = useSearchParams();
-  const wanted = params.get("map"); // "Open in Teach" / "Preview as new hire" from a Work Map
+  const wanted = params.get("map"); // "Open in Training" / "Preview as new hire" from a Work Map
   const preview = user.role === "expert"; // the route guard only lets experts in with ?preview=1
   const [modules, setModules] = useState<Array<WorkMapHead & { expert: string; domain: string; steps: number; guardrails: number }> | null>(null); // null = loading
   const [typed, setTyped] = useState("");
@@ -149,7 +149,7 @@ export default function TeachPage() {
   return (
     <div className="page split">
       <section>
-        <h1>Tutor</h1>
+        <h1>Training</h1>
         <JudgeLegend />
         <SessionStatus s={s}><p className="muted small mono">{hub.session.id}</p></SessionStatus>
         <div className="btns">
@@ -169,7 +169,7 @@ export default function TeachPage() {
         )}
       </section>
       <section>
-        <h3>Teach session log</h3>
+        <h3>Training session log</h3>
         <EventFeed events={events} />
       </section>
     </div>
@@ -186,7 +186,7 @@ function Card({ c }: { c: TutorCard }) {
       {c.quote && <blockquote className="quote">“{c.quote.text}” <span className="muted">· {c.quote.who} · {c.quote.when}</span></blockquote>}
       {c.imageUrl && (
         <div className="frame">
-          <img src={c.imageUrl} alt="expert's screen" />
+          <img src={c.imageUrl} alt={c.quote ? `${c.quote.who}'s screen at ${c.quote.when}` : "The expert's screen at this moment"} />
           {c.bbox && <div className="bbox" style={{ left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` }} />}
         </div>
       )}

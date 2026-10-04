@@ -1,6 +1,6 @@
 /**
  * Content script (every tab). Roles depending on the page:
- *  - AI Apprentice hub pages (My day, Training, …): relay only — page ⇄ background ⇄ other tabs.
+ *  - Protégé hub pages (My day, Training, …): relay only — page ⇄ background ⇄ other tabs.
  *  - any work app, MiniERP included: overlay (status, Ada's captions, coaching cards) + holding Save/Approve-like
  *    clicks in teach mode + generic DOM capture. Apps that publish their own structured events (a "feed",
  *    like MiniERP) skip the generic capture events so nothing is logged twice.

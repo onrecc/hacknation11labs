@@ -95,7 +95,7 @@ const EDGE_GAP = 8;
 
 export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
   const host = document.createElement("div");
-  host.id = "ai-apprentice-overlay";
+  host.id = "protege-overlay"; // user-visible in devtools; the dock key below stays for saved spots
   const root = host.attachShadow({ mode: "open" });
   // built with DOM calls only (no innerHTML): page text never becomes markup
   const cards = h("div", { class: "cards" });
@@ -216,7 +216,7 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
     }
     const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
     if (src) {
-      const frame = h("div", { class: "frame" }, h("img", { src }));
+      const frame = h("div", { class: "frame" }, h("img", { src, alt: `${c.quote?.who ?? "The expert"}'s screen${c.quote ? ` at ${c.quote.when}` : " at this moment"}` }));
       if (c.bbox) {
         const box = h("div", { class: "bbox" });
         Object.assign(box.style, { left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` });

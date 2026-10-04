@@ -17,7 +17,7 @@ export default function LoginPage() {
       <p className="muted">Demo login: no passwords. Experts let Ada learn from their workday; practicers train on what the experts taught her.</p>
       {(["expert", "practicer"] as const).map((role) => (
         <section key={role}>
-          <h3>{role === "expert" ? "Experts" : "Practicers (new hires)"}</h3>
+          <h3>{role === "expert" ? "Experts" : "New hires"}</h3>
           <div className="people">
             {group(role).map((u) => (
               <button key={u.id} className="person" onClick={() => pick(u)}>

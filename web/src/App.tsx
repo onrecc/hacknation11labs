@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import CapturePage from "./capture/CapturePage";
 import DayPage from "./capture/DayPage";
@@ -7,7 +7,7 @@ import TeachPage from "./teach/TeachPage";
 import ErpPage from "./erp/ErpPage";
 import LoginPage from "./auth/LoginPage";
 import ComparePage from "./compare/ComparePage";
-import { apiHealth } from "./lib/api";
+import { HealthDots } from "./components/HealthDots";
 import { homeFor, logout, useUser, type Role } from "./lib/users";
 import { mayOpen } from "./lib/teachEntry";
 
@@ -45,12 +45,6 @@ function Guard({ role, children }: { role?: Role; children: ReactNode }) {
 function Nav() {
   const user = useUser();
   const nav = useNavigate();
-  const [health, setHealth] = useState<string>("");
-  useEffect(() => {
-    apiHealth()
-      .then((x) => setHealth(x.mock ? "AI: mock answers" : `AI: ${x.model}${x.voice ? " · ElevenLabs" : ""}`))
-      .catch(() => setHealth("api offline: npm run api"));
-  }, []);
   return (
     <nav className="nav">
       <Link to="/" className="brand">Protégé</Link>
@@ -61,7 +55,7 @@ function Nav() {
       {user && <NavLink to="/compare">Compare</NavLink>}
       <NavLink to={user?.app.url ?? "/erp"} target="_blank">{user?.app.name ?? "MiniERP"} ↗</NavLink>
       <span className="userchip">
-        <span className={`health ${health.startsWith("api offline") ? "off" : ""}`} title={health}><i />{health.startsWith("api offline") ? "Offline" : health.startsWith("AI: mock") ? "Mock AI" : "Live"}</span>
+        <HealthDots />
         {user ? (
           <>
             <span className="avatar sm" style={{ background: user.color }}>{user.short[0]}</span>

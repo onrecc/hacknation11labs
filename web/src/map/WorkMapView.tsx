@@ -12,6 +12,7 @@ import { PROV, agentInstructions, claimsByEvent, conditionText, flowModel, fmtCl
 import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_BEFORE, useMediaUrl, type MediaSource } from "./Replay";
 import { languageName } from "@shared/i18n";
 import { useQuoteTranslation } from "../lib/translate";
+import { WmTabs, type Tab } from "./WmTabs";
 import { JudgeMarker } from "../components/JudgeMarker";
 import { useUser } from "../lib/users";
 import { teachEntry } from "../lib/teachEntry";
@@ -19,10 +20,9 @@ import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
 export type { MediaSource } from "./Replay";
-const Sources = createContext<{ frame: FrameSource; media?: MediaSource; events: Event[] }>({ frame: async () => null, events: [] });
+const Sources = createContext<{ frame: FrameSource; media?: MediaSource; events: Event[]; expert?: string }>({ frame: async () => null, events: [] });
 
 type Sel = { kind: "step" | "decision" | "guardrail" | "mistake" | "offrecord"; id: Id } | null;
-type Tab = "map" | "rules" | "debrief" | "export";
 
 export function WorkMapView({ wm, events, frameSource, mediaSource, live, actions, footer }: {
   wm: WorkMap; events: Event[]; frameSource: FrameSource; mediaSource?: MediaSource; live?: boolean; actions?: ReactNode; footer?: ReactNode;
@@ -48,7 +48,7 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
   };
 
   return (
-    <Sources.Provider value={{ frame: frameSource, media: mediaSource, events }}>
+    <Sources.Provider value={{ frame: frameSource, media: mediaSource, events, expert: wm.expert.displayName.split(" ")[0] }}>
       <div className="wm">
         <header className="wm-titlebar">
           <div className="wm-title">
@@ -60,14 +60,8 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
             {entry && <Link className={`btn ${entry.primary ? "primary" : ""}`} to={entry.to} title={entry.title}>{entry.label}</Link>}
           </div>
         </header>
-        <nav className="wm-tabs" role="tablist">
-          {([["map", "Steps"], ["rules", "Rules"], ["debrief", "Debrief"], ["export", "Export"]] as Array<[Tab, string]>).map(([k, l]) => (
-            <button key={k} role="tab" aria-selected={tab === k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>
-              {l}
-              {k === "rules" && <span className="count">{wm.guardrails.length}</span>}
-            </button>
-          ))}
-        </nav>
+        <WmTabs tab={tab} onTab={setTab} rules={wm.guardrails.length} />
+        <div role="tabpanel" id="wm-panel" aria-labelledby={`wm-tab-${tab}`}>
 
         {tab === "map" && (
           <>
@@ -84,6 +78,7 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
         {tab === "debrief" && <DebriefTab wm={wm} ix={ix} onSelect={select} />}
         {tab === "export" && <ExportTab wm={wm} />}
         {footer && tab === "export" && <div className="wm-footer">{footer}</div>}
+        </div>
       </div>
     </Sources.Provider>
   );
@@ -327,7 +322,7 @@ const caseLabel = (wm: WorkMap, ix: LogIndex, m: ScreenMoment) => {
 };
 
 export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: ScreenMoment; caption?: string; zoom?: number; crop?: number }) {
-  const { frame, media, events } = useContext(Sources);
+  const { frame, media, events, expert } = useContext(Sources);
   const [full, setFull] = useState(false);
   // replay the recorded screen around the moment (full-size frames only; cropped/zoomed thumbnails stay still)
   const clip = useMemo(() => (media && !cropH ? mediaClip(events, "screen_video", m.t, m.t - SCREEN_BEFORE, m.t + SCREEN_AFTER, m.sessionId) : null), [media, cropH, events, m.t, m.sessionId]);
@@ -359,7 +354,7 @@ export function Frame({ m, caption, zoom: zoomIn = 1, crop: cropH = 0 }: { m: Sc
         ) : src ? (
           // zoom gently toward the highlighted field so the step's context reads at a glance
           <div className="frame-zoom" style={frameStyle(m, zoom, crop)}>
-            <img src={src} alt={`Screen at ${fmtClock(m.t)}`} />
+            <img src={src} alt={`${expert ? `${expert}'s screen` : "Screen"} at ${fmtClock(m.t)}`} />
             {m.bbox && <div className="frame-box" style={{ left: `${m.bbox.x * 100}%`, top: `${m.bbox.y * 100}%`, width: `${m.bbox.w * 100}%`, height: `${m.bbox.h * 100}%` }} />}
           </div>
         ) : <div className="frame-empty">{src === null ? "Screenshot unavailable" : ""}</div>}

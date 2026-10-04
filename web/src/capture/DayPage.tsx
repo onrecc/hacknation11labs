@@ -17,6 +17,7 @@ import { AdaPanel } from "./AdaPanel";
 import { PAUSE } from "./hub";
 import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
+import { dayLabel, localDate } from "../lib/dates";
 import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
 import { toast } from "../components/toast";
 import { Skeleton } from "../components/Feedback";
@@ -65,7 +66,7 @@ export default function DayPage() {
     return () => removeEventListener("beforeunload", flush);
   }, [rec]);
 
-  const active = past?.find((d) => d.status === "active" && d.date === new Date().toISOString().slice(0, 10));
+  const active = past?.find((d) => d.status === "active" && d.date === localDate());
 
   async function start(existing?: Workday) {
     try {
@@ -140,7 +141,7 @@ export default function DayPage() {
             <h3>Earlier days</h3>
             {past.filter((d) => d.tasks.some(worked)).map((d) => (
               <div key={d.id} className="dayrow">
-                <b>{d.date}</b> <span className="muted small">{d.status} · {d.tasks.filter(worked).length} tasks</span>
+                <b>{dayLabel(d.date)}</b> <span className="muted small">{d.status} · {d.tasks.filter(worked).length} tasks</span>
                 <ul>{d.tasks.filter(worked).map((t) => (
                   <li key={t.sessionId}>
                     <Link to={`/map/${t.sessionId}`}>{t.title}</Link> <span className="muted small">{fmtTime(t.startedAt)}–{fmtTime(t.endedAt)} · {t.actions} actions</span>{" "}
@@ -163,7 +164,7 @@ export default function DayPage() {
   return (
     <div className="page split">
       <section>
-        <h1>{user.short}'s day <span className="muted small">{day.date}</span></h1>
+        <h1>{user.short}'s day <span className="muted small">{dayLabel(day.date)}</span></h1>
         <JudgeLegend />
         <SessionStatus s={s} ended={ended}><p className="muted small mono">{rec.hub.session.id}</p></SessionStatus>
 
