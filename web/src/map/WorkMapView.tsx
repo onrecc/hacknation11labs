@@ -22,7 +22,9 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live }: { wm
   const ix = useMemo(() => new LogIndex(wm.sourceSessionIds[0] ?? "", events), [wm.sourceSessionIds, events]);
   const corrections = ix.ofType("knowledge.correction").length;
   useEffect(() => {
-    if (sel && sel.kind === "step" && !wm.steps.some((s) => s.id === sel.id)) setSel(wm.steps[0] ? { kind: "step", id: wm.steps[0].id } : null);
+    const first = wm.steps.length ? { kind: "step" as const, id: [...wm.steps].sort((a, b) => a.order - b.order)[0].id } : null;
+    if (!sel) setSel(first);
+    else if (sel.kind === "step" && !wm.steps.some((s) => s.id === sel.id)) setSel(first);
   }, [wm, sel]);
 
   const select = (s: Sel) => {
@@ -88,6 +90,24 @@ function StatusBadge({ wm, live }: { wm: WorkMap; live?: boolean }) {
   );
 }
 
+// ───────────────────────── icons (inline SVG: emoji don't render in every font) ─────────────────────────
+
+const PROV_ICON: Record<string, IconName> = { observed: "eye", stated_live: "mic", stated_debrief: "chat", teachback_correction: "pencil", inferred: "question" };
+type IconName = "eye" | "mic" | "chat" | "pencil" | "check" | "question" | "diamond" | "dot";
+const ICON_PATHS: Record<IconName, string> = {
+  eye: "M1.5 8s2.5-4.5 6.5-4.5S14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8Z M8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
+  mic: "M8 1.5a2 2 0 0 0-2 2v4a2 2 0 0 0 4 0v-4a2 2 0 0 0-2-2Z M4 7.5a4 4 0 0 0 8 0 M8 11.5v3 M5.5 14.5h5",
+  chat: "M2 3.5h12v7H6l-3 2.5v-2.5H2Z",
+  pencil: "M10.5 2.5l3 3-8 8H2.5v-3Z M9 4l3 3",
+  check: "M2.5 8.5l3.5 3.5 7.5-8",
+  question: "M5.5 6a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .8-1 1.5v.7 M8 13v.5",
+  diamond: "M8 1.5 14.5 8 8 14.5 1.5 8Z",
+  dot: "M8 6.5a1.5 1.5 0 1 0 0 3 1.5 1.5 0 0 0 0-3Z",
+};
+function Icon({ name }: { name: IconName }) {
+  return <svg className="ic" viewBox="0 0 16 16" width="1em" height="1em" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={ICON_PATHS[name]} /></svg>;
+}
+
 // ───────────────────────── flowchart ─────────────────────────
 
 function Flowchart({ wm, sel, onSelect }: { wm: WorkMap; sel: Sel; onSelect: (s: Sel) => void }) {
@@ -105,16 +125,18 @@ function Flowchart({ wm, sel, onSelect }: { wm: WorkMap; sel: Sel; onSelect: (s:
 
 function FlowItem({ n, sel, onSelect, wm }: { n: FlowNode; sel: Sel; onSelect: (s: Sel) => void; wm: WorkMap }) {
   if (n.kind === "gate") {
+    const next = wm.steps.find((x) => x.order === n.step.order + 1);
     return (
       <>
         <div className="flow-arrow" />
-        <div className="flow-gate-row">
-          <button className="flow-gate" onClick={() => onSelect({ kind: "step", id: n.step.id })} title="Optional step: only when this is true">
-            <span>{n.question}</span>
-          </button>
-          <span className="flow-no">no → skip to step {n.step.order + 1 <= wm.steps.length ? n.step.order + 1 : "end"}</span>
+        <button className={`flow-gate ${sel?.kind === "step" && sel.id === n.step.id ? "sel" : ""}`} onClick={() => onSelect({ kind: "step", id: n.step.id })} title="Only some cases go through the next step">
+          <span className="gate-ic" aria-hidden><Icon name="diamond" /></span>
+          <span className="gate-q">{n.question}</span>
+        </button>
+        <div className="flow-gate-legs">
+          <span className="leg-yes">yes ↓</span>
+          <span className="leg-no">no → {next ? `skip to step ${next.order}` : "done"}</span>
         </div>
-        <div className="flow-yes">yes</div>
       </>
     );
   }
@@ -144,9 +166,9 @@ function FlowItem({ n, sel, onSelect, wm }: { n: FlowNode; sel: Sel; onSelect: (
           <span className="flow-num">{s.order}</span>
           <span className="flow-title">{s.title}</span>
           <span className="flow-meta">
-            {s.provenance.map((p) => <span key={p} title={PROV[p]?.label}>{PROV[p]?.icon}</span>)}
-            {s.history.length > 0 && <span className="corr" title="corrected">✎</span>}
-            {s.confirmedByExpert && <span className="ok" title="confirmed by the expert">✓</span>}
+            {s.provenance.map((p) => <span key={p} className={`pi pi-${p}`} title={PROV[p]?.label}><Icon name={PROV_ICON[p] ?? "dot"} /></span>)}
+            {s.history.length > 0 && <span className="pi corr" title="corrected"><Icon name="pencil" /></span>}
+            {s.confirmedByExpert && <span className="pi ok" title="confirmed by the expert"><Icon name="check" /></span>}
           </span>
         </button>
         {(n.decisions.length > 0 || n.guardrails.length > 0 || n.mistakes.length > 0) && (
@@ -283,7 +305,7 @@ function KindBadge({ kind }: { kind: Decision["kind"] }) {
 function ProvRow({ c }: { c: Claim }) {
   return (
     <div className="prov">
-      {c.provenance.map((p) => <span key={p} className={`pv pv-${p}`}>{PROV[p]?.icon} {PROV[p]?.label ?? p}</span>)}
+      {c.provenance.map((p) => <span key={p} className={`pv pv-${p}`}><Icon name={PROV_ICON[p] ?? "dot"} /> {PROV[p]?.label ?? p}</span>)}
       {c.confirmedByExpert && <span className="pv pv-ok">✓ confirmed by the expert</span>}
     </div>
   );
@@ -399,7 +421,7 @@ function SessionStrip({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelec
       </div>
       <div className="strip-lane cases">
         {wm.cases.map((c) => <div key={c.id} className="cs" style={{ left: pct(c.t), width: `calc(${pct(c.tEnd)} - ${pct(c.t)})` }} title={`${c.key} ${c.outcome ?? ""}`}>{c.kind === "invoice" ? "INV-" : ""}{c.key}{c.outcome ? ` · ${c.outcome.replace(/_/g, " ")}` : ""}</div>)}
-        {ix.offRecord.map(([a, b]) => <button key={a} className="off" style={{ left: pct(a), width: `calc(${pct(b)} - ${pct(a)})` }} onClick={() => onSelect({ kind: "offrecord", id: String(a) })} title="Off the record: nothing kept">off the record · nothing kept</button>)}
+        {ix.offRecord.map(([a, b]) => <button key={a} className="off" style={{ left: pct(a), width: `calc(${pct(b)} - ${pct(a)})` }} onClick={() => onSelect({ kind: "offrecord", id: String(a) })} title="Off the record: nothing kept">off record</button>)}
       </div>
       <div className="strip-lane marks">
         {questions.map((q) => {

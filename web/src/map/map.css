@@ -39,8 +39,10 @@
 .flow-step-main { display: flex; align-items: center; gap: 0.6rem; width: 100%; padding: 0.6rem 0.75rem; background: none; border: none; text-align: left; cursor: pointer; font: inherit; color: inherit; border-radius: 12px; }
 .flow-num { flex: none; width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; background: var(--accent); color: #fff; font-weight: 700; font-size: 0.85rem; }
 .flow-title { flex: 1; font-weight: 600; line-height: 1.25; }
-.flow-meta { display: flex; gap: 0.25rem; font-size: 0.8rem; color: var(--muted); }
-.flow-meta .corr { color: var(--warn); } .flow-meta .ok { color: var(--ok); font-weight: 700; }
+.flow-meta { display: flex; gap: 0.35rem; font-size: 0.95rem; color: var(--muted); align-items: center; }
+.ic { display: inline-block; vertical-align: -0.15em; flex: none; }
+.pi { display: inline-grid; place-items: center; }
+.flow-meta .corr { color: var(--warn); } .flow-meta .ok { color: var(--ok); }
 .flow-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; padding: 0 0.75rem 0.6rem 3rem; }
 .flow-tags button { font: inherit; font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 6px; cursor: pointer; text-align: left; max-width: 100%; }
 .tag-d { background: color-mix(in srgb, var(--accent-2) 10%, var(--panel)); border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); color: var(--text); }
@@ -49,13 +51,13 @@
 .tag-m { background: none; border: 1px dashed var(--warn); color: var(--warn); }
 .flow-tags button.sel { box-shadow: 0 0 0 2px currentColor; }
 
-.flow-gate-row { position: relative; display: flex; align-items: center; justify-content: center; width: min(100%, 470px); }
-.flow-gate { width: 260px; min-height: 76px; display: grid; place-items: center; padding: 0.6rem 2.2rem; border: none; cursor: pointer; font: inherit; font-size: 0.8rem; font-weight: 600; color: var(--text);
-  background: color-mix(in srgb, var(--warn) 14%, var(--panel)); clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%); text-align: center; line-height: 1.2; }
-.flow-gate:hover { background: color-mix(in srgb, var(--warn) 24%, var(--panel)); }
-.flow-no { position: absolute; right: 0; font-size: 0.72rem; color: var(--muted); max-width: 95px; text-align: right; }
-.flow-yes { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
-
+.flow-gate { display: flex; align-items: center; gap: 0.55rem; width: min(100%, 400px); padding: 0.5rem 0.8rem; border-radius: 10px; cursor: pointer; font: inherit; font-size: 0.85rem; font-weight: 600; text-align: left; line-height: 1.3;
+  color: var(--text); background: color-mix(in srgb, var(--warn) 12%, var(--panel)); border: 1.5px solid color-mix(in srgb, var(--warn) 55%, transparent); }
+.flow-gate:hover, .flow-gate.sel { background: color-mix(in srgb, var(--warn) 22%, var(--panel)); }
+.gate-ic { flex: none; color: var(--warn); font-size: 1.1rem; display: grid; place-items: center; }
+.gate-q { flex: 1; }
+.flow-gate-legs { display: flex; justify-content: space-between; width: min(100%, 400px); font-size: 0.72rem; color: var(--muted); padding: 0.15rem 0.3rem 0; }
+.leg-yes { color: var(--ok); font-weight: 600; } .leg-no { font-style: italic; }
 .flow-branch { display: flex; flex-direction: column; align-items: center; width: min(100%, 520px); }
 .flow-outcomes { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.4rem; padding: 0.5rem; border: 1px solid var(--line); border-radius: 12px; background: color-mix(in srgb, var(--accent-2) 5%, var(--panel)); }
 .flow-outcome { display: flex; flex-direction: column; gap: 0.1rem; min-width: 120px; max-width: 165px; padding: 0.35rem 0.55rem; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--accent-2) 40%, transparent); background: var(--panel); cursor: pointer; font: inherit; text-align: left; color: var(--text); }
@@ -159,3 +161,13 @@ pre.export { max-height: 60vh; overflow: auto; background: var(--soft); padding:
 .debrief-gaps li { padding: 0.2rem 0; display: flex; gap: 0.4rem; }
 .debrief-gaps li.resolved { color: var(--muted); text-decoration: line-through; }
 .debrief-gaps li.now { font-weight: 700; }
+
+/* dark mode: keep contrast on accent-colored surfaces */
+@media (prefers-color-scheme: dark) {
+  .wm { --ok: #66bb6a; --warn: #ffb74d; }
+  .flow-num { background: #3b6fb6; color: #fff; }
+  .tag-g { color: #ff8a80; border-color: color-mix(in srgb, #ff8a80 50%, transparent); background: color-mix(in srgb, #ff8a80 10%, var(--panel)); }
+  .wm .danger-text, .wm h2.danger-text { color: #ff8a80; }
+  .mk.q { background: #3b6fb6; }
+  .moment-box { border-color: #ff5252; }
+}

@@ -17,7 +17,7 @@ export function flowModel(wm: WorkMap): FlowNode[] {
   const out: FlowNode[] = [];
   const steps = [...wm.steps].sort((a, b) => a.order - b.order);
   for (const s of steps) {
-    if (s.optional) out.push({ kind: "gate", step: s, question: s.whenText ? `${s.whenText}?` : `Does "${s.title}" apply?` });
+    if (s.optional) out.push({ kind: "gate", step: s, question: gateQuestion(s) });
     const decisions = wm.decisions.filter((d) => s.decisionIds.includes(d.id));
     const guardrails = wm.guardrails.filter((g) => s.guardrailIds.includes(g.id));
     const mistakes = wm.commonMistakes.filter((m) => m.relatedIds.some((r) => r === s.id || s.decisionIds.includes(r) || s.guardrailIds.includes(r)));
@@ -41,6 +41,14 @@ export function flowModel(wm: WorkMap): FlowNode[] {
     }
   }
   return out;
+}
+
+/** "Hofmann or Schreiber Logistik in December, or a new supplier?" — from whenText, else the condition, else generic. */
+function gateQuestion(s: Step): string {
+  const q = s.whenText?.trim() || (s.when ? conditionText(s.when) : "");
+  if (!q) return "Only in some cases";
+  const t = q.charAt(0).toUpperCase() + q.slice(1);
+  return t.endsWith("?") ? t : `${t}?`;
 }
 
 // ───────────── quotes: show the self-correction ─────────────

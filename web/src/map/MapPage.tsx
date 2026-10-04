@@ -86,14 +86,20 @@ function DemoMap() {
   );
 }
 
-const storageFrame = async (sessionId: string, frameId: string): Promise<string | null> => {
-  for (const ext of ["webp", "png", "jpg", "svg"]) {
-    try {
-      return await blobUrl(sessionId, `frames/${frameId}.${ext}`);
-    } catch { /* try next */ }
-  }
-  return null;
-};
+/** Frame URL from Storage: use the exact uri the frame.captured event recorded, else try the usual extensions. */
+function storageFrameSource(events: Event[]): FrameSource {
+  const uris = new Map<string, string>();
+  for (const e of events) if (e.type === "frame.captured") uris.set(e.payload.frameId, e.payload.uri);
+  return async (sessionId, frameId) => {
+    const known = uris.get(frameId);
+    for (const uri of known ? [known] : ["webp", "svg", "png", "jpg"].map((x) => `frames/${frameId}.${x}`)) {
+      try {
+        return await blobUrl(sessionId, uri);
+      } catch { /* try next */ }
+    }
+    return null;
+  };
+}
 
 function SessionMap({ sessionId }: { sessionId: string }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -127,6 +133,8 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   }, [sessionId]);
 
   const ix = useMemo(() => new LogIndex(sessionId, events), [sessionId, events]);
+  const frameCount = ix.frames.length;
+  const frameSource = useMemo(() => storageFrameSource(events), [frameCount]); // eslint-disable-line react-hooks/exhaustive-deps
   const draft = useMemo(() => (session ? buildDraft(session, events, wm?.id) : null), [session, events, wm?.id]);
   const shown = wm ?? draft;
 
@@ -174,7 +182,7 @@ function SessionMap({ sessionId }: { sessionId: string }) {
   if (!session) return <div className="page">Loading session…</div>;
   return (
     <>
-      {shown && <WorkMapView wm={shown} events={events} frameSource={storageFrame} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} />}
+      {shown && <WorkMapView wm={shown} events={events} frameSource={frameSource} live={session.status === "live" || session.status === "debrief" || session.status === "teachback"} />}
       <div className="page">
         <div className="btns">
           <button onClick={() => void rebuild(false)} disabled={!!busy}>{busy ?? "Build / rebuild Work Map (LLM)"}</button>
