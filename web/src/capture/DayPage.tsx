@@ -12,6 +12,7 @@ import { WorkdayRecorder, WORKDAY } from "./workday";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { DebriefPanel } from "../map/DebriefPanel";
 import { EventFeed } from "../components/ui";
+import { ExpertQuestions } from "../compare/ExpertQuestions";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const fmtDur = (a: string, b?: string) => {
@@ -107,6 +108,7 @@ export default function DayPage() {
           </div>
         </div>
         {err && <p className="error">{err}</p>}
+        <ExpertQuestions user={user} />
         {past.length > 0 && (
           <div className="card">
             <h3>Earlier days</h3>
@@ -158,6 +160,8 @@ export default function DayPage() {
             <p className="muted small">Tasks split automatically when you switch apps, after a {Math.round(WORKDAY.idleMs / 60_000)}-minute break, or when Ada sees a different kind of work.</p>
           </div>
         )}
+
+        <ExpertQuestions user={user} hub={rec.hub} />
 
         <div className="card">
           <h3>Today's tasks {detours > 0 && <span className="muted small">({detours} short detours hidden)</span>}</h3>

@@ -101,6 +101,33 @@ export interface Workday {
   }>;
 }
 
+/**
+ * Two experts, one task (brief stretch goal): where two confirmed Work Maps for the same kind of work differ,
+ * and each expert's answer to "why?". Firestore: comparisons/{id}.
+ */
+export interface Comparison {
+  id: Id;
+  domain: string;
+  workMapIds: [Id, Id];
+  experts: [{ userId?: Id; name: string }, { userId?: Id; name: string }];
+  createdAt: ISO;
+  updatedAt: ISO;
+  summary: string;
+  items: Array<{
+    id: Id;
+    topic: string;
+    kind: "same" | "different" | "only_a" | "only_b";
+    severity: "info" | "important";
+    a?: { says: string; refIds: Id[] };
+    b?: { says: string; refIds: Id[] };
+    /** "Why?" questions for the experts (only where they differ or one is missing a rule). */
+    questions: { a?: string; b?: string };
+    answers: { a?: { text: string; at: ISO }; b?: { text: string; at: ISO } };
+    /** Team note once both answered: both valid under different conditions, one is the rule, or escalate. */
+    resolution?: { verdict: "both_valid" | "a_is_the_rule" | "b_is_the_rule" | "escalate"; note: string; condition: string };
+  }>;
+}
+
 // ───────────────────────── event envelope ─────────────────────────
 
 export interface EventBase<T extends string, P> {

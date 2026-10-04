@@ -16,7 +16,10 @@
     "e2e:extension": "tsx --env-file=../.env.local src/extension-e2e.ts",
     "e2e:voice": "tsx --env-file=../.env.local src/voice-e2e.ts",
     "e2e:teach-voice": "tsx --env-file=../.env.local src/teach-voice-e2e.ts",
-    "e2e:workday": "tsx --env-file=../.env.local src/workday-e2e.ts"
+    "e2e:workday": "tsx --env-file=../.env.local src/workday-e2e.ts",
+    "golden": "tsx --env-file=../.env.local src/golden-path.ts",
+    "e2e:compare": "tsx --env-file=../.env.local src/compare-e2e.ts",
+    "brag:shots": "tsx --env-file=../.env.local src/brag-shots.ts"
   },
   "dependencies": {
     "@google/genai": "^2.27.0",

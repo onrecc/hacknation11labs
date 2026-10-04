@@ -7,6 +7,7 @@ export const col = {
   report: (sessionId: Id) => `sessions/${sessionId}/report`,
   workmaps: "workmaps",
   workdays: "workdays",
+  comparisons: "comparisons",
   workmapVersions: (workMapId: Id) => `workmaps/${workMapId}/versions`,
 };
 

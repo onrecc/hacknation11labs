@@ -52,6 +52,9 @@ Open http://localhost:5173 and pick a person on the demo login (no passwords):
 - **Experts** (Sabine, Ilse, Jürgen) → **My day**: "Start my day", then work as usual. Ada asks *why* at natural pauses, and the day is split into tasks automatically (app switch, "New task", a break, or Gemini noticing a different kind of work). Each task gets its own Work Map; "Debrief now" per task.
 - **Practicers** (Lena, Aylin, Tim) → **Training**: their department's confirmed Work Map is preselected.
 
+- **Compare** (`/compare`): two experts, one task. Where Sabine and Ilse differ, Ada asks each of them why and turns the answers into a team rule.
+- **Golden path** (whole scenario, real services): `EXPERT=sabine npm run golden -w tools`. **Launch video brief:** `docs/BRAG.md`.
+
 Pages:
 - **Map:** `/map/ses_demo_sabine_01` is the seeded demo session with its confirmed Work Map (live from Firestore).
 - **Teach:** `/teach` → pick the Work Map → start. MiniERP opens in teach mode. Open INV-4490 (€7,200 equipment) and press Approve on cost center 4711. The tutor holds the save and quotes Sabine.

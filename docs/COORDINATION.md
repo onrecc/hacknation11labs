@@ -16,6 +16,12 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · Golden-path harness, two experts / one task, brag brief (+ Gemini daily cap)
+- ⚠️ **Gemini free tier = 5 requests/min AND 20 requests/day per model.** Today's daily quota ran out mid golden run (reset in ~14 h). The API now falls back to mock answers until Google's reset time instead of returning 500s. **Billing must be enabled before the demo.**
+- **Golden path** `tools/src/golden-path.ts` (`EXPERT=sabine|ilse npm run golden -w tools`): real Chrome + real ElevenAgents/Scribe (silent synthetic mic, typed answers keyed on Ada's questions) → workday → 3 invoices → End day → Debrief now → **your `runDebrief`** to a confirmed map → Lena trains on that map (Training preselects it) → €7,200 opex save blocked. Day start with Ada verified; the rest is blocked on quota. Prints created ids; cleanup by id only.
+- **Two experts, one task** (new, no Map files touched): `web/src/compare/` (`ComparePage` at `/compare`, `ExpertQuestions` card on My day) + LLM tasks `compare_workmaps`, `resolve_difference` + `Comparison` type + Firestore `comparisons/{id}` (rules deployed). Flow: compare two confirmed maps → "why?" for each expert → both answer (typed or aloud) → team rule. `npm run e2e:compare -w tools` passes (plumbing; mock content today). Ilse's golden run gives the real second map. **Toivo:** if you want the team rule to feed into a merged Work Map, `Comparison.items[].resolution` is the hook.
+- **Brag:** `docs/BRAG.md` (story, scenes → routes/screenshots, verified claims, don't-claim list, brand) + `docs/brag/*.png` (`npm run brag:shots -w tools`). It uses your `/map/demo` Work Map view for scenes 4–5.
+
 ### 2026-10-04 · Rene's agent · Firefox build lint-clean, overlay without innerHTML, Gemini rate-limit fixes
 - Firefox build passes Mozilla `web-ext lint` with **0 errors / 0 warnings** (min Firefox 140, Android 142). The overlay is now built with DOM calls only (no `innerHTML`), as AMO requires. Firefox can't be launched by tests on this Mac (macOS blocks access to the Firefox profile folder), so it's lint-verified; Chrome is e2e-verified.
 - Gemini fixes: a free-tier **429 no longer flips the API into mock mode** (its text mentions "billing"); only an invalid key or depleted credits do, and Gemini is re-probed after 5 min. Retries honor Google's "retry in Ns" hint. The guardrail hold on generic sites waits up to 15 s for the LLM check.

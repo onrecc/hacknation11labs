@@ -149,3 +149,8 @@ input[type="checkbox"]:checked::after { content: ""; width: 8px; height: 4px; bo
 .health { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; }
 .health i { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); }
 .health.off i { background: var(--faint); }
+/* compare (two experts, one task) */
+.compare .cmp td { vertical-align: top; }
+.compare tr.k-same { opacity: 0.75; }
+.badge.important { color: var(--danger, #c62828); border-color: currentColor; margin-left: 0.3rem; }
+.expert-questions .eq { border-top: 1px solid var(--line); padding-top: 0.6rem; margin-top: 0.6rem; }

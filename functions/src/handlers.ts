@@ -79,6 +79,14 @@ const schemas = {
     title: z.string(), domain: z.string(), summary: z.string(), isNewTask: z.boolean(),
     newTaskStartsAtActionId: z.string(), sameAsKnownTask: z.string(), confidence: z.number(),
   }),
+  compare_workmaps: z.object({
+    summary: z.string(),
+    items: z.array(z.object({
+      topic: z.string(), kind: z.enum(["same", "different", "only_a", "only_b"]), severity: z.enum(["info", "important"]),
+      aSays: z.string(), bSays: z.string(), questionForA: z.string(), questionForB: z.string(),
+    })),
+  }),
+  resolve_difference: z.object({ verdict: z.enum(["both_valid", "a_is_the_rule", "b_is_the_rule", "escalate"]), note: z.string(), condition: z.string() }),
   check_guardrails: z.object({ violations: z.array(z.object({ guardrailId: z.string(), reason: z.string(), confidence: z.number() })) }),
   grade_prediction: z.object({ correct: z.boolean(), feedback: z.string() }),
   teachback_verdict: z.object({ verdict: z.enum(["confirmed", "corrected", "unclear"]), correction: z.string(), correctedText: z.string() }),
@@ -127,12 +135,18 @@ Given the current task title (may be empty), the app, the department and the rec
 - title: short verb phrase for the work in these actions (max 6 words), domain: snake_case business domain (e.g. accounts_payable, procurement), summary: one sentence.
 - isNewTask: true only if the actions clearly switched to a DIFFERENT kind of work than currentTitle; then newTaskStartsAtActionId = id of the first action of the new work.
 - sameAsKnownTask: if this is the same kind of work as one of knownTasks (resumed after a detour), that exact title, else "".`,
+  compare_workmaps: `Two experts documented the same kind of work (Work Map A and Work Map B). Align them topic by topic (a decision, a limit, an exception, who approves, when to stop and ask).
+For each topic: kind = same | different | only_a | only_b; aSays/bSays = what each expert does or says, in their words where possible ("" if missing).
+Where they differ or one is missing a rule, write a short, neutral, curious "why" question for each expert (questionForA / questionForB), naming the other expert and the concrete case, never implying who is right ("Ilse sends suspected duplicates straight to Jonas. You put them on hold. What makes you hold them?"). Use "" when no question is needed.
+severity = important when the difference changes money, approvals or compliance, else info. Order: important differences first. summary: 2 sentences.`,
+  resolve_difference: `Two experts explained why they handle the same situation differently. Decide the team rule:
+both_valid (each is right under a different condition: give that condition), a_is_the_rule / b_is_the_rule (one is the safer/correct practice), or escalate (needs the controller/team lead to decide). note: 1-2 sentences a new hire can follow. condition: when each applies ("" if not both_valid).`,
   check_guardrails: `A new hire is about to perform an action on a web page. Given the expert's guardrails and the visible form fields, list ONLY guardrails that this action would clearly violate. Be conservative: no violation if the fields don't show it. confidence 0..1.`,
   grade_prediction: `Grade whether the new hire's predicted decision matches the expert's decision in substance (wording may differ). Feedback: one short, encouraging sentence that uses the expert's reason.`,
   tutor_explain: `You are a patient tutor coaching a new hire on their screen. The new hire is about to break a guardrail. If socratic=true, ask them why the expert would stop here (one sentence) and wait. Otherwise explain using the expert's quote verbatim, naming the expert. Max 2 sentences.`,
 };
 
-const DEEP: ReadonlySet<LlmTask> = new Set<LlmTask>(["extract_workmap", "plan_debrief", "teachback"]);
+const DEEP: ReadonlySet<LlmTask> = new Set<LlmTask>(["extract_workmap", "plan_debrief", "teachback", "compare_workmaps"]);
 
 let client: GoogleGenAI | null = null;
 const jsonSchemas = new Map<LlmTask, unknown>();
@@ -168,6 +182,14 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
     // only a broken key or depleted prepaid credits switch to mock answers (a 429 rate limit also mentions
     // "billing" in its text, but it's transient: it must not turn Gemini off)
     const msg = (err as Error).message;
+    // free tier's DAILY cap (20 requests/model/day): no point retrying for hours; mock until Google's reset time
+    const daily = /PerDay/i.test(msg) ? Number(/"retryDelay":\s*"(\d+)s"/.exec(msg)?.[1] ?? 3600) : 0;
+    if (process.env.LLM_STRICT !== "1" && daily) {
+      geminiDown = `Gemini daily free quota used up at ${new Date().toISOString()}: mock answers until ${new Date(Date.now() + daily * 1000).toISOString()} (enable billing to lift it)`;
+      geminiDownUntil = Date.now() + daily * 1000;
+      console.error(geminiDown);
+      return mockOutput(task, input);
+    }
     if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|credits are depleted/i.test(msg)) {
       geminiDown = `Gemini unavailable (key or credits) at ${new Date().toISOString()}: mock answers, retrying in 5 min`;
       geminiDownUntil = Date.now() + 5 * 60_000;

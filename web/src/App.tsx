@@ -6,6 +6,7 @@ import MapPage from "./map/MapPage";
 import TeachPage from "./teach/TeachPage";
 import ErpPage from "./erp/ErpPage";
 import LoginPage from "./auth/LoginPage";
+import ComparePage from "./compare/ComparePage";
 import { apiHealth } from "./lib/api";
 import { homeFor, logout, useUser, type Role } from "./lib/users";
 
@@ -24,6 +25,7 @@ export default function App() {
         <Route path="/learn" element={<Guard role="practicer"><TeachPage /></Guard>} />
         <Route path="/teach" element={<Navigate to="/learn" replace />} />
         <Route path="/map" element={<Guard><MapPage /></Guard>} />
+        <Route path="/compare" element={<Guard><ComparePage /></Guard>} />
         <Route path="/map/:sessionId" element={<MapPage />} />
       </Routes>
     </>
@@ -55,6 +57,7 @@ function Nav() {
       {user?.role === "expert" && <NavLink to="/capture">Single task</NavLink>}
       {user?.role === "practicer" && <NavLink to="/learn">Training</NavLink>}
       {user && <NavLink to="/map">Work Maps</NavLink>}
+      {user && <NavLink to="/compare">Compare</NavLink>}
       <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
       <span className="userchip">
         <span className={`health ${health.startsWith("api offline") ? "off" : ""}`} title={health}><i />{health.startsWith("api offline") ? "Offline" : health.startsWith("AI: mock") ? "Mock AI" : "Live"}</span>

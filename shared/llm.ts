@@ -95,6 +95,27 @@ export interface LlmTasks {
       confidence: number;
     };
   };
+  /** Two experts, one task: align two Work Maps and say where they differ. */
+  compare_workmaps: {
+    input: { a: { expert: string; map: string }; b: { expert: string; map: string } };
+    output: {
+      summary: string;
+      items: Array<{
+        topic: string;
+        kind: "same" | "different" | "only_a" | "only_b";
+        severity: "info" | "important";
+        aSays: string;
+        bSays: string;
+        questionForA: string;
+        questionForB: string;
+      }>;
+    };
+  };
+  /** Two experts, one task: both explained why; what should the team rule be? */
+  resolve_difference: {
+    input: { topic: string; a: { expert: string; says: string; why: string }; b: { expert: string; says: string; why: string } };
+    output: { verdict: "both_valid" | "a_is_the_rule" | "b_is_the_rule" | "escalate"; note: string; condition: string };
+  };
   /** Teach (generic websites without CaseFacts): which guardrails would this action break? */
   check_guardrails: {
     input: {

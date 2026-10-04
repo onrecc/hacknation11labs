@@ -46,6 +46,11 @@ export function mockOutput<T extends LlmTask>(task: T, input: LlmInput<T>): LlmO
       title: i.currentTitle || `Work in ${i.app}`, domain: i.department, summary: `(mock) ${i.actions.length} actions in ${i.app}`,
       isNewTask: false, newTaskStartsAtActionId: "", sameAsKnownTask: "", confidence: 0.3,
     }),
+    compare_workmaps: (i) => ({
+      summary: `(mock) ${i.a.expert} and ${i.b.expert} compared.`,
+      items: [{ topic: "(mock) suspected duplicates", kind: "different", severity: "important", aSays: "puts them on hold", bSays: "sends them to the AP lead", questionForA: `${i.b.expert} does it differently. Why do you do it your way?`, questionForB: `${i.a.expert} does it differently. Why do you do it your way?` }],
+    }),
+    resolve_difference: () => ({ verdict: "escalate", note: "(mock) Ask the team lead which way is the rule.", condition: "" }),
     check_guardrails: () => ({ violations: [] }),
     grade_prediction: (i) => ({ correct: i.answer.toLowerCase().includes(i.expected.toLowerCase().split(" ")[0] ?? ""), feedback: `${i.reason}` }),
     teachback_verdict: (i) => {

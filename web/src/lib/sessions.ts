@@ -1,7 +1,7 @@
 /** Session + Work Map persistence and live subscriptions. */
 import { collection, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { getDownloadURL, ref } from "firebase/storage";
-import type { Event, Id, Session, WorkMap, Workday } from "@shared/schema";
+import type { Comparison, Event, Id, Session, WorkMap, Workday } from "@shared/schema";
 import { eventsFromChunks, type EventChunk } from "@shared/eventlog";
 import { col, blobPath, versionDocId } from "@shared/paths";
 import { newId } from "@shared/ids";
@@ -101,4 +101,19 @@ export async function getWorkday(id: Id): Promise<Workday | null> {
 export async function listWorkdays(userId: Id, n = 10): Promise<Workday[]> {
   const snap = await getDocs(query(collection(db, col.workdays), where("userId", "==", userId)));
   return snap.docs.map((d) => d.data() as Workday).sort((a, b) => b.startedAt.localeCompare(a.startedAt)).slice(0, n);
+}
+
+// ───────────── comparisons (two experts, one task) ─────────────
+export async function saveComparison(c: Comparison): Promise<void> {
+  await setDoc(doc(db, col.comparisons, c.id), JSON.parse(JSON.stringify(c)) as Comparison);
+}
+
+export async function listComparisons(): Promise<Comparison[]> {
+  const snap = await getDocs(collection(db, col.comparisons));
+  return snap.docs.map((d) => d.data() as Comparison).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getComparison(id: Id): Promise<Comparison | null> {
+  const d = await getDoc(doc(db, col.comparisons, id));
+  return d.exists() ? (d.data() as Comparison) : null;
 }
