@@ -9,6 +9,7 @@ import { createSession, listWorkMaps, loadWorkMap, type WorkMapHead } from "../l
 import { signedIn } from "../lib/firebase";
 import agents from "../lib/elevenlabs.json";
 import { CaptureHub } from "../capture/hub";
+import { REDACTION_CONFIG } from "../capture/redaction";
 import { EventFeed, useStore } from "../components/ui";
 import { Tutor, type TutorCard } from "./tutor";
 import { personOf, useUser } from "../lib/users";
@@ -58,7 +59,7 @@ export default function TeachPage() {
         participant: personOf(user),
         task: wm.task,
         consent: { recordingAccepted: true, acceptedAt: new Date().toISOString(), retention: "hackathon demo" },
-        config: { frameIntervalMs: 1000, visionModel: "off", agentId: agents.tutorAgentId, agentLlm: agents.llm, sttModel: "scribe_v2_realtime", promptVersions: { tutor: "v1" }, redaction: { enabled: true, engine: "none", entityTypes: ["IBAN"] }, questionBudgetPer10Min: 0 },
+        config: { frameIntervalMs: 1000, visionModel: "off", agentId: agents.tutorAgentId, agentLlm: agents.llm, sttModel: "scribe_v2_realtime", promptVersions: { tutor: "v1" }, redaction: REDACTION_CONFIG, questionBudgetPer10Min: 0 },
       });
       const t = new Tutor(wm, (c) => setCards((cs) => [c, ...cs].slice(0, 6)));
       const h = new CaptureHub(session, { writer: "teach", vision: false, voice: t.voiceOptions(agents.tutorAgentId, learner) });

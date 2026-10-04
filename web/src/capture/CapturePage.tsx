@@ -10,6 +10,7 @@ import { EventFeed, useStore } from "../components/ui";
 import agents from "../lib/elevenlabs.json";
 import { DebriefPanel } from "../map/DebriefPanel";
 import { personOf, useUser } from "../lib/users";
+import { REDACTION_CONFIG } from "./redaction";
 
 export default function CapturePage() {
   const user = useUser()!;
@@ -41,7 +42,7 @@ export default function CapturePage() {
         config: {
           frameIntervalMs: 1000, visionModel: form.vision ? "api:vision" : "off", agentId: agents.interviewerAgentId,
           agentLlm: "elevenagents", sttModel: "scribe_v2_realtime|webspeech", promptVersions: { all: "v1" },
-          redaction: { enabled: true, engine: "none", entityTypes: ["IBAN"] }, questionBudgetPer10Min: PAUSE.budgetPer10Min,
+          redaction: REDACTION_CONFIG, questionBudgetPer10Min: PAUSE.budgetPer10Min,
         },
       });
       const hub: CaptureHub = new CaptureHub(session, {

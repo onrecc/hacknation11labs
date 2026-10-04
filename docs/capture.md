@@ -14,7 +14,7 @@
 | Pipelines | frames → vision → `screen.observed` → `screen.action`; mic → Scribe → `utterance`; pause detector; question picker; answer linker; correction detector; redaction; off-record |
 | Interviewer agent | ElevenAgents config + prompt (curious, patient, brief; Expressive Mode) |
 | `scripts/pull_session` | Exports Firestore + Storage to the fixture folder layout |
-| Function `api` (`/llm`, `/voice-token`, `/tts`) | Shared with Map/Teach; you set them up first. `redact` (Presidio) is planned, not yet implemented |
+| Function `api` (`/llm`, `/voice-token`, `/tts`) | Shared with Map/Teach; you set them up first. Transcript redaction runs in the browser (`shared/redact.ts`); there is no `redact` function and no Presidio |
 
 ## Input → Output
 
@@ -35,7 +35,7 @@
 | Any web app | `extension/` (MV3) + `web/public/apprentice-embed.js`; demo app `/demo/procurex.html` | ✅ embed in browser + **real extension e2e** (`npm run e2e:extension -w tools`: relay, DOM capture, tab screenshots) |
 | MiniERP structured feed (case facts) + bridge | `web/src/erp/`, `shared/bridge.ts`, `web/src/lib/bridge.ts`; overlay, controls and save hold come from the extension | ✅ |
 | ElevenAgents config | `tools/src/setup-elevenlabs.ts` (prompts, voices, tools) | ✅ |
-| Redaction | IBAN masked in MiniERP UI, sensitive fields masked by the extension, vision `piiRegions` blurred on later frames | ⚠️ no Presidio pass on transcripts yet |
+| Redaction | Transcripts: regex redactor (`shared/redact.ts`, session `config.redaction.engine: "regex"`) on every utterance before it is logged or sent to an LLM, `redaction.applied` per hit, count in `HubState.redactedCount`. IBAN masked in MiniERP UI, sensitive fields masked by the extension, vision `piiRegions` blurred on later frames | ⚠️ no Presidio/NER (only names of the app's user profiles); mic audio not redacted |
 
 ## Hard constraints
 
@@ -65,8 +65,8 @@
 
 **Trust & privacy**
 
-13. **Off the record** (voice "off the record" or hotkey) immediately stops frames, video and mic chunks, vision calls and transcript persistence. Only the two `marker.off_record` events are stored. The agent confirms ("Okay, not recording") and resumes on "back on the record" or the hotkey.
-14. **Redact before upload.** Text goes through the `redact` function (Presidio): **planned, not yet implemented**; transcripts are uploaded unredacted today. Frames get a blur over vision's `piiRegions` (implemented); MiniERP masks IBAN in its UI and the extension masks passwords, IBANs and card numbers.
+13. **Off the record** (voice "off the record" or hotkey) immediately stops frames, video and mic chunks, vision calls and transcript persistence. Only the two `marker.off_record` events are stored. When triggered by voice, the in-progress mic chunk (which holds the spoken command) is discarded instead of saved; audio from a chunk that already closed before the transcript arrived (STT latency) is still kept. The agent confirms ("Okay, not recording") and resumes on "back on the record" or the hotkey.
+14. **Redact before upload.** Every utterance (expert and agent) is redacted in the browser before the `utterance` event is logged, so answer linking, correction detection, question picking, Map and storage only see placeholders. What is redacted: IBANs → `[IBAN]`; emails, written or spoken ("s.keller at krauss dot de") → `[EMAIL]`; phone numbers starting with `+` or `0` (8+/9+ digits) → `[PHONE]`; card numbers that pass the Luhn check → `[CARD]`; the names of the app's user profiles (full, first or last name) → `[PERSON]`. Word timings are merged so the words still spell the redacted text. Kept on purpose: invoice keys (INV-4471), amounts (7,200.00), cost centers (4711/0400), dates, approver names (escalation targets). Each hit logs a `redaction.applied` event (entity types and placeholder spans, never the original). **Not redacted:** names outside that list (no Presidio/NER), numbers spelled out as words, mic audio chunks (uploaded as recorded), what the ElevenLabs agent hears. Frames get a blur over vision's `piiRegions` only (frames before the first vision result are stored unblurred); MiniERP masks IBAN in its UI and the extension masks passwords, IBANs and card numbers.
 15. No API keys in the browser.
 
 **Performance**
