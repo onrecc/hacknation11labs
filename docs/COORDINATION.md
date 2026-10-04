@@ -16,6 +16,10 @@
 
 ## Log
 
+### 2026-10-04 · Rene's agent · Firefox build lint-clean, overlay without innerHTML, Gemini rate-limit fixes
+- Firefox build passes Mozilla `web-ext lint` with **0 errors / 0 warnings** (min Firefox 140, Android 142). The overlay is now built with DOM calls only (no `innerHTML`), as AMO requires. Firefox can't be launched by tests on this Mac (macOS blocks access to the Firefox profile folder), so it's lint-verified; Chrome is e2e-verified.
+- Gemini fixes: a free-tier **429 no longer flips the API into mock mode** (its text mentions "billing"); only an invalid key or depleted credits do, and Gemini is re-probed after 5 min. Retries honor Google's "retry in Ns" hint. The guardrail hold on generic sites waits up to 15 s for the LLM check.
+
 ### 2026-10-04 · Rene's agent · ✅ Extension for Chrome + Firefox; Gemini resilience
 - `extension/` now builds **two targets** from one source: `dist/chrome` (MV3 service worker) and `dist/firefox` (MV3 background script, gecko id `ai-apprentice@hack-nation.dev`, Firefox ≥ 128, data-collection declaration). `src/api.ts` = `browser ?? chrome`. `npm run package -w extension` makes the zips. The old `extension/dist/*.js` paths moved to `dist/chrome/`.
 - **Gemini (new key):** works, but it's on the **free tier: 5 requests/min for `gemini-3.8-flash`** (the only model this key can use). The API server now has `LLM_RPM` (set to 5 in `.env.local`): interactive tasks wait for a slot, background tasks (vision, label_task, detect_correction) are skipped when the budget is spent. Plus retries on 503 "high demand" / 429, and a mock fallback on depleted credits. **For the demo: enable billing in AI Studio, then remove `LLM_RPM`.** Map heads-up: `extract_workmap` waits for a slot like other interactive tasks.

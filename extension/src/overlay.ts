@@ -53,11 +53,13 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
   const host = document.createElement("div");
   host.id = "ai-apprentice-overlay";
   const root = host.attachShadow({ mode: "open" });
-  root.innerHTML = `<style>${CSS}</style><div class="wrap${opts.mount ? " docked" : ""}"><div class="cards"></div><div class="caption" hidden></div><div class="pill" hidden></div></div>`;
+  // built with DOM calls only (no innerHTML): page text never becomes markup
+  const cards = h("div", { class: "cards" });
+  const caption = h("div", { class: "caption" });
+  const pill = h("div", { class: "pill" });
+  caption.hidden = pill.hidden = true;
+  root.append(h("style", {}, CSS), h("div", { class: `wrap${opts.mount ? " docked" : ""}` }, cards, caption, pill));
   (opts.mount ?? document.documentElement).appendChild(host);
-  const pill = root.querySelector<HTMLDivElement>(".pill")!;
-  const caption = root.querySelector<HTMLDivElement>(".caption")!;
-  const cards = root.querySelector<HTMLDivElement>(".cards")!;
   let status: Status | null = null;
   let captionTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -67,7 +69,7 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
     const teach = status.mode === "teach";
     pill.className = `pill ${status.offRecord ? "off" : teach ? "teach" : ""}`;
     const label = status.offRecord ? "Off the record" : teach ? "Ada is coaching" : `Ada is learning from ${status.expert ?? "you"}`;
-    pill.innerHTML = `<span class="dot"></span><span>${esc(label)}</span>`;
+    pill.replaceChildren(h("span", { class: "dot" }), h("span", {}, label));
     if (opts.controls && !teach) {
       const off = btn(status.offRecord ? "Back on record" : "Off the record", () =>
         t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
@@ -77,13 +79,26 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
   };
 
   const showCard = (c: Extract<BridgeBody, { kind: "tutorCard" }>) => {
-    const el = document.createElement("div");
-    el.className = `card ${c.tone}`;
-    el.innerHTML = `<button class="x" title="Dismiss">×</button>${opts.mount ? "" : `<button class="m" title="Minimize">–</button>`}<h4>${esc(c.title)}</h4><p>${esc(c.text)}</p>`
-      + (c.quote ? `<div class="quote">“${esc(c.quote.text)}” <span>· ${esc(c.quote.who)} · ${esc(c.quote.when)}</span></div>` : "")
-      + (c.imageUrl ? `<div class="label">${esc(c.quote?.who ?? "Expert")}'s screen at this moment</div><div class="frame"><img src="${attr(c.imageUrl)}">${c.bbox ? `<div class="bbox" style="left:${c.bbox.x * 100}%;top:${c.bbox.y * 100}%;width:${c.bbox.w * 100}%;height:${c.bbox.h * 100}%"></div>` : ""}</div>` : "");
-    el.querySelector(".x")!.addEventListener("click", () => el.remove());
-    el.querySelector(".m")?.addEventListener("click", () => el.classList.toggle("min"));
+    const close = h("button", { class: "x", title: "Dismiss" }, "×");
+    const el = h("div", { class: `card ${c.tone}` }, close);
+    if (!opts.mount) {
+      const min = h("button", { class: "m", title: "Minimize" }, "–");
+      min.addEventListener("click", () => el.classList.toggle("min"));
+      el.append(min);
+    }
+    el.append(h("h4", {}, c.title), h("p", {}, c.text));
+    if (c.quote) el.append(h("div", { class: "quote" }, `“${c.quote.text}” `, h("span", {}, `· ${c.quote.who} · ${c.quote.when}`)));
+    const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
+    if (src) {
+      const frame = h("div", { class: "frame" }, h("img", { src }));
+      if (c.bbox) {
+        const box = h("div", { class: "bbox" });
+        Object.assign(box.style, { left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` });
+        frame.append(box);
+      }
+      el.append(h("div", { class: "label" }, `${c.quote?.who ?? "Expert"}'s screen at this moment`), frame);
+    }
+    close.addEventListener("click", () => el.remove());
     cards.replaceChildren(el); // one card at a time: the newest guidance
     if (c.tone === "info") setTimeout(() => el.remove(), 20_000);
   };
@@ -96,7 +111,7 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
     else if (m.kind === "tutorSay") showCard({ kind: "tutorCard", tone: "info", title: "Ada", text: m.text });
     else if (m.kind === "agentState" && m.caption) {
       caption.hidden = false;
-      caption.innerHTML = `<span class="who">Ada</span>${esc(m.caption)}`;
+      caption.replaceChildren(h("span", { class: "who" }, "Ada"), m.caption);
       clearTimeout(captionTimer);
       captionTimer = setTimeout(() => (caption.hidden = true), Math.max(4000, m.caption.length * 70));
     }
@@ -108,10 +123,15 @@ export function startOverlay(t: Transport, opts: OverlayOptions): () => void {
 }
 
 function btn(label: string, onClick: () => void) {
-  const b = document.createElement("button");
-  b.textContent = label;
+  const b = h("button", {}, label);
   b.addEventListener("click", onClick);
   return b;
 }
-const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
-const attr = (s: string) => (/^(https?:|data:image\/)/.test(s) ? esc(s) : "");
+
+/** Tiny DOM builder: attributes + text/element children (text is always text, never markup). */
+function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Record<string, string>, ...children: Array<Node | string>): HTMLElementTagNameMap[K] {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  el.append(...children);
+  return el;
+}

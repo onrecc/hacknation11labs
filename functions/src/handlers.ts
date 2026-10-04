@@ -146,6 +146,7 @@ function jsonSchema(task: LlmTask) {
 
 export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Promise<LlmOutput<T>> {
   if (!(task in schemas)) throw new HttpError(400, `unknown task ${task}`);
+  if (geminiDown && Date.now() > geminiDownUntil) geminiDown = null; // re-probe: keys get fixed, credits topped up
   if (process.env.LLM_MOCK === "1" || !process.env.GEMINI_API_KEY || geminiDown) return mockOutput(task, input);
   client ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   await takeBudget(task);
@@ -156,14 +157,20 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
         return await runGemini(task, input);
       } catch (err) {
         const transient = /\b(503|429)\b|UNAVAILABLE|high demand|overloaded|rate limit/i.test((err as Error).message) && !/credits are depleted/i.test((err as Error).message);
-        if (!transient || attempt >= 2) throw err;
-        await new Promise((r) => setTimeout(r, 1200 * 2 ** attempt + Math.random() * 400));
+        // Google tells us when quota frees up ("Please retry in 21.2s"): don't burn requests retrying sooner
+        const hinted = Number(/retry in ([\d.]+)s/i.exec((err as Error).message)?.[1] ?? 0) * 1000;
+        if (!transient || attempt >= 2 || hinted > 8000) throw err;
+        await new Promise((r) => setTimeout(r, Math.max(hinted, 1200 * 2 ** attempt) + Math.random() * 400));
       }
     }
   } catch (err) {
     // a revoked/invalid key must not take the whole demo down: switch to canned answers and say so in /health
-    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|credits are depleted|billing/i.test((err as Error).message)) {
-      geminiDown = `Gemini unavailable (key or billing) at ${new Date().toISOString()}: running on mock answers`;
+    // only a broken key or depleted prepaid credits switch to mock answers (a 429 rate limit also mentions
+    // "billing" in its text, but it's transient: it must not turn Gemini off)
+    const msg = (err as Error).message;
+    if (process.env.LLM_STRICT !== "1" && /API_KEY_INVALID|API key not valid|PERMISSION_DENIED|credits are depleted/i.test(msg)) {
+      geminiDown = `Gemini unavailable (key or credits) at ${new Date().toISOString()}: mock answers, retrying in 5 min`;
+      geminiDownUntil = Date.now() + 5 * 60_000;
       console.error(geminiDown);
       return mockOutput(task, input);
     }
@@ -172,6 +179,7 @@ export async function runLlm<T extends LlmTask>(task: T, input: LlmInput<T>): Pr
 }
 
 let geminiDown: string | null = null;
+let geminiDownUntil = 0;
 
 /**
  * Request budget per minute (LLM_RPM, e.g. 5 on Gemini's free tier; unset = unlimited).

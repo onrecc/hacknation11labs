@@ -1,13 +1,18 @@
 /**
- * End-to-end test of the REAL browser extension (Chrome for Testing + extension/dist):
+ * End-to-end test of the REAL browser extension (Chrome for Testing + dist/chrome, or BROWSER=firefox → Firefox + dist/firefox):
  * hub tab on http://localhost:5173, work tab on http://[::1]:5173 (a different origin, so only the
  * extension's background relay can connect them).
  *   npm run build:extension && npm run e2e:extension -w tools      (needs `npm run dev` + `npm run api`)
+ *   BROWSER=firefox npm run e2e:extension -w tools                 (first: npx puppeteer browsers install firefox)
  */
 import puppeteer, { type Page } from "puppeteer";
 import { fileURLToPath } from "node:url";
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 
-const EXT = fileURLToPath(new URL("../../extension/dist/chrome", import.meta.url));
+const BROWSER = (process.env.BROWSER ?? "chrome") as "chrome" | "firefox";
+const EXT = fileURLToPath(new URL(`../../extension/dist/${BROWSER}`, import.meta.url));
 const HUB = "http://localhost:5173";
 const WORK = "http://[::1]:5173/demo/procurex.html"; // IPv6 literal = a different origin than localhost
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -17,12 +22,20 @@ const check = (name: string, ok: boolean, detail = "") => {
   if (!ok) failures++;
 };
 
-const browser = await puppeteer.launch({
-  headless: process.env.HEADFUL ? false : true,
-  args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--window-size=1280,900"],
-  ignoreDefaultArgs: ["--disable-extensions"],
-  defaultViewport: { width: 1280, height: 860 },
-});
+const browser =
+  BROWSER === "firefox"
+    ? await puppeteer.launch({
+        browser: "firefox", headless: !process.env.HEADFUL, defaultViewport: { width: 1280, height: 860 },
+        userDataDir: mkdtempSync(join(tmpdir(), "ff-profile-")), // explicit profile dir (the default one isn't always found)
+      })
+    : await puppeteer.launch({
+        headless: process.env.HEADFUL ? false : true,
+        args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, "--window-size=1280,900"],
+        ignoreDefaultArgs: ["--disable-extensions"],
+        defaultViewport: { width: 1280, height: 860 },
+      });
+if (BROWSER === "firefox") console.log("installed temporary add-on:", await browser.installExtension(EXT));
+console.log(`browser: ${BROWSER} ${await browser.version()}`);
 
 const overlay = (p: Page) =>
   p.evaluate(() => {
@@ -52,7 +65,7 @@ try {
   check("overlay shows teach status via cross-origin relay", o.pill.includes("Ada is coaching"), o.pill);
 
   await work.click("#submit");
-  await sleep(9000);
+  await sleep(17000); // the hold waits for the LLM check (up to 15 s under a rate budget)
   const toast = await work.$eval("#toast", (e) => e.textContent ?? "");
   o = await overlay(work);
   check("wrong submit is held (not submitted)", toast === "", `toast="${toast}"`);
@@ -63,7 +76,7 @@ try {
   await work.type("#asset", "AN-2026-140");
   await work.click("#why");
   await work.click("#submit");
-  await sleep(9000);
+  await sleep(17000);
   check("fixed submit goes through", (await work.$eval("#toast", (e) => e.textContent ?? "")).includes("Submitted"));
 
   // ── Capture on a foreign-origin app (DOM events + tab screenshots) ──

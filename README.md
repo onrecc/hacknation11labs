@@ -65,7 +65,7 @@ npm run build:extension
 ```
 
 - **Chrome / Edge:** `chrome://extensions` → Developer mode → **Load unpacked** → `extension/dist/chrome`
-- **Firefox (128+):** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `extension/dist/firefox/manifest.json`
+- **Firefox (140+):** `about:debugging#/runtime/this-firefox` → **Load Temporary Add-on…** → `extension/dist/firefox/manifest.json`
 - Zips for sharing: `npm run package -w extension` → `extension/dist/ai-apprentice-{chrome,firefox}.zip`
 
 Then start a Capture or Teach session in the web app and work in any other tab:

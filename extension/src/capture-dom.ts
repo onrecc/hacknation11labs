@@ -61,8 +61,11 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
     const reqId = newMsgId();
     const outline = (el.dataset.apOutline ??= el.style.outline); // the app's own outline, before we ever touched it
     el.style.outline = "3px solid #3b6fb6";
+    const label = el.getAttribute("title");
+    el.setAttribute("title", "Ada is checking this against the expert's rules…");
     const res = await new Promise<{ allow: boolean }>((resolve) => {
-      const timer = setTimeout(() => (stop(), resolve({ allow: true })), 6000); // never strand the user
+      // generous: the check is an LLM call (rate budget, overload retries); after 15 s we never strand the user
+      const timer = setTimeout(() => (stop(), resolve({ allow: true })), 15_000);
       const stop = t.listen((m: BridgeMsg) => {
         if (m.kind === "beforeActionResult" && m.reqId === reqId) {
           clearTimeout(timer);
@@ -72,6 +75,8 @@ export function startDomCapture(t: Transport, isActive: () => { capture: boolean
       });
       t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot() });
     });
+    if (label === null) el.removeAttribute("title");
+    else el.setAttribute("title", label);
     el.style.outline = res.allow ? outline : "3px solid #c62828";
     if (res.allow) {
       bypass = el;

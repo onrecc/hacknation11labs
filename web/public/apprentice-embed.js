@@ -48,11 +48,12 @@
     const host = document.createElement("div");
     host.id = "ai-apprentice-overlay";
     const root = host.attachShadow({ mode: "open" });
-    root.innerHTML = `<style>${CSS2}</style><div class="wrap${opts.mount ? " docked" : ""}"><div class="cards"></div><div class="caption" hidden></div><div class="pill" hidden></div></div>`;
+    const cards = h("div", { class: "cards" });
+    const caption = h("div", { class: "caption" });
+    const pill = h("div", { class: "pill" });
+    caption.hidden = pill.hidden = true;
+    root.append(h("style", {}, CSS2), h("div", { class: `wrap${opts.mount ? " docked" : ""}` }, cards, caption, pill));
     (opts.mount ?? document.documentElement).appendChild(host);
-    const pill = root.querySelector(".pill");
-    const caption = root.querySelector(".caption");
-    const cards = root.querySelector(".cards");
     let status = null;
     let captionTimer;
     const renderPill = () => {
@@ -61,7 +62,7 @@
       const teach = status.mode === "teach";
       pill.className = `pill ${status.offRecord ? "off" : teach ? "teach" : ""}`;
       const label = status.offRecord ? "Off the record" : teach ? "Ada is coaching" : `Ada is learning from ${status.expert ?? "you"}`;
-      pill.innerHTML = `<span class="dot"></span><span>${esc(label)}</span>`;
+      pill.replaceChildren(h("span", { class: "dot" }), h("span", {}, label));
       if (opts.controls && !teach) {
         const off2 = btn(status.offRecord ? "Back on record" : "Off the record", () => t.send({ kind: "marker", marker: status?.offRecord ? "off_record_end" : "off_record_start", at: Date.now() }));
         const bm = btn("Bookmark", () => t.send({ kind: "marker", marker: "bookmark", at: Date.now() }));
@@ -69,11 +70,26 @@
       }
     };
     const showCard = (c) => {
-      const el = document.createElement("div");
-      el.className = `card ${c.tone}`;
-      el.innerHTML = `<button class="x" title="Dismiss">\xD7</button>${opts.mount ? "" : `<button class="m" title="Minimize">\u2013</button>`}<h4>${esc(c.title)}</h4><p>${esc(c.text)}</p>` + (c.quote ? `<div class="quote">\u201C${esc(c.quote.text)}\u201D <span>\xB7 ${esc(c.quote.who)} \xB7 ${esc(c.quote.when)}</span></div>` : "") + (c.imageUrl ? `<div class="label">${esc(c.quote?.who ?? "Expert")}'s screen at this moment</div><div class="frame"><img src="${attr(c.imageUrl)}">${c.bbox ? `<div class="bbox" style="left:${c.bbox.x * 100}%;top:${c.bbox.y * 100}%;width:${c.bbox.w * 100}%;height:${c.bbox.h * 100}%"></div>` : ""}</div>` : "");
-      el.querySelector(".x").addEventListener("click", () => el.remove());
-      el.querySelector(".m")?.addEventListener("click", () => el.classList.toggle("min"));
+      const close = h("button", { class: "x", title: "Dismiss" }, "\xD7");
+      const el = h("div", { class: `card ${c.tone}` }, close);
+      if (!opts.mount) {
+        const min = h("button", { class: "m", title: "Minimize" }, "\u2013");
+        min.addEventListener("click", () => el.classList.toggle("min"));
+        el.append(min);
+      }
+      el.append(h("h4", {}, c.title), h("p", {}, c.text));
+      if (c.quote) el.append(h("div", { class: "quote" }, `\u201C${c.quote.text}\u201D `, h("span", {}, `\xB7 ${c.quote.who} \xB7 ${c.quote.when}`)));
+      const src = c.imageUrl && /^(https?:|data:image\/)/.test(c.imageUrl) ? c.imageUrl : "";
+      if (src) {
+        const frame = h("div", { class: "frame" }, h("img", { src }));
+        if (c.bbox) {
+          const box = h("div", { class: "bbox" });
+          Object.assign(box.style, { left: `${c.bbox.x * 100}%`, top: `${c.bbox.y * 100}%`, width: `${c.bbox.w * 100}%`, height: `${c.bbox.h * 100}%` });
+          frame.append(box);
+        }
+        el.append(h("div", { class: "label" }, `${c.quote?.who ?? "Expert"}'s screen at this moment`), frame);
+      }
+      close.addEventListener("click", () => el.remove());
       cards.replaceChildren(el);
       if (c.tone === "info") setTimeout(() => el.remove(), 2e4);
     };
@@ -85,7 +101,7 @@
       else if (m.kind === "tutorSay") showCard({ kind: "tutorCard", tone: "info", title: "Ada", text: m.text });
       else if (m.kind === "agentState" && m.caption) {
         caption.hidden = false;
-        caption.innerHTML = `<span class="who">Ada</span>${esc(m.caption)}`;
+        caption.replaceChildren(h("span", { class: "who" }, "Ada"), m.caption);
         clearTimeout(captionTimer);
         captionTimer = setTimeout(() => caption.hidden = true, Math.max(4e3, m.caption.length * 70));
       }
@@ -96,13 +112,16 @@
     };
   }
   function btn(label, onClick) {
-    const b = document.createElement("button");
-    b.textContent = label;
+    const b = h("button", {}, label);
     b.addEventListener("click", onClick);
     return b;
   }
-  var esc = (s) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
-  var attr = (s) => /^(https?:|data:image\/)/.test(s) ? esc(s) : "";
+  function h(tag, attrs, ...children) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    el.append(...children);
+    return el;
+  }
 
   // src/capture-dom.ts
   var ACTION_RE = /\b(save|submit|approve|confirm|book|post|send|pay|release|finish|complete|create|update)\b/i;
@@ -161,8 +180,10 @@
       const reqId = newMsgId();
       const outline = el.dataset.apOutline ??= el.style.outline;
       el.style.outline = "3px solid #3b6fb6";
+      const label = el.getAttribute("title");
+      el.setAttribute("title", "Ada is checking this against the expert's rules\u2026");
       const res = await new Promise((resolve) => {
-        const timer2 = setTimeout(() => (stop(), resolve({ allow: true })), 6e3);
+        const timer2 = setTimeout(() => (stop(), resolve({ allow: true })), 15e3);
         const stop = t.listen((m) => {
           if (m.kind === "beforeActionResult" && m.reqId === reqId) {
             clearTimeout(timer2);
@@ -172,6 +193,8 @@
         });
         t.send({ kind: "beforeAction", reqId, action: `click "${text}"`, page: snapshot() });
       });
+      if (label === null) el.removeAttribute("title");
+      else el.setAttribute("title", label);
       el.style.outline = res.allow ? outline : "3px solid #c62828";
       if (res.allow) {
         bypass = el;

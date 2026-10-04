@@ -19,9 +19,10 @@ const targets = {
     browser_specific_settings: {
       gecko: {
         id: "ai-apprentice@hack-nation.dev",
-        strict_min_version: "128.0",
+        strict_min_version: "140.0",
         data_collection_permissions: { required: ["websiteActivity", "websiteContent"] },
       },
+      gecko_android: { strict_min_version: "142.0" },
     },
   },
 };
