@@ -1,4 +1,4 @@
-/** /capture: the expert's side panel. Start a session, listen, share screen, open MiniERP, then debrief. */
+/** /capture: the expert's side panel. Start a session, listen, share screen, open their work app, then debrief. */
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import type { Event } from "@shared/schema";
@@ -13,6 +13,8 @@ import { AdaPanel } from "./AdaPanel";
 import { SessionStatus } from "./SessionStatus";
 import { personOf, useUser } from "../lib/users";
 import { REDACTION_CONFIG } from "./redaction";
+import { appUrl } from "../lib/workApp";
+import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
 
 export default function CapturePage() {
   const user = useUser()!;
@@ -79,7 +81,7 @@ export default function CapturePage() {
     return (
       <div className="page narrow">
         <h1>Capture</h1>
-        <p className="muted">The expert works in MiniERP (or any web app, with the browser extension) while Ada, the ElevenLabs interviewer, listens, watches and asks why at natural pauses.</p>
+        <p className="muted">{user.short} works in {user.app.name} (or any web app, with the browser extension) while Ada, the ElevenLabs interviewer, listens, watches and asks why at natural pauses.</p>
         <div className="card form">
           <p className="wide">Recording a single task as <b>{user.name}</b> ({user.title}). For a whole day split into tasks automatically, use <a href="/day">My day</a>.</p>
           <label className="wide">Task (optional)<input placeholder="e.g. Process supplier invoices" value={form.task} onChange={(e) => setForm({ ...form, task: e.target.value })} /></label>
@@ -100,10 +102,11 @@ export default function CapturePage() {
           <p className="muted small mono">{hub.session.id}</p>
           <p className="muted small">Written: {hub.log.stats.written}/{hub.log.stats.emitted} events · {hub.log.stats.blobs} blobs · {hub.log.pendingUploads} uploading</p>
         </SessionStatus>
-        <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />
+        <JudgeLegend />
+        <AdaPanel s={s} budget={PAUSE.budgetPer10Min} whyMarker={<JudgeMarker n={1} />} onOffRecord={() => hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />
         {s.phase === "capture" && (
           <div className="btns">
-            <button onClick={() => window.open("/erp?mode=capture", "minierp")}>Open MiniERP</button>
+            <button onClick={() => window.open(appUrl(user.app, "capture"), "work")}>Open {user.app.name}</button>
             <button disabled={s.sharing} onClick={run(() => hub.shareScreen())} title="Not needed when the extension is installed: it captures the work tab itself">Share screen{s.extension ? " (optional)" : ""}</button>
             <button onClick={() => hub.onMarker("bookmark", "button")}>Bookmark</button>
             <button className="primary" onClick={run(() => hub.endTask())}>End task → debrief</button>

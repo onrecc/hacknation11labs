@@ -3,6 +3,7 @@
  * ("You stopped typing for 2.4 s on Cost center"). Pure functions, no DOM, no Firebase: tested in adaState.test.ts.
  */
 import type { PauseDetected, Phase, QuestionCategory } from "@shared/schema";
+import type { QuestionTarget } from "./questionTarget";
 
 export type PauseKind = PauseDetected["payload"]["kind"];
 export type HubPauseDecision = PauseDetected["payload"]["decision"];
@@ -19,6 +20,8 @@ export interface CurrentQuestion {
   /** plain-language reason it was asked at this moment */
   readonly why: string;
   readonly answered: boolean;
+  /** what it is aimed at and why the screen alone doesn't answer it (from the agent.question payload) */
+  readonly target?: QuestionTarget;
 }
 
 /** The pause detector's latest decision, in words. */

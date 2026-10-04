@@ -5,6 +5,7 @@
  */
 import { useSyncExternalStore } from "react";
 import type { Person } from "@shared/schema";
+import { MINIERP, PROCUREX, type WorkApp } from "./workApp";
 
 export type Role = "expert" | "practicer";
 
@@ -21,11 +22,8 @@ export interface User {
   /** BCP-47 language they speak at work (drives Scribe; Work Map quotes stay in it, with English alongside). Default "en-US". */
   language?: string;
   /** Where this person's daily work happens (opened from the workday / training page). */
-  app: { name: string; url: string };
+  app: WorkApp;
 }
-
-const MINIERP = { name: "MiniERP", url: "/erp" };
-const PROCUREX = { name: "ProcureX", url: "/demo/procurex.html" };
 
 export const USERS: User[] = [
   { id: "u_sabine", name: "Sabine Keller", short: "Sabine", role: "expert", title: "Senior accounts payable specialist", department: "accounts_payable", departmentLabel: "Accounts payable", yearsInRole: 24, color: "#1f3a5f", app: MINIERP },

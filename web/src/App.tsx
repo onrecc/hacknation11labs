@@ -9,6 +9,7 @@ import LoginPage from "./auth/LoginPage";
 import ComparePage from "./compare/ComparePage";
 import { apiHealth } from "./lib/api";
 import { homeFor, logout, useUser, type Role } from "./lib/users";
+import { mayOpen } from "./lib/teachEntry";
 
 export default function App() {
   const { pathname } = useLocation();
@@ -35,9 +36,9 @@ export default function App() {
 /** Needs a logged-in user (and the right role, if given). */
 function Guard({ role, children }: { role?: Role; children: ReactNode }) {
   const user = useUser();
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   if (!user) return <Navigate to={`/login?next=${encodeURIComponent(pathname)}`} replace />;
-  if (role && user.role !== role) return <Navigate to={homeFor(user)} replace />;
+  if (!mayOpen(user.role, role, search)) return <Navigate to={homeFor(user)} replace />;
   return <>{children}</>;
 }
 
@@ -63,7 +64,7 @@ function Nav() {
       {user?.role === "practicer" && <NavLink to="/learn">Training</NavLink>}
       {user && <NavLink to="/map">Work Maps</NavLink>}
       {user && <NavLink to="/compare">Compare</NavLink>}
-      <NavLink to="/erp" target="_blank">MiniERP ↗</NavLink>
+      <NavLink to={user?.app.url ?? "/erp"} target="_blank">{user?.app.name ?? "MiniERP"} ↗</NavLink>
       <span className="userchip">
         {mock ? (
           <span className="health" title={health} style={{ color: "var(--danger)", border: "1px solid var(--danger)", borderRadius: 6, padding: "0 6px", fontWeight: 700, letterSpacing: ".04em" }}>

@@ -12,6 +12,9 @@ import { PROV, agentInstructions, claimsByEvent, conditionText, flowModel, fmtCl
 import { ClipVideo, PlayWords, SCREEN_AFTER, SCREEN_BEFORE, WORDS_AFTER, WORDS_BEFORE, useMediaUrl, type MediaSource } from "./Replay";
 import { languageName } from "@shared/i18n";
 import { useQuoteTranslation } from "../lib/translate";
+import { JudgeMarker } from "../components/JudgeMarker";
+import { useUser } from "../lib/users";
+import { teachEntry } from "../lib/teachEntry";
 import "./map.css";
 
 export type FrameSource = (sessionId: string, frameId: string) => Promise<string | null>;
@@ -26,6 +29,8 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
 }) {
   const [tab, setTab] = useState<Tab>("map");
   const [sel, setSel] = useState<Sel>(null);
+  const user = useUser();
+  const entry = teachEntry({ role: user?.role ?? null, status: wm.status, workMapId: wm.id });
   const ix = useMemo(() => new LogIndex(wm.sourceSessionIds[0] ?? "", events), [wm.sourceSessionIds, events]);
   const ordered = useMemo(() => [...wm.steps].sort((a, b) => a.order - b.order), [wm.steps]);
   useEffect(() => {
@@ -52,7 +57,7 @@ export function WorkMapView({ wm, events, frameSource, mediaSource, live, action
           </div>
           <div className="wm-actions">
             {actions}
-            <Link className="btn primary" to="/teach">Open in Teach</Link>
+            {entry && <Link className={`btn ${entry.primary ? "primary" : ""}`} to={entry.to} title={entry.title}>{entry.label}</Link>}
           </div>
         </header>
         <nav className="wm-tabs" role="tablist">
@@ -543,7 +548,7 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
     <div className="stack">
       <div className="wm-cols even">
         <section className="panel">
-          <div className="card-head"><h3>Debrief questions</h3><span className="dim">{open === 0 ? "All answered" : `${open} open`}</span></div>
+          <div className="card-head"><h3>Debrief questions</h3><span className="dim">{open === 0 ? "All answered" : `${open} open`}<JudgeMarker n={3} /></span></div>
           <ul className="list qa">
             {wm.gaps.map((g) => <QA key={g.id} g={g} asked={asked.find((q) => q.payload.gapId === g.id)} answers={answers} />)}
             {!wm.gaps.length && <li className="dim pad">No debrief yet.</li>}
@@ -551,7 +556,7 @@ function DebriefTab({ wm, ix, onSelect }: { wm: WorkMap; ix: LogIndex; onSelect:
           <p className="card-foot dim">Asked most important first. The debrief ends when no important question is open, when the expert is done, or after eight questions.</p>
         </section>
         <section className="panel">
-          <div className="card-head"><h3>Teach-back</h3><span className="dim">{confirmedParts} of {tb.segments.length} confirmed</span></div>
+          <div className="card-head"><h3>Teach-back</h3><span className="dim">{confirmedParts} of {tb.segments.length} confirmed<JudgeMarker n={3} /></span></div>
           <ol className="list tb">
             {tb.segments.map((s, i) => (
               <li key={s.id} className="list-row static">

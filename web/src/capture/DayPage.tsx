@@ -8,6 +8,7 @@ import type { Event, Workday } from "@shared/schema";
 import { signedIn } from "../lib/firebase";
 import { listWorkdays } from "../lib/sessions";
 import { useUser } from "../lib/users";
+import { appUrl } from "../lib/workApp";
 import { WorkdayRecorder, WORKDAY } from "./workday";
 import { runDebrief, type DebriefStatus } from "../map/debrief";
 import { DebriefPanel } from "../map/DebriefPanel";
@@ -16,6 +17,7 @@ import { AdaPanel } from "./AdaPanel";
 import { PAUSE } from "./hub";
 import { SessionStatus } from "./SessionStatus";
 import { ExpertQuestions } from "../compare/ExpertQuestions";
+import { JudgeLegend, JudgeMarker } from "../components/JudgeMarker";
 
 const fmtTime = (iso?: string) => (iso ? new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "");
 const fmtDur = (a: string, b?: string) => {
@@ -115,10 +117,11 @@ export default function DayPage() {
     return (
       <div className="page narrow">
         <h1>Good {new Date().getHours() < 12 ? "morning" : "day"}, {user.short}</h1>
+        <JudgeLegend />
         <p className="muted">{user.title} · {user.departmentLabel}. Start your day and work as usual in {user.app.name} or any web app. Ada stays quiet, asks <i>why</i> at natural pauses, and splits your day into tasks. You'll debrief each task afterwards.</p>
         <div className="card">
           <label className="check"><input type="checkbox" checked={vision} onChange={(e) => setVision(e.target.checked)} /> Let Ada look at changed screens (Claude vision)</label>
-          <p className="muted small">Recording only runs while you're on the record. Say "off the record" (or press the button) any time. Passwords, IBANs and card numbers are masked.</p>
+          <p className="muted small">Recording only runs while you're on the record. Say "off the record" (or press the button) any time. Passwords, IBANs and card numbers are masked. <JudgeMarker n={5} /></p>
           <div className="btns">
             {active ? (
               <>
@@ -161,9 +164,10 @@ export default function DayPage() {
     <div className="page split">
       <section>
         <h1>{user.short}'s day <span className="muted small">{day.date}</span></h1>
+        <JudgeLegend />
         <SessionStatus s={s} ended={ended}><p className="muted small mono">{rec.hub.session.id}</p></SessionStatus>
 
-        {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
+        {!ended && <AdaPanel s={s} budget={PAUSE.budgetPer10Min} whyMarker={<JudgeMarker n={1} />} onOffRecord={() => rec.hub.onMarker(s.offRecord ? "off_record_end" : "off_record_start", "button")} />}
 
         {!ended && cur && (
           <div className="card current-task">
@@ -172,7 +176,7 @@ export default function DayPage() {
             <p className="muted small">{cur.app} · since {fmtTime(cur.startedAt)} ({fmtDur(cur.startedAt)}) · {cur.actions} actions · {s.liveQuestions} questions</p>
             {cur.summary && <p>{cur.summary}</p>}
             <div className="btns">
-              <button onClick={() => window.open(user.app.url + (user.app.url.includes("?") ? "&" : "?") + "mode=capture", "work")}>Open {user.app.name}</button>
+              <button onClick={() => window.open(appUrl(user.app, "capture"), "work")}>Open {user.app.name}</button>
               <button disabled={s.sharing} onClick={() => void rec.hub.shareScreen().catch((e) => setErr((e as Error).message))} title="Optional when the extension is installed">Share screen{s.extension ? " (optional)" : ""}</button>
               <button onClick={() => void rec.newTask()} title="Tell Ada you're starting something different">New task</button>
               <button onClick={() => rec.hub.onMarker("bookmark", "button")}>Bookmark</button>
