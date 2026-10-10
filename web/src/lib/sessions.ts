@@ -5,7 +5,7 @@ import type { Comparison, Event, Id, Session, WorkMap, Workday } from "@shared/s
 import { eventsFromChunks, type EventChunk } from "@shared/eventlog";
 import { col, blobPath, versionDocId } from "@shared/paths";
 import { newId } from "@shared/ids";
-import { db, storage } from "./firebase";
+import { db, signedIn, storage } from "./firebase";
 
 type NewSession = Omit<Session, "id" | "createdAt" | "status" | "clock" | "media"> & { id?: Id };
 
@@ -115,6 +115,7 @@ export async function saveComparison(c: Comparison): Promise<void> {
 }
 
 export async function listComparisons(): Promise<Comparison[]> {
+  await signedIn(); // rules need auth: the first call can come before anonymous sign-in finishes
   const snap = await getDocs(collection(db(), col.comparisons));
   return snap.docs.map((d) => d.data() as Comparison).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
