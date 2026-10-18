@@ -1,0 +1,16 @@
+import { launch, prep, as, sleep, click, HUB } from "./rec-lib.mjs";
+const OUT = process.argv[2];
+const b = await launch();
+const hub = await b.newPage(); await prep(hub);
+await as(hub, "u_sabine", "/day", 3000);
+await hub.evaluate(() => (window.open = () => null));
+const btns = await hub.evaluate(() => [...document.querySelectorAll("button")].map((b) => b.textContent.trim()));
+console.log(btns);
+await click(hub, "button", "Start a new day", 4000).catch((e) => console.log(e.message));
+await hub.screenshot({ path: `${OUT}/hub.png` });
+console.log((await hub.evaluate(() => document.body.innerText)).slice(0, 900).replace(/\n+/g, " | "));
+const erp = await b.newPage(); await prep(erp);
+await erp.goto(`${HUB}/erp?mode=capture`, { waitUntil: "networkidle2" }); await sleep(3000);
+await erp.screenshot({ path: `${OUT}/erp.png` });
+console.log("sid", await hub.evaluate(() => window.__hub?.session?.id));
+await b.close();
